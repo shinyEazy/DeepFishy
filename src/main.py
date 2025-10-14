@@ -13,13 +13,13 @@ import yaml
 from prompts.orchestrator_prompt import ORCHESTRATOR_PROMPT
 from utils.serializers import save_readable_response
 from tools.search_engine_tavily import search_engine_tavily
-from utils.load_agents import load_agents_from_md
+from utils.load_agents import load_agents
 
 load_dotenv()
 
 
 custom_model = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
-subagents = load_agents_from_md("src/sub_agents")
+subagents = load_agents(names=["research", "critique"])
 
 # Create the agent
 agent = create_deep_agent(
@@ -27,7 +27,7 @@ agent = create_deep_agent(
     instructions=ORCHESTRATOR_PROMPT,
     model=custom_model,
     subagents=subagents,
-).with_config({"recursion_limit": 1000})
+).with_config({"recursion_limit": 10})
 
 # Invoke the agent
 result = agent.invoke(
