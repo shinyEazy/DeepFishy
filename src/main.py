@@ -7,6 +7,7 @@ from tavily import TavilyClient
 from deepagents import create_deep_agent
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 import os
 import re
 import yaml
@@ -19,7 +20,16 @@ load_dotenv()
 
 
 custom_model = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
-subagents = load_agents(names=["research", "critique"])
+# custom_model = ChatOpenAI(model="gpt-4o-mini")
+subagents = load_agents(
+    names=[
+        "financial_research",
+        "data_analysis",
+        "fact_verification",
+        "strategic_advisor",
+        "report_writer",
+    ]
+)
 
 # Create the agent
 agent = create_deep_agent(
@@ -27,7 +37,7 @@ agent = create_deep_agent(
     instructions=ORCHESTRATOR_PROMPT,
     model=custom_model,
     subagents=subagents,
-).with_config({"recursion_limit": 10})
+).with_config({"recursion_limit": 100})
 
 # Invoke the agent
 result = agent.invoke(
@@ -35,7 +45,7 @@ result = agent.invoke(
         "messages": [
             {
                 "role": "user",
-                "content": "write a summary about 200 letter about Viet Nam",
+                "content": "Đánh giá triển vọng ngành bất động sản Việt Nam năm 2025, bao gồm tác động của chính sách tiền tệ, lãi suất và xu hướng thị trường",
             }
         ]
     }
