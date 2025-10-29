@@ -1,11 +1,26 @@
 import os
 import re
 import yaml
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
+from importlib import import_module
+
+
+def _resolve_tool(tool_name: str) -> Any:
+    """Resolve a tool name to the actual tool object.
+
+    Supports importing from tools module, e.g. 'search_engine_tavily'
+    will import from 'tools.search_engine_tavily'.
+    """
+    try:
+        # Try importing from tools module
+        module = import_module(f"tools.{tool_name}")
+        return getattr(module, tool_name)
+    except (ImportError, AttributeError):
+        raise ValueError(f"Could not resolve tool: {tool_name}")
 
 
 def load_agents(
-    folder_path: str = "src/sub_agents", names: Optional[List[str]] = None
+    folder_path: str = "src/subagents", names: Optional[List[str]] = None
 ) -> List[Dict]:
     """Load agent definitions from markdown files in `folder_path`.
 
@@ -15,7 +30,7 @@ def load_agents(
     load all matching markdown files (previous behavior).
 
     Files are expected to have a YAML front matter section delimited by `---`.
-    Returns a list of dicts with keys: name, description, prompt, tools.
+    Returns a list of dicts with keys: name, description, system_prompt, tools.
     """
     agents = []
 
@@ -52,19 +67,20 @@ def load_agents(
         meta = yaml.safe_load(match.group(1))
         prompt = match.group(2).strip()
 
-        # Normalize tools into a list
+        # Normalize tools into a list and resolve them
         tools_field = meta.get("tools", [])
+        tool_names = []
         if isinstance(tools_field, str):
-            tools = [tools_field]
+            tool_names = [tools_field]
         elif isinstance(tools_field, (list, tuple)):
-            tools = [str(t).strip() for t in tools_field if t]
-        else:
-            tools = []
+            tool_names = [str(t).strip() for t in tools_field if t]
+
+        tools = [_resolve_tool(name) for name in tool_names]
 
         agent_def = {
             "name": meta.get("name", "").strip(),
             "description": meta.get("description", "").strip(),
-            "prompt": prompt,
+            "system_prompt": prompt,
             "tools": tools,
         }
         agents.append(agent_def)

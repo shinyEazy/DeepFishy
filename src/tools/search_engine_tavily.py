@@ -1,6 +1,7 @@
 import os
 from typing import Literal
 from tavily import TavilyClient
+from langchain_core.tools import tool
 
 
 # Lazily create the Tavily client to avoid side effects on import
@@ -11,6 +12,7 @@ def _get_tavily_client():
     return TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
 
 
+@tool
 def search_engine_tavily(
     query: str,
     max_results: int = 5,
