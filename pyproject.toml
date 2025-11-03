@@ -4,4 +4,10 @@ version = "0.1.0"
 description = ""
 readme = "README.md"
 requires-python = ">=3.11.12"
-dependencies = []
+dependencies = [
+    "deepagents>=0.2.4",
+    "dotenv>=0.9.9",
+    "langchain-google-genai>=3.0.0",
+    "langchain-openai>=1.0.2",
+    "vnstock>=3.2.6",
+]

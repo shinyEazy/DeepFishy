@@ -14,7 +14,7 @@ custom_model = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
 # custom_model = ChatOpenAI(model="gpt-4o-mini")
 subagents = load_agents(
     names=[
-        "financial_research",
+        "market_data",
     ]
 )
 
