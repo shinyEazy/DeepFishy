@@ -10,5 +10,6 @@ dependencies = [
     "langchain-google-genai>=3.0.0",
     "langchain-openai>=1.0.2",
     "langgraph-cli[inmem]>=0.4.7",
+    "tavily>=1.1.0",
     "vnstock>=3.2.6",
 ]
