@@ -9,5 +9,6 @@ dependencies = [
     "dotenv>=0.9.9",
     "langchain-google-genai>=3.0.0",
     "langchain-openai>=1.0.2",
+    "langgraph-cli[inmem]>=0.4.7",
     "vnstock>=3.2.6",
 ]
