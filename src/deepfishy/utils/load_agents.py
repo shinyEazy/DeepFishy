@@ -20,7 +20,7 @@ def _resolve_tool(tool_name: str) -> Any:
 
 
 def load_agents(
-    folder_path: str = "src/subagents", names: Optional[List[str]] = None
+    folder_path: str = "subagents", names: Optional[List[str]] = None
 ) -> List[Dict]:
     """Load agent definitions from markdown files in `folder_path`.
 

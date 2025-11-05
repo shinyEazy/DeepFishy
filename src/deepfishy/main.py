@@ -18,9 +18,11 @@ subagents = load_agents(
     ]
 )
 
+print("Loaded", len(subagents), "subagents")
+
 # Create the agent
 agent = create_deep_agent(
-    model="openai:gpt-4.1-nano",
+    model="openai:gpt-5-nano",
     tools=[],
     system_prompt=ORCHESTRATOR_PROMPT,
     subagents=subagents,
