@@ -22,7 +22,6 @@ def get_market_data(
     try:
         quote = Quote(symbol=symbol)
         history = quote.history(start=start_date, end=end_date, interval="1D")
-        print("history", history)
-    except Exception as exc:  # pragma: no cover
+    except Exception as exc:
         return {"symbol": symbol, "error": str(exc)}
     return history

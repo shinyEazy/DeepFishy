@@ -71,7 +71,7 @@ def load_agents(
         tools_field = meta.get("tools", [])
         tool_names = []
         if isinstance(tools_field, str):
-            tool_names = [tools_field]
+            tool_names = [t.strip() for t in tools_field.split(",")]
         elif isinstance(tools_field, (list, tuple)):
             tool_names = [str(t).strip() for t in tools_field if t]
 

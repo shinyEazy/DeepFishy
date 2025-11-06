@@ -4,14 +4,15 @@ from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from prompts.orchestrator_prompt import ORCHESTRATOR_PROMPT
-from utils.serializers import save_readable_response
 from utils.load_agents import load_agents
+from tools.get_current_date import get_current_date
 
 load_dotenv()
 
 
-# custom_model = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
-# custom_model = ChatOpenAI(model="gpt-4o-mini")
+custom_model = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
+# custom_model = ChatOpenAI(model="gpt-5-nano")
+
 subagents = load_agents(
     names=[
         "market_data",
@@ -22,24 +23,8 @@ print("Loaded", len(subagents), "subagents")
 
 # Create the agent
 agent = create_deep_agent(
-    model="openai:gpt-5-nano",
+    model=custom_model,
     tools=[],
     system_prompt=ORCHESTRATOR_PROMPT,
     subagents=subagents,
 )
-
-# # Invoke the agent
-# result = agent.invoke(
-#     {
-#         "messages": [
-#             {
-#                 "role": "user",
-#                 "content": "Giá VN Index hiện tại là bao nhiêu",
-#             }
-#         ]
-#     }
-# )
-
-# output_path = os.path.join(os.getcwd(), "response.json")
-# save_readable_response(result, output_path)
-# print(f"Agent response written to: {output_path}")
