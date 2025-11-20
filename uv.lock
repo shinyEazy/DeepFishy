@@ -560,24 +560,28 @@ name = "deepfishy"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "beautifulsoup4" },
     { name = "deepagents" },
     { name = "dotenv" },
     { name = "langchain-google-genai" },
     { name = "langchain-openai" },
     { name = "langgraph-cli", extra = ["inmem"] },
+    { name = "requests" },
     { name = "tavily" },
     { name = "vnstock" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "beautifulsoup4", specifier = ">=4.14.2" },
     { name = "deepagents", specifier = ">=0.2.4" },
     { name = "dotenv", specifier = ">=0.9.9" },
     { name = "langchain-google-genai", specifier = ">=3.0.0" },
     { name = "langchain-openai", specifier = ">=1.0.2" },
     { name = "langgraph-cli", extras = ["inmem"], specifier = ">=0.4.7" },
+    { name = "requests", specifier = ">=2.32.5" },
     { name = "tavily", specifier = ">=1.1.0" },
-    { name = "vnstock", specifier = ">=3.2.6" },
+    { name = "vnstock", specifier = ">=3.3.0" },
 ]
 
 [[package]]
@@ -616,15 +620,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d3/38/af70d7ab1ae9d4da450eeec1fa3918940a5fafb9055e934af8d6eb0c2313/et_xmlfile-2.0.0.tar.gz", hash = "sha256:dab3f4764309081ce75662649be815c4c9081e88f0837825f90fd28317d4da54", size = 17234, upload-time = "2024-10-25T17:25:40.039Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c1/8b/5fe2cc11fee489817272089c4203e679c63b570a5aaeb18d852ae3cbba6a/et_xmlfile-2.0.0-py3-none-any.whl", hash = "sha256:7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa", size = 18059, upload-time = "2024-10-25T17:25:39.051Z" },
-]
-
-[[package]]
-name = "fake-useragent"
-version = "2.2.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/41/43/948d10bf42735709edb5ae51e23297d034086f17fc7279fef385a7acb473/fake_useragent-2.2.0.tar.gz", hash = "sha256:4e6ab6571e40cc086d788523cf9e018f618d07f9050f822ff409a4dfe17c16b2", size = 158898, upload-time = "2025-04-14T15:32:19.238Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/51/37/b3ea9cd5558ff4cb51957caca2193981c6b0ff30bd0d2630ac62505d99d0/fake_useragent-2.2.0-py3-none-any.whl", hash = "sha256:67f35ca4d847b0d298187443aaf020413746e56acd985a611908c73dba2daa24", size = 161695, upload-time = "2025-04-14T15:32:17.732Z" },
 ]
 
 [[package]]
@@ -2890,25 +2885,24 @@ wheels = [
 
 [[package]]
 name = "vnai"
-version = "2.1.9"
+version = "2.2.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "cffi" },
     { name = "psutil" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/09/d2/eb223a9be6c8617ef6f9835d9a782f50c73ed63d5fda7f75240e30fe9ce3/vnai-2.1.9.tar.gz", hash = "sha256:1fac339de20fb005012faa5fb1fc415014fa5e19543ed3af0b2026ae5b9ee227", size = 21089, upload-time = "2025-07-19T14:36:39.306Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/df/ef/672eeb2a2dd6f2d8888a8a8c51ffec5fa6611682ed905abe4f067b6ec498/vnai-2.2.3.tar.gz", hash = "sha256:bbdd3948b6577c8bbbdac3855b5dac4796b583258fabf91916de36a563fc94f1", size = 25186, upload-time = "2025-11-08T17:49:50.776Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a4/24/076b73e5c2a6c848737799b4e673d5975095144f364135f5c154ccabf9c9/vnai-2.1.9-py3-none-any.whl", hash = "sha256:552ad0dcf8f33b1de3d230ab76c33bc50d497318a6099e2231834a6149e34769", size = 25176, upload-time = "2025-07-19T14:36:37.926Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/17/5a14e5e2957efc97b9f97fa38893e10ec1ee83faf8f0bef3b5e302fb5d3c/vnai-2.2.3-py3-none-any.whl", hash = "sha256:7a5937c3de9db8d52e01f0958ac5d9d81bee76571730d8ca5f3f260fbe730041", size = 31178, upload-time = "2025-11-08T17:49:49.757Z" },
 ]
 
 [[package]]
 name = "vnstock"
-version = "3.2.6"
+version = "3.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
-    { name = "click" },
-    { name = "fake-useragent" },
     { name = "importlib-metadata" },
     { name = "openpyxl" },
     { name = "packaging" },
@@ -2921,14 +2915,14 @@ dependencies = [
     { name = "vnai" },
     { name = "vnstock-ezchart" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/25/8a/577f73ddd0173bd5a2c0d6283432990b35832975ec82baeff9c5fddaeff4/vnstock-3.2.6.tar.gz", hash = "sha256:aa39d519414df71d9df8dca4e187d805151be109f534c7087163b1bdf6ec43cf", size = 112940, upload-time = "2025-05-23T04:06:06.829Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0d/2e/289bace0553d21b1803db61527bf82abc27b848133e5b342da09448bf679/vnstock-3.3.0.tar.gz", hash = "sha256:d5517d8002a76c5a530045cec8143d8702bf87b82e7b9fabfae1526e71c89f78", size = 185411, upload-time = "2025-11-11T17:45:32.125Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/86/15/24f2e70957cf3753471685df36340cf0b5edc83b22d077642639697b1e94/vnstock-3.2.6-py3-none-any.whl", hash = "sha256:9a52625f33dddc45bacf500ed9f0998163e890818820a19669e235a42974727b", size = 121850, upload-time = "2025-05-23T04:06:04.922Z" },
+    { url = "https://files.pythonhosted.org/packages/57/89/4d1a81fd1c697040698515d02b27bde2be5b3a889145d61d53fb0fe26723/vnstock-3.3.0-py3-none-any.whl", hash = "sha256:d788a89f960d537818d0e3c57dd173d676904ead983f080fb149045ba15a1dd6", size = 209763, upload-time = "2025-11-11T17:45:30.435Z" },
 ]
 
 [[package]]
 name = "vnstock-ezchart"
-version = "0.0.2"
+version = "0.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "openpyxl" },
@@ -2937,9 +2931,9 @@ dependencies = [
     { name = "vnstock" },
     { name = "wordcloud" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/58/b7/edfaef1c5086f3620ce8f9ba5a54fa01fcc6397bfa750416fba45ee98631/vnstock_ezchart-0.0.2.tar.gz", hash = "sha256:0feee496ad295d16ad69af71f587d79c6ca0523711948cc3486136562b6f78e2", size = 14317, upload-time = "2024-03-23T14:58:24.947Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/de/24/63bfb363fe8a43767217833f0c8242e1fa540b6c953b5c7282a92e11a495/vnstock_ezchart-0.0.3.tar.gz", hash = "sha256:e91c36babdd083dbf490a2c3905a687fae2ae054a3d10a26f105f6d6513a6a52", size = 16270, upload-time = "2025-11-08T10:31:59.19Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c0/10/aa8ced9a95fd7610cf8540026709a42c389e75e98c5ad1d6cde820e02176/vnstock_ezchart-0.0.2-py3-none-any.whl", hash = "sha256:03fe19eea72e95cb407d65b60449303548b21ac362ec646f400511b4c6128415", size = 14120, upload-time = "2024-03-23T14:58:23.145Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/fe/1ad5a5015ff3550462a07fb4df555ba65d26f47e023dedb7828e90f19ebe/vnstock_ezchart-0.0.3-py3-none-any.whl", hash = "sha256:cd060e7feabd255820f070c365c102325bf86e35f23865dcab3416d093e6bf32", size = 15133, upload-time = "2025-11-08T10:31:58.077Z" },
 ]
 
 [[package]]

@@ -5,11 +5,13 @@ description = ""
 readme = "README.md"
 requires-python = ">=3.11.12"
 dependencies = [
+    "beautifulsoup4>=4.14.2",
     "deepagents>=0.2.4",
     "dotenv>=0.9.9",
     "langchain-google-genai>=3.0.0",
     "langchain-openai>=1.0.2",
     "langgraph-cli[inmem]>=0.4.7",
+    "requests>=2.32.5",
     "tavily>=1.1.0",
-    "vnstock>=3.2.6",
+    "vnstock>=3.3.0",
 ]

@@ -211,3 +211,5 @@ src/output/
 .claude/
 .langgraph_api/
 response.json
+src/crawler/paths.txt
+src/crawler/urls.txt
