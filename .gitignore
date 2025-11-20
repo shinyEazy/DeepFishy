@@ -213,3 +213,4 @@ src/output/
 response.json
 src/crawler/paths.txt
 src/crawler/urls.txt
+src/crawler/data/
