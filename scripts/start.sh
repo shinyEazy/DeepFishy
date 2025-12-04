@@ -1,5 +1,6 @@
 #!/bin/bash
 echo "Starting DeepFishy..."
 
-cd src/deepfishy
+cd ..
+cd src/app/engine
 uv run langgraph dev --allow-blocking --no-browser
