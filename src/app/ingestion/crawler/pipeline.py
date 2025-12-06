@@ -29,7 +29,7 @@ class CrawlerPipeline:
         Returns:
             True if article is valid, False otherwise
         """
-        required_fields = ["url", "title", "content"]
+        required_fields = ["url", "title"]
         return all(field in article and article[field] for field in required_fields)
 
     def enrich_article(self, article: Dict) -> Dict:
@@ -183,13 +183,15 @@ class CrawlerPipeline:
         Returns:
             Statistics dictionary
         """
+        from app.core.logging import logger
+
         json_dir = Path(json_dir)
         json_files = list(json_dir.glob("*.json"))
 
         total_articles = 0
         total_content_length = 0
         categories = set()
-        date_range = {"min": None, "max": None}
+        dates = []  # Collect all dates for proper min/max
 
         for json_file in json_files:
             try:
@@ -203,11 +205,17 @@ class CrawlerPipeline:
                     categories.add(article["category"])
 
                 if article.get("date"):
-                    date_range["min"] = article["date"]
-                    if not date_range["max"]:
-                        date_range["max"] = article["date"]
+                    dates.append(article["date"])  # Collect dates
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                logger.error(f"Invalid JSON file {json_file.name}: {e}")
             except Exception as e:
-                print(f"Error reading {json_file.name}: {e}")
+                logger.error(f"Error reading {json_file.name}: {e}")
+
+        # Properly compute date range (was: just overwriting min every time)
+        date_range = {"min": None, "max": None}
+        if dates:
+            sorted_dates = sorted(dates)
+            date_range = {"min": sorted_dates[0], "max": sorted_dates[-1]}
 
         return {
             "total_articles": total_articles,
@@ -216,6 +224,6 @@ class CrawlerPipeline:
                 total_content_length // total_articles if total_articles > 0 else 0
             ),
             "unique_categories": len(categories),
-            "categories": list(categories),
+            "categories": sorted(list(categories)),  # Sorted for consistency
             "date_range": date_range,
         }

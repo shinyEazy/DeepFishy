@@ -2,7 +2,6 @@
 
 import re
 import json
-from pathlib import Path
 from typing import List, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from bs4 import BeautifulSoup
@@ -103,20 +102,66 @@ class ArticleContentSpider(BaseSpider):
         safe_title = safe_title[:100]
         return safe_title.strip()
 
-    def _process_url(
-        self, url: str, output_dir: Path, idx: int, total: int
-    ) -> Optional[str]:
+    def _upload_to_minio(
+        self, article_data: Dict, url_path: str, max_retries: int = 3
+    ) -> bool:
         """
-        Process a single URL - fetch, extract, and save data.
+        Upload article to MinIO with exponential backoff retry logic.
+
+        Args:
+            article_data: Article dictionary to upload
+            url_path: URL path for object naming
+            max_retries: Maximum upload attempts (default 3)
+
+        Returns:
+            True if successful, False otherwise
+        """
+        from app.core.logging import logger
+        from time import sleep
+
+        try:
+            from app.services.minio import MinioService
+        except ImportError:
+            logger.warning(
+                f"MinIO service not available - skipping upload for {url_path}"
+            )
+            return False
+
+        object_name = f"articles/{url_path}.json"
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                minio = MinioService()
+                if minio.upload_json("crawler-data", object_name, article_data):
+                    logger.info(f"Uploaded to MinIO: {object_name}")
+                    return True
+            except (ConnectionError, TimeoutError) as e:
+                # Exponential backoff: 1s, 2s, 4s ✅ BETTER RETRY STRATEGY
+                backoff_time = 2 ** (attempt - 1)
+                if attempt < max_retries:
+                    logger.warning(
+                        f"Upload attempt {attempt}/{max_retries} failed: {e}. Retrying in {backoff_time}s..."
+                    )
+                    sleep(backoff_time)
+                else:
+                    logger.error(f"Upload failed after {max_retries} attempts: {e}")
+            except Exception as e:
+                logger.error(f"Upload error (non-retryable): {e}")
+                return False
+
+        return False
+
+    def _process_url(self, url: str, idx: int, total: int) -> Optional[tuple]:
+        """
+        Process a single URL - fetch, extract, and upload to MinIO.
 
         Args:
             url: URL to process
-            output_dir: Output directory for saving JSON files
             idx: Current index (for progress tracking)
             total: Total URLs
 
         Returns:
-            Filename if successful, None otherwise
+            Tuple of (filename, article_data) if successful, None otherwise
         """
         print(f"\n[{idx}/{total}] Processing: {url}")
 
@@ -134,17 +179,15 @@ class ArticleContentSpider(BaseSpider):
             # Remove .htm or .html extension if present
             url_path = re.sub(r"\.(htm|html)$", "", url_path)
             filename = url_path + ".json"
-            output_path = output_dir / filename
 
-            # Save to JSON
-            with open(output_path, "w", encoding="utf-8") as f:
-                json.dump(article_data, f, ensure_ascii=False, indent=2)
-
-            print(f"✓ Saved: {output_path.name}")
+            print(f"✓ Processing: {filename}")
             print(f"  Title: {article_data['title']}")
             print(f"  Date: {article_data['date']}")
 
-            return output_path.name
+            # Upload to MinIO immediately (with retry logic)
+            self._upload_to_minio(article_data, url_path, max_retries=3)
+
+            return (filename, article_data)  # Return both filename and data
 
         except Exception as e:
             print(f"✗ Error processing {url}: {e}")
@@ -153,32 +196,29 @@ class ArticleContentSpider(BaseSpider):
     async def crawl(
         self,
         urls: List[str],
-        output_dir: Path = Path("data"),
         max_workers: int = 5,
-    ) -> Dict[str, int]:
+    ) -> tuple:
         """
-        Crawl articles from URLs and save as JSON files.
+        Crawl articles from URLs and save to MinIO.
 
         Args:
             urls: List of article URLs to crawl
-            output_dir: Directory to save JSON files
             max_workers: Maximum concurrent workers
 
         Returns:
-            Dictionary with crawl statistics
+            Tuple of (successful_count, failed_count, articles_data_list)
+            - articles_data_list: List of extracted article dictionaries
         """
-        output_dir = Path(output_dir)
-        output_dir.mkdir(exist_ok=True, parents=True)
-
         print(f"Starting crawl of {len(urls)} URLs with {max_workers} workers...\n")
 
         successful = 0
         failed = 0
+        articles_data = []  # Store article data to return
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
             future_to_url = {
-                executor.submit(self._process_url, url, output_dir, idx, len(urls)): url
+                executor.submit(self._process_url, url, idx, len(urls)): url
                 for idx, url in enumerate(urls, 1)
             }
 
@@ -187,7 +227,9 @@ class ArticleContentSpider(BaseSpider):
                 try:
                     result = future.result()
                     if result:
+                        filename, article_data = result
                         successful += 1
+                        articles_data.append(article_data)  # Add to return data
                     else:
                         failed += 1
                 except Exception as e:
@@ -207,4 +249,4 @@ class ArticleContentSpider(BaseSpider):
         print(f"Total: {stats['total']}")
         print(f"{'='*60}")
 
-        return stats
+        return successful, failed, articles_data

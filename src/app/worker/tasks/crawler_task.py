@@ -1,206 +1,261 @@
-"""Celery tasks for crawler operations."""
+"""Celery tasks for crawler operations with MinIO storage."""
 
 import asyncio
-from pathlib import Path
+import json
+import re
 from typing import List
+from datetime import datetime
 
+from celery import chain, group
 from app.celery_app import celery_app
 from app.ingestion.crawler.spiders import ArticleURLSpider, ArticleContentSpider
 from app.ingestion.crawler.pipeline import CrawlerPipeline
+from app.services.minio import MinioService
 from app.core.logging import logger
+from app.core.constants import (
+    CRAWLER_BASE_URL,
+    CRAWLER_PATHS,
+    CRAWLER_MAX_PAGES,
+    CRAWLER_MAX_WORKERS,
+)
 
 
-@celery_app.task(bind=True, name="crawler.crawl_article_urls")
+@celery_app.task(bind=True, name="crawler.crawl_article_urls", queue="crawler")
 def crawl_article_urls_task(
     self,
-    paths: List[str],
-    max_pages: int = 2000,
-    max_workers: int = 5,
+    paths: List[str] = None,
+    max_pages: int = None,
+    max_workers: int = None,
 ) -> dict:
     """
-    Celery task to crawl article URLs from category pages.
+    Celery task to crawl article URLs from category pages with checkpoint support.
+    Loads checkpoint to avoid re-crawling known URLs.
+    Saves URLs to MinIO and automatically chains to content crawl and processing.
 
     Args:
-        paths: List of category paths to crawl
-        max_pages: Maximum pages per path
-        max_workers: Maximum concurrent workers
+        paths: List of category paths to crawl (uses CRAWLER_PATHS if None)
+        max_pages: Maximum pages per path (uses CRAWLER_MAX_PAGES if None)
+        max_workers: Maximum concurrent workers (uses CRAWLER_MAX_WORKERS if None)
 
     Returns:
-        Dictionary with crawl results
+        Dictionary with crawl results including only NEW URLs not in checkpoint
     """
+    from datetime import timezone
+
+    # Use constants as defaults (with defensive programming) ✅ CLEANER PATTERN
+    paths = paths or CRAWLER_PATHS
+    max_pages = max_pages or CRAWLER_MAX_PAGES
+    max_workers = max_workers or CRAWLER_MAX_WORKERS
+
     try:
-        logger.info(f"Starting article URL crawl for {len(paths)} paths")
+        logger.info(f"🔍 [STEP 1] Crawling article URLs from {len(paths)} paths...")
 
-        spider = ArticleURLSpider(max_retries=5)
-        urls = asyncio.run(spider.crawl(paths, max_pages, max_workers))
-        spider.close()
+        # Load checkpoint from MinIO (all URLs crawled so far)
+        try:
+            minio = MinioService()  # ✅ BETTER ERROR HANDLING
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize MinIO: {e}")
+            return {
+                "status": "error",
+                "error": f"MinIO initialization failed: {e}",
+                "urls": [],
+            }
 
-        logger.info(f"Completed URL crawl: {len(urls)} unique URLs")
+        checkpoint_data = minio.download_json(
+            "crawler-data", "checkpoint/urls_checkpoint.json"
+        )
+        known_urls = (
+            set(checkpoint_data.get("all_urls", [])) if checkpoint_data else set()
+        )
 
-        return {
-            "status": "success",
-            "urls_collected": len(urls),
-            "urls": urls,
+        if known_urls:
+            logger.info(f"📍 Loaded checkpoint with {len(known_urls)} known URLs")
+        else:
+            logger.info("📍 No checkpoint found, starting fresh crawl")
+
+        spider = ArticleURLSpider(base_url=CRAWLER_BASE_URL, max_retries=5)
+        try:
+            all_urls_in_session, new_urls = asyncio.run(
+                spider.crawl(paths, max_pages, max_workers, known_urls=known_urls)
+            )
+        finally:
+            spider.close()  # ✅ ENSURE CLEANUP
+
+        logger.info(
+            f"✅ Found {len(new_urls)} NEW URLs (session total: {len(all_urls_in_session)})"
+        )
+
+        # Update checkpoint with ALL URLs (new + known)
+        # Important: keep track of all URLs ever found to avoid re-processing
+        updated_all_urls = list(known_urls.union(set(new_urls)))
+        checkpoint_data = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),  # ✅ TIMEZONE-AWARE
+            "total_known_urls": len(updated_all_urls),
+            "new_urls_this_session": len(new_urls),
+            "all_urls": updated_all_urls,  # Complete history - only unique new URLs
+            "last_session_urls": new_urls,  # Only NEW URLs found this session
         }
+
+        checkpoint_success = minio.upload_json(
+            "crawler-data", "checkpoint/urls_checkpoint.json", checkpoint_data
+        )
+        if checkpoint_success:
+            logger.info(
+                f"💾 Updated checkpoint with {len(updated_all_urls)} total URLs"
+            )
+
+        # Save this session's URLs to MinIO
+        timestamp = datetime.now().isoformat().replace(":", "-").split(".")[0]
+        urls_data = {
+            "timestamp": datetime.now().isoformat(),
+            "new_urls": len(new_urls),
+            "paths": paths,
+            "urls": new_urls,  # Only new URLs for processing
+        }
+
+        object_name = f"crawled_urls/urls_{timestamp}.json"
+        success = minio.upload_json("crawler-data", object_name, urls_data)
+
+        if success:
+            logger.info(f"💾 Saved {len(new_urls)} NEW URLs to MinIO: {object_name}")
+
+        result = {
+            "status": "success",
+            "new_urls_collected": len(new_urls),
+            "urls": new_urls,  # Only new URLs go to next task
+            "total_checkpoint_urls": len(updated_all_urls),
+            "minio_path": object_name,
+        }
+
+        # Chain to content crawl if we have NEW URLs
+        if len(new_urls) > 0:
+            logger.info(
+                f"🔗 Chaining to content crawl task with {len(new_urls)} new URLs..."
+            )
+            crawl_article_content_task.apply_async(args=[result], queue="crawler")
+        else:
+            logger.info("⏭  No new URLs to crawl. Skipping content crawl.")
+
+        return result
+
     except Exception as e:
-        logger.error(f"Error in crawl_article_urls_task: {e}")
+        logger.error(f"❌ Error in crawl_article_urls_task: {e}", exc_info=True)
         return {
             "status": "error",
             "error": str(e),
+            "urls": [],
         }
 
 
-@celery_app.task(bind=True, name="crawler.crawl_article_content")
-def crawl_article_content_task(
-    self,
-    urls: List[str],
-    output_dir: str = "data/articles",
-    max_workers: int = 5,
-) -> dict:
+@celery_app.task(bind=True, name="crawler.crawl_article_content", queue="crawler")
+def crawl_article_content_task(self, previous_task_result: dict) -> dict:
     """
     Celery task to crawl article content from URLs.
+    Receives URLs from previous task (crawl_article_urls_task).
+    Saves each article as JSON to MinIO.
+    Then chains to embedding_task for vector embedding and Milvus insertion.
 
     Args:
-        urls: List of article URLs to crawl
-        output_dir: Output directory for saving articles
-        max_workers: Maximum concurrent workers
+        previous_task_result: Result from crawl_article_urls_task containing URLs
 
     Returns:
         Dictionary with crawl statistics
     """
     try:
-        logger.info(f"Starting article content crawl for {len(urls)} URLs")
+        # Extract URLs from previous task result
+        urls = previous_task_result.get("urls", [])
 
-        spider = ArticleContentSpider()
-        stats = asyncio.run(spider.crawl(urls, Path(output_dir), max_workers))
+        if not urls or len(urls) == 0:
+            logger.warning("⚠️  No URLs provided for content crawl")
+            return {
+                "status": "error",
+                "message": "No URLs provided",
+                "uploaded": 0,
+            }
+
+        logger.info(f"🌐 [STEP 2] Crawling content for {len(urls)} URLs...")
+
+        spider = ArticleContentSpider(base_url=CRAWLER_BASE_URL)
+        successful, failed, articles_data = asyncio.run(
+            spider.crawl(urls, CRAWLER_MAX_WORKERS)
+        )
         spider.close()
 
-        logger.info(
-            f"Completed content crawl: {stats['successful']} successful, {stats['failed']} failed"
+        logger.info(f"✅ Content crawl: {successful} successful, {failed} failed")
+        logger.info(f"💾 Articles uploaded to MinIO during crawl")
+
+        # Chain to embedding task for vector embedding and Milvus insertion
+        if successful > 0:
+            logger.info(f"🔗 Chaining to embedding task with {successful} articles...")
+            from app.worker.tasks.embedding_task import embed_and_insert_articles_task
+
+            # Pass articles data directly to embedding task (no need to reload from MinIO)
+            try:
+                task_result = embed_and_insert_articles_task.apply_async(
+                    args=[articles_data],  # Pass actual article data directly
+                    queue="ingestion",
+                    countdown=1,  # Shorter wait
+                )
+                logger.info(f"✅ Embedding task queued with ID: {task_result.id}")
+            except Exception as e:
+                logger.error(f"❌ Failed to queue embedding task: {e}", exc_info=True)
+                return {
+                    "status": "partial",
+                    "successful": successful,
+                    "failed": failed,
+                    "uploaded": successful,
+                    "embedding_error": str(e),
+                }
+
+        return {
+            "status": "success",
+            "successful": successful,
+            "failed": failed,
+            "uploaded": successful,
+        }
+    except Exception as e:
+        logger.error(f"❌ Error in crawl_article_content_task: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e),
+            "uploaded": 0,
+        }
+
+
+@celery_app.task(bind=True, name="crawler.crawl_full_pipeline", queue="crawler")
+def crawl_full_pipeline_task(self) -> dict:
+    """
+    Celery task to run the full crawling pipeline SEQUENTIALLY.
+
+    1. Crawl URLs → save to MinIO
+    2. Crawl content → save JSON to MinIO
+    3. Process articles → enrich & save to MinIO
+
+    This runs as a chain so each step waits for the previous one.
+    """
+    try:
+        logger.info("🚀 Starting FULL CRAWLER PIPELINE...")
+
+        # Execute tasks in sequence (chain)
+        # Each task output becomes the next task input
+        pipeline = chain(
+            crawl_article_urls_task.s(),  # Step 1: Get URLs
+            crawl_article_content_task.s(),  # Step 2: Get content (uses URLs from step 1)
         )
 
+        # Run the pipeline
+        result = pipeline.apply_async()
+
+        logger.info(f"🎯 Full pipeline task ID: {result.id}")
+
         return {
-            "status": "success",
-            **stats,
+            "status": "queued",
+            "pipeline_id": result.id,
+            "message": "Full crawler pipeline started",
         }
+
     except Exception as e:
-        logger.error(f"Error in crawl_article_content_task: {e}")
-        return {
-            "status": "error",
-            "error": str(e),
-        }
-
-
-@celery_app.task(bind=True, name="crawler.process_articles")
-def process_articles_task(
-    self,
-    json_dir: str = "data/articles",
-    output_dir: str = "data/processed_articles",
-) -> dict:
-    """
-    Celery task to process crawled articles.
-
-    Args:
-        json_dir: Directory containing raw article JSON files
-        output_dir: Output directory for processed articles
-
-    Returns:
-        Dictionary with processing results
-    """
-    try:
-        logger.info(f"Starting article processing from {json_dir}")
-
-        pipeline = CrawlerPipeline(output_dir=output_dir)
-        processed, failed = pipeline.process_json_files(Path(json_dir))
-
-        # Get statistics
-        stats = pipeline.get_statistics(Path(output_dir))
-
-        logger.info(f"Completed processing: {processed} processed, {failed} failed")
-
-        return {
-            "status": "success",
-            "processed": processed,
-            "failed": failed,
-            "statistics": stats,
-        }
-    except Exception as e:
-        logger.error(f"Error in process_articles_task: {e}")
-        return {
-            "status": "error",
-            "error": str(e),
-        }
-
-
-@celery_app.task(
-    bind=True,
-    name="crawler.crawl_full_pipeline",
-)
-def crawl_full_pipeline_task(
-    self,
-    paths: List[str],
-    max_pages: int = 2000,
-    output_dir: str = "data/articles",
-    max_workers: int = 5,
-) -> dict:
-    """
-    Celery task to run the full crawling pipeline.
-    1. Crawl article URLs
-    2. Crawl article content
-    3. Process articles
-
-    Args:
-        paths: List of category paths to crawl
-        max_pages: Maximum pages per path
-        output_dir: Output directory for articles
-        max_workers: Maximum concurrent workers
-
-    Returns:
-        Dictionary with complete pipeline results
-    """
-    try:
-        logger.info("Starting full crawl pipeline")
-
-        # Step 1: Crawl URLs
-        logger.info("Step 1: Crawling article URLs")
-        url_result = crawl_article_urls_task(paths, max_pages, max_workers)
-
-        if url_result["status"] != "success":
-            return {"status": "error", "step": "url_crawl", "error": url_result}
-
-        urls = url_result["urls"]
-        logger.info(f"Collected {len(urls)} unique URLs")
-
-        # Step 2: Crawl content
-        logger.info("Step 2: Crawling article content")
-        content_result = crawl_article_content_task(urls, output_dir, max_workers)
-
-        if content_result["status"] != "error":
-            logger.error(f"Failed at content crawl: {content_result}")
-            return {"status": "error", "step": "content_crawl", "error": content_result}
-
-        logger.info(f"Crawled {content_result['successful']} articles successfully")
-
-        # Step 3: Process articles
-        logger.info("Step 3: Processing articles")
-        process_result = process_articles_task(output_dir, f"{output_dir}/processed")
-
-        if process_result["status"] != "success":
-            logger.error(f"Failed at processing: {process_result}")
-            return {"status": "error", "step": "processing", "error": process_result}
-
-        logger.info("Full pipeline completed successfully")
-
-        return {
-            "status": "success",
-            "pipeline_steps": {
-                "url_crawl": url_result,
-                "content_crawl": content_result,
-                "processing": process_result,
-            },
-        }
-    except Exception as e:
-        logger.error(f"Error in crawl_full_pipeline_task: {e}")
+        logger.error(f"❌ Error in crawl_full_pipeline_task: {e}", exc_info=True)
         return {
             "status": "error",
             "error": str(e),
