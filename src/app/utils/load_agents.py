@@ -11,12 +11,19 @@ def _resolve_tool(tool_name: str) -> Any:
     Supports importing from tools module, e.g. 'search_engine_tavily'
     will import from 'tools.search_engine_tavily'.
     """
-    try:
-        # Try importing from tools module
-        module = import_module(f"tools.{tool_name}")
-        return getattr(module, tool_name)
-    except (ImportError, AttributeError):
-        raise ValueError(f"Could not resolve tool: {tool_name}")
+    tools_dir = os.path.join(os.path.dirname(__file__), "..", "engine", "tools")
+    if os.path.exists(tools_dir):
+        for filename in os.listdir(tools_dir):
+            if filename.endswith(".py") and not filename.startswith("_"):
+                module_name = filename[:-3]  # Remove .py extension
+                try:
+                    module = import_module(f"app.engine.tools.{module_name}")
+                    if hasattr(module, tool_name):
+                        return getattr(module, tool_name)
+                except ImportError:
+                    continue
+
+    raise ValueError(f"Could not resolve tool: {tool_name}")
 
 
 def load_agents(
@@ -33,6 +40,12 @@ def load_agents(
     Returns a list of dicts with keys: name, description, system_prompt, tools.
     """
     agents = []
+
+    # Resolve subagents directory if using default path
+    if folder_path == "subagents":
+        module_dir = os.path.dirname(os.path.abspath(__file__))
+        app_root = os.path.dirname(os.path.dirname(module_dir))
+        folder_path = os.path.join(app_root, "app", "engine", "subagents")
 
     # Normalize names to actual filenames if provided
     if names is not None:
