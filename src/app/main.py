@@ -3,6 +3,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.v1.endpoints.rag import router as rag_router
+
 # Create FastAPI app
 app = FastAPI(
     title="DeepFishy",
@@ -18,6 +20,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register API routers
+app.include_router(rag_router, prefix="/api/v1")
 
 
 @app.get("/")

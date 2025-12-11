@@ -209,3 +209,4 @@ __marimo__/
 # Shiny was here
 data/
 .github/
+.langgraph_api/

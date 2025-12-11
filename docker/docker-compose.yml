@@ -126,7 +126,8 @@ services:
       - etcd_data:/etcd
     command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
     healthcheck:
-      test: ["CMD", "etcdctl", "--endpoints=localhost:2379", "endpoint", "health"]
+      test: 
+        ["CMD", "etcdctl", "--endpoints=localhost:2379", "endpoint", "health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -169,6 +170,34 @@ services:
     depends_on:
       milvus:
         condition: service_healthy
+    networks:
+      - deepfishy
+
+  # LangGraph Studio
+  langgraph_studio:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: langgraph_studio
+    working_dir: /app/src/app/engine
+    command: langgraph dev --host 0.0.0.0 --port 2024 --allow-blocking --no-browser
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app/src
+    env_file:
+      - ../.env
+    ports:
+      - "2024:2024"
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+    volumes:
+      - ../src:/app/src
+      - ../data:/app/data
     networks:
       - deepfishy
 
