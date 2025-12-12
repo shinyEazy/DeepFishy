@@ -121,8 +121,17 @@ class ArticleURLSpider(BaseSpider):
             page = 1
 
             while page <= max_pages:
-                batch_end = min(page + self.batch_size, max_pages)
+                batch_end = min(page + self.batch_size, max_pages + 1)
                 batch_tasks = [(path, p) for p in range(page, batch_end)]
+
+                # Check if batch is empty (can happen at boundary)
+                if not batch_tasks:
+                    logger.debug(f"No more pages to process for path {path}")
+                    break
+
+                logger.debug(
+                    f"Processing batch: pages {page} to {batch_end - 1} for path {path}"
+                )
 
                 batch_results = []
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -138,20 +147,33 @@ class ArticleURLSpider(BaseSpider):
                 batch_results.sort(key=lambda x: x[0])
 
                 should_stop_path = False
+                consecutive_empty_or_known = 0
+                max_consecutive_empty = (
+                    3  # Allow some tolerance for empty/duplicate pages
+                )
+
                 for page_num, urls in batch_results:
                     if not urls:
-                        logger.info(f"Page {page_num} empty, stopping path {path}")
-                        should_stop_path = True
-                        break
+                        consecutive_empty_or_known += 1
+                        logger.info(
+                            f"Page {page_num} empty (consecutive: {consecutive_empty_or_known})"
+                        )
+                        if consecutive_empty_or_known >= max_consecutive_empty:
+                            logger.info(f"Too many empty pages, stopping path {path}")
+                            should_stop_path = True
+                            break
+                        continue
 
+                    # Check for URLs from checkpoint (previously crawled)
                     known_count = sum(1 for url in urls if url in known_urls)
                     if known_count > 0:
                         logger.info(
-                            f"Page {page_num} has {known_count} known URLs, stopping path {path}"
+                            f"Page {page_num} has {known_count} known URLs from checkpoint, stopping path {path}"
                         )
                         should_stop_path = True
                         break
 
+                    # Add new URLs (filter session duplicates but don't stop for them)
                     new_count = 0
                     for url in urls:
                         if url not in all_discovered:
@@ -160,11 +182,21 @@ class ArticleURLSpider(BaseSpider):
                             new_count += 1
 
                     if new_count == 0:
-                        logger.info(
-                            f"Page {page_num} has only duplicates, stopping path {path}"
+                        consecutive_empty_or_known += 1
+                        logger.debug(
+                            f"Page {page_num} has only session duplicates (consecutive: {consecutive_empty_or_known})"
                         )
-                        should_stop_path = True
-                        break
+                        if consecutive_empty_or_known >= max_consecutive_empty:
+                            logger.info(
+                                f"Too many duplicate pages, stopping path {path}"
+                            )
+                            should_stop_path = True
+                            break
+                    else:
+                        consecutive_empty_or_known = (
+                            0  # Reset counter on successful page
+                        )
+                        logger.debug(f"Page {page_num}: added {new_count} new URLs")
 
                 if should_stop_path:
                     break

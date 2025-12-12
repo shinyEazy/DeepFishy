@@ -118,7 +118,7 @@ class MilvusService:
                 FieldSchema(
                     name="tags",
                     dtype=DataType.VARCHAR,
-                    max_length=500,
+                    max_length=1000,
                     description="Comma-separated tags",
                 ),
                 FieldSchema(

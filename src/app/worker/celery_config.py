@@ -16,8 +16,8 @@ enable_utc = True
 
 # Task configuration
 task_track_started = True
-task_time_limit = 60 * 60  # 60 minutes hard limit
-task_soft_time_limit = 60 * 60  # 60 minutes soft limit
+task_time_limit = 150 * 60  # 150 minutes hard limit
+task_soft_time_limit = 120 * 60  # 120 minutes soft limit
 
 # Queue configuration
 task_queues = {
