@@ -3,6 +3,7 @@
 import asyncio
 import json
 from typing import List, Dict, Any
+import requests
 
 from app.celery_app import celery_app
 from app.services.embeddings import EmbeddingService
@@ -11,13 +12,14 @@ from app.services.minio import MinioService
 from app.ingestion.embedding_pipeline import EmbeddingPipeline
 from app.core.logging import logger
 from app.core.config import settings
+from app.worker.utils import check_embedding_server_health
 
 
 def _get_embedding_service():
     """Initialize EmbeddingService for embeddings via remote API."""
     logger.info("Initializing EmbeddingService")
     return EmbeddingService(
-        api_url=settings.EMBEDDING_API_URL,
+        api_url=settings.EMBEDDING_API_URL + "/embed",
         timeout=settings.EMBEDDING_API_TIMEOUT,
         max_retries=settings.EMBEDDING_API_MAX_RETRIES,
     )
@@ -44,6 +46,9 @@ def embed_and_insert_articles_task(
     3. Generate embeddings for chunks
     4. Insert into Milvus in batches
     5. Return statistics
+
+    Note: Embedding server health check is performed once at pipeline entry
+    (crawl_article_urls_task), so we assume server is healthy here.
 
     Args:
         articles_data_or_bucket:
@@ -73,14 +78,11 @@ def embed_and_insert_articles_task(
         # Step 1: Load articles (handle both direct data and MinIO bucket)
         if isinstance(articles_data_or_bucket, list):
             # Direct article data from crawler
-            logger.info(
-                f"🚀 Starting embedding task with {len(articles_data_or_bucket)} articles (direct)"
-            )
+            logger.info(f"🚀 Loading {len(articles_data_or_bucket)} articles (direct)")
             articles_data = articles_data_or_bucket
         else:
             # Load from MinIO bucket
             bucket_name = articles_data_or_bucket
-            logger.info(f"🚀 Starting embedding task from MinIO bucket: {bucket_name}")
             logger.info(f"☁️  Loading articles from MinIO bucket: {bucket_name}")
             articles_data = _load_articles_from_minio(bucket_name, errors)
 
