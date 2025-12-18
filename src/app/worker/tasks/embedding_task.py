@@ -3,6 +3,7 @@
 import asyncio
 import json
 from typing import List, Dict, Any
+import requests
 
 from app.celery_app import celery_app
 from app.services.embeddings import EmbeddingService
@@ -13,11 +14,49 @@ from app.core.logging import logger
 from app.core.config import settings
 
 
+def _check_embedding_server_health(timeout: int = 5) -> tuple[bool, str]:
+    """
+    Check if embedding server is healthy by calling /health endpoint.
+    
+    Args:
+        timeout: Timeout in seconds for health check request
+        
+    Returns:
+        Tuple of (is_healthy: bool, message: str)
+    """
+    try:
+        health_url = settings.EMBEDDING_API_URL + "/health"
+        logger.info(f"🏥 Checking embedding server health: {health_url}")
+        
+        response = requests.get(health_url, timeout=timeout)
+        
+        if response.status_code == 200:
+            logger.info("✅ Embedding server is healthy")
+            return True, "Embedding server is healthy"
+        else:
+            error_msg = f"Embedding server returned status {response.status_code}"
+            logger.error(f"❌ {error_msg}")
+            return False, error_msg
+            
+    except requests.Timeout:
+        error_msg = f"Embedding server health check timed out (>{timeout}s)"
+        logger.error(f"❌ {error_msg}")
+        return False, error_msg
+    except requests.ConnectionError as e:
+        error_msg = f"Failed to connect to embedding server at {settings.EMBEDDING_API_URL}: {e}"
+        logger.error(f"❌ {error_msg}")
+        return False, error_msg
+    except Exception as e:
+        error_msg = f"Embedding server health check failed: {e}"
+        logger.error(f"❌ {error_msg}")
+        return False, error_msg
+
+
 def _get_embedding_service():
     """Initialize EmbeddingService for embeddings via remote API."""
     logger.info("Initializing EmbeddingService")
     return EmbeddingService(
-        api_url=settings.EMBEDDING_API_URL,
+        api_url=settings.EMBEDDING_API_URL + "/embed",
         timeout=settings.EMBEDDING_API_TIMEOUT,
         max_retries=settings.EMBEDDING_API_MAX_RETRIES,
     )
@@ -44,6 +83,9 @@ def embed_and_insert_articles_task(
     3. Generate embeddings for chunks
     4. Insert into Milvus in batches
     5. Return statistics
+
+    Note: Embedding server health check is performed once at pipeline entry
+    (crawl_article_urls_task), so we assume server is healthy here.
 
     Args:
         articles_data_or_bucket:
@@ -74,13 +116,13 @@ def embed_and_insert_articles_task(
         if isinstance(articles_data_or_bucket, list):
             # Direct article data from crawler
             logger.info(
-                f"🚀 Starting embedding task with {len(articles_data_or_bucket)} articles (direct)"
+                f"🚀 Loading {len(articles_data_or_bucket)} articles (direct)"
             )
             articles_data = articles_data_or_bucket
         else:
             # Load from MinIO bucket
             bucket_name = articles_data_or_bucket
-            logger.info(f"🚀 Starting embedding task from MinIO bucket: {bucket_name}")
+            logger.info(f"🚀 Loading articles from MinIO bucket: {bucket_name}")
             logger.info(f"☁️  Loading articles from MinIO bucket: {bucket_name}")
             articles_data = _load_articles_from_minio(bucket_name, errors)
 
