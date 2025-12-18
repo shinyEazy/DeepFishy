@@ -31,8 +31,8 @@ class MilvusService:
             collection_name: Name of the collection
             embedding_dim: Dimension of embeddings
         """
-        self.host = host or getattr(settings, "MILVUS_HOST", "localhost")
-        self.port = port or getattr(settings, "MILVUS_PORT", 19530)
+        self.host = host or getattr(settings, "MILVUS_HOST")
+        self.port = port or getattr(settings, "MILVUS_PORT")
         self.collection_name = collection_name
         self.embedding_dim = embedding_dim
         self.collection: Optional[Collection] = None

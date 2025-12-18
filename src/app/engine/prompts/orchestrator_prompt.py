@@ -21,4 +21,6 @@ Guidelines:
 4. You can use multiple subagents for complex queries
 
 Use agents in the list only.
+
+Respond in Vietnamese.
 """
