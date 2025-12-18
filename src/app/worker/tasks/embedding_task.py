@@ -12,44 +12,7 @@ from app.services.minio import MinioService
 from app.ingestion.embedding_pipeline import EmbeddingPipeline
 from app.core.logging import logger
 from app.core.config import settings
-
-
-def _check_embedding_server_health(timeout: int = 5) -> tuple[bool, str]:
-    """
-    Check if embedding server is healthy by calling /health endpoint.
-    
-    Args:
-        timeout: Timeout in seconds for health check request
-        
-    Returns:
-        Tuple of (is_healthy: bool, message: str)
-    """
-    try:
-        health_url = settings.EMBEDDING_API_URL + "/health"
-        logger.info(f"🏥 Checking embedding server health: {health_url}")
-        
-        response = requests.get(health_url, timeout=timeout)
-        
-        if response.status_code == 200:
-            logger.info("✅ Embedding server is healthy")
-            return True, "Embedding server is healthy"
-        else:
-            error_msg = f"Embedding server returned status {response.status_code}"
-            logger.error(f"❌ {error_msg}")
-            return False, error_msg
-            
-    except requests.Timeout:
-        error_msg = f"Embedding server health check timed out (>{timeout}s)"
-        logger.error(f"❌ {error_msg}")
-        return False, error_msg
-    except requests.ConnectionError as e:
-        error_msg = f"Failed to connect to embedding server at {settings.EMBEDDING_API_URL}: {e}"
-        logger.error(f"❌ {error_msg}")
-        return False, error_msg
-    except Exception as e:
-        error_msg = f"Embedding server health check failed: {e}"
-        logger.error(f"❌ {error_msg}")
-        return False, error_msg
+from app.worker.utils import check_embedding_server_health
 
 
 def _get_embedding_service():
@@ -115,14 +78,11 @@ def embed_and_insert_articles_task(
         # Step 1: Load articles (handle both direct data and MinIO bucket)
         if isinstance(articles_data_or_bucket, list):
             # Direct article data from crawler
-            logger.info(
-                f"🚀 Loading {len(articles_data_or_bucket)} articles (direct)"
-            )
+            logger.info(f"🚀 Loading {len(articles_data_or_bucket)} articles (direct)")
             articles_data = articles_data_or_bucket
         else:
             # Load from MinIO bucket
             bucket_name = articles_data_or_bucket
-            logger.info(f"🚀 Loading articles from MinIO bucket: {bucket_name}")
             logger.info(f"☁️  Loading articles from MinIO bucket: {bucket_name}")
             articles_data = _load_articles_from_minio(bucket_name, errors)
 

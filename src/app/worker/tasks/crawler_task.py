@@ -20,44 +20,7 @@ from app.core.constants import (
     CRAWLER_MAX_WORKERS,
 )
 from app.core.config import settings
-
-
-def _check_embedding_server_health(timeout: int = 5) -> tuple[bool, str]:
-    """
-    Check if embedding server is healthy by calling /health endpoint.
-    
-    Args:
-        timeout: Timeout in seconds for health check request
-        
-    Returns:
-        Tuple of (is_healthy: bool, message: str)
-    """
-    try:
-        health_url = settings.EMBEDDING_API_URL + "/health"
-        logger.info(f"🏥 Checking embedding server health: {health_url}")
-        
-        response = requests.get(health_url, timeout=timeout)
-        
-        if response.status_code == 200:
-            logger.info("✅ Embedding server is healthy")
-            return True, "Embedding server is healthy"
-        else:
-            error_msg = f"Embedding server returned status {response.status_code}"
-            logger.error(f"❌ {error_msg}")
-            return False, error_msg
-            
-    except requests.Timeout:
-        error_msg = f"Embedding server health check timed out (>{timeout}s)"
-        logger.error(f"❌ {error_msg}")
-        return False, error_msg
-    except requests.ConnectionError as e:
-        error_msg = f"Failed to connect to embedding server at {settings.EMBEDDING_API_URL}: {e}"
-        logger.error(f"❌ {error_msg}")
-        return False, error_msg
-    except Exception as e:
-        error_msg = f"Embedding server health check failed: {e}"
-        logger.error(f"❌ {error_msg}")
-        return False, error_msg
+from app.worker.utils import check_embedding_server_health
 
 
 @celery_app.task(bind=True, name="crawler.crawl_article_urls", queue="crawler")
@@ -69,7 +32,7 @@ def crawl_article_urls_task(
 ) -> dict:
     """
     Celery task to crawl article URLs from category pages with checkpoint support.
-    
+
     Workflow:
     1. Check embedding server health (fail-fast before starting any crawl)
     2. Load checkpoint to avoid re-crawling known URLs
@@ -94,11 +57,13 @@ def crawl_article_urls_task(
 
     try:
         # Step 0: Check embedding server health FIRST (before starting any crawl work)
-        logger.info("🏥 [STEP 0] Checking embedding server health before crawl pipeline...")
-        is_healthy, health_message = _check_embedding_server_health(
+        logger.info(
+            "🏥 [STEP 0] Checking embedding server health before crawl pipeline..."
+        )
+        is_healthy, health_message = check_embedding_server_health(
             timeout=getattr(settings, "EMBEDDING_API_TIMEOUT", 10)
         )
-        
+
         if not is_healthy:
             error_msg = f"❌ Embedding server is not healthy: {health_message}. Aborting entire crawl pipeline."
             logger.error(error_msg)
@@ -107,7 +72,7 @@ def crawl_article_urls_task(
                 "error": error_msg,
                 "urls": [],
             }
-        
+
         logger.info("✓ Embedding server health check passed. Starting crawl pipeline.")
 
         logger.info(f"🔍 [STEP 1] Crawling article URLs from {len(paths)} paths...")
