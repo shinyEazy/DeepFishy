@@ -1,5 +1,5 @@
 ---
-name: financial-research-agent
+name: financial_research_agent
 description: Nghiên cứu chuyên sâu về tài chính, kinh tế, thị trường. Chỉ giao cho agent này một chủ đề tại một thời điểm. Không truyền nhiều câu hỏi phụ cho agent này. Thay vào đó, bạn nên chia nhỏ chủ đề lớn thành các thành phần cần thiết, sau đó gọi nhiều agent nghiên cứu song song, một cho mỗi câu hỏi phụ.
 tools: search_engine_tavily
 ---

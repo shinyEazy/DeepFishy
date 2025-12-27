@@ -1,5 +1,5 @@
 ---
-name: knowledge-search-agent
+name: knowledge_search_agent
 description: Searches the local knowledge base of Vietnamese financial articles for relevant information. Use this for questions about Vietnamese market news, stock analysis, economic reports, and company updates that have been previously crawled and indexed.
 tools: search_local_knowledge, search_financial_news
 ---

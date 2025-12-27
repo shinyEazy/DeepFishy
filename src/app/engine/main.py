@@ -65,7 +65,7 @@ def _create_agent():
         tools=[],
         system_prompt=ORCHESTRATOR_PROMPT,
         subagents=subagents,
-    ).with_config({"recursion_limit": 10})
+    ).with_config({"recursion_limit": 5})
 
 
 agent = _create_agent()

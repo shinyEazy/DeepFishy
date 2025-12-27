@@ -1,5 +1,5 @@
 ---
-name: your-sub-agent-name
+name: your_sub_agent_name
 description: Description of when this subagent should be invoked
 tools: tool1, tool2, tool3  # Optional - inherits all tools if omitted
 model: sonnet  # Optional - specify model alias or 'inherit'

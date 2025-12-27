@@ -61,7 +61,7 @@ class RAGService:
                 max_retries = getattr(settings, "EMBEDDING_API_MAX_RETRIES", 3)
 
                 self._embedding_service = EmbeddingService(
-                    api_url=api_url,
+                    api_url=api_url + "/embed",
                     timeout=timeout,
                     max_retries=max_retries,
                 )

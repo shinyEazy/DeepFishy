@@ -1,5 +1,5 @@
 ---
-name: market-data-agent
+name: market_data_agent
 description: Retrieves price quotes and short-term performance using vnstock.
 tools: get_market_data, get_current_date
 ---

@@ -1,5 +1,5 @@
 ---
-name: research-agent
+name: research_agent
 description: Used to research more in depth questions. Only give this researcher one topic at a time. Do not pass multiple sub questions to this researcher. Instead, you should break down a large topic into the necessary components, and then call multiple research agents in parallel, one for each sub question.
 tools: search_engine_tavily
 ---

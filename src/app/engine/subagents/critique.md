@@ -1,5 +1,5 @@
 ---
-name: critique-agent
+name: critique_agent
 description: Used to critique the final report. Give this agent some information about how you want it to critique the report.
 ---
 
