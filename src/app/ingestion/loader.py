@@ -1,5 +1,7 @@
 """Data loader for ingesting articles and PDFs into the knowledge base."""
 
+import json
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
@@ -193,8 +195,6 @@ class DataLoader:
         logger.info(f"Loading articles from JSON: {json_file_path}")
 
         try:
-            import json
-
             with open(file_path, "r", encoding="utf-8") as f:
                 articles = json.load(f)
 
@@ -237,8 +237,6 @@ class DataLoader:
         Returns:
             Article dictionary compatible with embedding pipeline
         """
-        from datetime import datetime
-
         # Auto-generate sapo if not provided
         if not sapo:
             # Use first 768 chars, try to break at paragraph

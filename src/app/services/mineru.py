@@ -1,5 +1,6 @@
 """Mineru PDF extraction service for converting PDFs to markdown."""
 
+import io
 import os
 import time
 import requests
@@ -251,6 +252,9 @@ class MineruService:
         """
         Download results ZIP and extract markdown content.
 
+        Processes ZIP in memory to avoid filesystem issues like race conditions
+        or read-only filesystem problems in concurrent environments.
+
         Args:
             zip_url: URL to results ZIP file
 
@@ -266,16 +270,12 @@ class MineruService:
             response = requests.get(zip_url, timeout=60)
             response.raise_for_status()
 
-            # Save ZIP temporarily
-            temp_zip_path = Path("mineru_temp.zip")
-            with open(temp_zip_path, "wb") as f:
-                f.write(response.content)
-
-            # Extract markdown
+            # Process ZIP in memory using BytesIO
             logger.info("📦 Extracting markdown from results")
+            zip_buffer = io.BytesIO(response.content)
             markdown_content = None
 
-            with zipfile.ZipFile(temp_zip_path, "r") as z:
+            with zipfile.ZipFile(zip_buffer, "r") as z:
                 # Look for markdown file
                 markdown_files = [f for f in z.namelist() if f.endswith(".md")]
 
@@ -289,9 +289,6 @@ class MineruService:
 
                 with z.open(markdown_file) as f:
                     markdown_content = f.read().decode("utf-8")
-
-            # Cleanup
-            temp_zip_path.unlink()
 
             logger.info(f"✅ Extracted {len(markdown_content)} characters")
             return markdown_content
