@@ -210,3 +210,4 @@ __marimo__/
 data/
 .github/
 .langgraph_api/
+src/app/ingestion/parsers/results/

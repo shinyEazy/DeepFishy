@@ -1,30 +1,35 @@
 """PDF parser using Mineru API for LLM-ready content extraction."""
 
-from typing import Dict, Any, List, Optional
-from datetime import datetime
+import io
+import os
+import time
+import zipfile
+import requests
+from typing import List, Optional
 from pathlib import Path
 
 from app.core.logging import logger
-from app.services.mineru import MineruService
 
 
 class MineruPDFParser:
     """
-    Parser for converting PDFs to structured, LLM-ready markdown content.
+    Parser for converting PDFs to markdown using Mineru API.
 
-    Uses Mineru API to extract and structure PDF content with:
-    - Markdown formatting preservation
-    - Table extraction
-    - Mathematical formula support (optional)
-    - Language-aware processing (Vietnamese by default)
+    Simple wrapper around Mineru API that:
+    - Takes PDF URL
+    - Calls Mineru API
+    - Returns markdown string
     """
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         language: str = "vi",
-        enable_formula: bool = False,
+        enable_formula: bool = True,
         enable_table: bool = True,
+        base_url: str = "https://mineru.net/api/v4/extract/task",
+        poll_interval: int = 5,
+        poll_timeout: int = 300,
     ):
         """
         Initialize PDF parser.
@@ -34,45 +39,40 @@ class MineruPDFParser:
             language: Document language (default: "vi" for Vietnamese)
             enable_formula: Whether to extract mathematical formulas
             enable_table: Whether to extract and structure tables
+            base_url: Mineru API base URL
+            poll_interval: Seconds between status polls
+            poll_timeout: Max seconds to wait for task completion
         """
-        self.mineru_service = MineruService(api_key=api_key)
+        self.api_key = api_key or os.getenv("MINERU_API_KEY")
+        if not self.api_key:
+            raise ValueError("MINERU_API_KEY not found in environment or parameters")
+
         self.language = language
         self.enable_formula = enable_formula
         self.enable_table = enable_table
+        self.base_url = base_url
+        self.poll_interval = poll_interval
+        self.poll_timeout = poll_timeout
+
+        self.headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
+        }
 
         logger.info(
             f"Initialized MineruPDFParser (language={language}, "
             f"formula={enable_formula}, table={enable_table})"
         )
 
-    def parse_from_url(
-        self,
-        pdf_url: str,
-        doc_title: Optional[str] = None,
-        category: str = "PDF",
-        tags: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+    def parse_from_url(self, pdf_url: str) -> str:
         """
-        Parse a PDF from a remote URL.
+        Parse a PDF from a remote URL and return markdown.
 
         Args:
             pdf_url: URL to PDF file
-            doc_title: Document title (extracted from URL if not provided)
-            category: Document category for RAG metadata
-            tags: List of tags for categorization
 
         Returns:
-            Dictionary with structure compatible with embedding pipeline:
-            {
-                "url": str,
-                "title": str,
-                "sapo": str (first 768 chars of content),
-                "content": str (full markdown content),
-                "date": str (current date),
-                "category": str,
-                "tags": List[str],
-                "source": str ("mineru_pdf")
-            }
+            Markdown-formatted string with the extracted PDF content
 
         Raises:
             RuntimeError: If Mineru extraction fails
@@ -80,154 +80,181 @@ class MineruPDFParser:
         """
         logger.info(f"Parsing PDF from URL: {pdf_url}")
 
-        # Extract using Mineru
-        result = self.mineru_service.extract_from_url(
-            pdf_url=pdf_url,
-            language=self.language,
-            enable_formula=self.enable_formula,
-            enable_table=self.enable_table,
+        task_id = self._create_task(pdf_url)
+        result = self._poll_task(task_id)
+        markdown_content = self._download_and_extract_markdown(
+            result["full_zip_url"], task_id
         )
 
-        markdown_content = result["markdown"]
+        return markdown_content
 
-        # Extract title from URL if not provided
-        if not doc_title:
-            doc_title = Path(pdf_url).stem.replace("-", " ").replace("_", " ")
-
-        # Create sapo (summary) from first 768 chars of markdown
-        sapo = self._create_sapo(markdown_content, max_chars=768)
-
-        # Prepare article-like structure for embedding pipeline
-        article = {
-            "url": pdf_url,
-            "title": doc_title[:256],
-            "sapo": sapo,
-            "content": markdown_content,
-            "date": datetime.now().strftime("%d/%m/%Y, %H:%M"),
-            "category": category,
-            "tags": tags or ["pdf", "mineru"],
-            "source": "mineru_pdf",
-            "extraction_task_id": result.get("task_id"),
-        }
-
-        logger.info(f"✅ Parsed PDF: {doc_title} ({len(markdown_content)} chars)")
-        return article
-
-    def parse_from_file(
-        self,
-        file_path: str,
-        doc_title: Optional[str] = None,
-        category: str = "PDF",
-        tags: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
-        """
-        Parse a local PDF file.
-
-        Note: Requires file to be uploaded to MinIO first to get a URL.
-        Use this after uploading the file.
-
-        Args:
-            file_path: Path to local PDF file
-            doc_title: Document title (filename if not provided)
-            category: Document category
-            tags: List of tags
-
-        Returns:
-            Dictionary with parsed content (same structure as parse_from_url)
-
-        Raises:
-            FileNotFoundError: If file doesn't exist
-            NotImplementedError: Direct file upload not yet implemented
-        """
-        file_path = Path(file_path)
-        if not file_path.exists():
-            raise FileNotFoundError(f"PDF file not found: {file_path}")
-
-        logger.info(f"Parsing local PDF file: {file_path}")
-
-        # Extract title from filename if not provided
-        if not doc_title:
-            doc_title = file_path.stem.replace("-", " ").replace("_", " ")
-
-        # For now, raise NotImplementedError as Mineru requires URLs
-        # In production flow:
-        # 1. Upload file to MinIO
-        # 2. Get signed URL
-        # 3. Call parse_from_url
-
-        raise NotImplementedError(
-            "Direct local file parsing requires MinIO upload first. "
-            "Please upload file to MinIO and use parse_from_url with the signed URL."
-        )
-
-    def parse_batch(
-        self,
-        pdf_urls: List[str],
-        category: str = "PDF",
-        tags: Optional[List[str]] = None,
-    ) -> List[Dict[str, Any]]:
+    def parse_batch(self, pdf_urls: List[str]) -> List[str]:
         """
         Parse multiple PDFs in sequence.
 
         Args:
             pdf_urls: List of PDF URLs
-            category: Document category (applied to all)
-            tags: Tags (applied to all)
 
         Returns:
-            List of parsed articles
+            List of markdown-formatted strings with extracted PDF content
 
         Note: Parses sequentially to avoid rate limiting.
-              For high-volume ingestion, consider async processing.
         """
-        articles = []
+        markdown_contents = []
 
         for i, pdf_url in enumerate(pdf_urls, 1):
             try:
                 logger.info(f"Parsing {i}/{len(pdf_urls)}: {pdf_url}")
-                article = self.parse_from_url(
-                    pdf_url=pdf_url,
-                    category=category,
-                    tags=tags,
-                )
-                articles.append(article)
+                markdown_content = self.parse_from_url(pdf_url)
+                markdown_contents.append(markdown_content)
             except Exception as e:
                 logger.error(f"Failed to parse {pdf_url}: {e}")
                 # Continue with next PDF instead of failing entire batch
                 continue
 
-        logger.info(f"✅ Parsed batch: {len(articles)}/{len(pdf_urls)} PDFs")
-        return articles
+        logger.info(f"✅ Parsed batch: {len(markdown_contents)}/{len(pdf_urls)} PDFs")
+        return markdown_contents
 
-    @staticmethod
-    def _create_sapo(content: str, max_chars: int = 768) -> str:
+    def _create_task(self, pdf_url: str) -> str:
         """
-        Create a sapo (summary) from markdown content.
-
-        Extracts first max_chars, trying to break at natural boundaries.
+        Create extraction task in Mineru API from URL.
 
         Args:
-            content: Full markdown content
-            max_chars: Maximum characters for sapo
+            pdf_url: URL to PDF file
 
         Returns:
-            Truncated content with natural break
+            Task ID for polling
+
+        Raises:
+            requests.RequestException: If API call fails
         """
-        if len(content) <= max_chars:
-            return content
+        payload = {
+            "url": pdf_url,
+            "language": self.language,
+        }
 
-        # Try to break at paragraph boundary
-        truncated = content[:max_chars]
+        if self.enable_formula:
+            payload["enable_formula"] = True
+        if self.enable_table:
+            payload["enable_table"] = True
 
-        # Find last paragraph break
-        last_break = truncated.rfind("\n\n")
-        if last_break > max_chars * 0.7:  # Use if reasonably far
-            return truncated[:last_break]
+        try:
+            response = requests.post(
+                self.base_url,
+                headers=self.headers,
+                json=payload,
+                timeout=30,
+            )
+            response.raise_for_status()
 
-        # Fall back to sentence break
-        last_period = truncated.rfind(". ")
-        if last_period > max_chars * 0.7:
-            return truncated[: last_period + 1]
+            data = response.json()
+            task_id = data["data"]["task_id"]
+            logger.info(f"✅ Task created: {task_id}")
+            return task_id
 
-        # Just truncate
-        return truncated.rstrip() + "..."
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to create Mineru task: {e}")
+            raise
+
+    def _poll_task(self, task_id: str) -> dict:
+        """
+        Poll task status until completion.
+
+        Args:
+            task_id: Task ID to poll
+
+        Returns:
+            Task result data with 'full_zip_url' key
+
+        Raises:
+            RuntimeError: If task fails or times out
+            requests.RequestException: If API call fails
+        """
+        url = f"{self.base_url}/{task_id}"
+        start_time = time.time()
+
+        while True:
+            elapsed = time.time() - start_time
+            if elapsed > self.poll_timeout:
+                logger.error(f"Task {task_id} timed out after {self.poll_timeout}s")
+                raise RuntimeError(
+                    f"Task timeout: {task_id} did not complete within {self.poll_timeout} seconds"
+                )
+
+            try:
+                response = requests.get(url, headers=self.headers, timeout=30)
+                response.raise_for_status()
+
+                data = response.json()["data"]
+                state = data.get("state")
+
+                if state == "done":
+                    logger.info(f"✅ Task {task_id} completed")
+                    return data
+                elif state == "failed":
+                    error_msg = data.get("err_msg", "Unknown error")
+                    logger.error(f"❌ Task {task_id} failed: {error_msg}")
+                    raise RuntimeError(f"Task failed: {error_msg}")
+                else:
+                    time.sleep(self.poll_interval)
+
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Failed to poll task {task_id}: {e}")
+                raise
+
+    def _download_and_extract_markdown(self, zip_url: str, task_id: str) -> str:
+        """
+        Download results ZIP, extract to disk, and return markdown content.
+
+        Files are saved to: parsers/results/{task_id}/
+
+        Args:
+            zip_url: URL to results ZIP file
+            task_id: Task ID for folder naming
+
+        Returns:
+            Extracted markdown content
+
+        Raises:
+            requests.RequestException: If download fails
+            FileNotFoundError: If markdown file not found in ZIP
+        """
+        try:
+            results_dir = Path(__file__).parent / "results" / task_id
+            results_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"📁 Saving results to: {results_dir}")
+
+            response = requests.get(zip_url, timeout=60)
+            response.raise_for_status()
+
+            zip_buffer = io.BytesIO(response.content)
+            with zipfile.ZipFile(zip_buffer, "r") as z:
+                z.extractall(results_dir)
+                markdown_files = [f for f in z.namelist() if f.endswith(".md")]
+
+                if not markdown_files:
+                    logger.warning("No markdown files found in ZIP")
+                    return ""
+
+                markdown_file = markdown_files[0]
+                markdown_path = results_dir / markdown_file
+
+                with open(markdown_path, "r", encoding="utf-8") as f:
+                    markdown_content = f.read()
+
+            return markdown_content
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to download results: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to extract markdown: {e}")
+            raise
+
+
+if __name__ == "__main__":
+    parser = MineruPDFParser()
+    markdown = parser.parse_from_url(
+        "https://cafef1.mediacdn.vn/Images/Uploaded/DuLieuDownload/PhanTichBaoCao/MBB_2025_12_04_SSIResearch08122025094945.pdf"
+    )
+    print(markdown)
