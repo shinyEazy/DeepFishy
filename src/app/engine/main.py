@@ -13,17 +13,17 @@ from app.core.logging import logger
 
 load_dotenv()
 
+MODEL_PROVIDER = "openai"
+
 
 def _create_model() -> Optional[BaseChatModel]:
     """
     Lazy model initialization to avoid credential errors during import.
-    Checks for API keys before attempting to initialize models.
+    Checks for model provider before attempting to initialize models.
     """
-    google_api_key = os.getenv("GOOGLE_API_KEY")
-    openai_api_key = os.getenv("OPENAI_API_KEY")
 
-    # Try Gemini first if API key is available
-    if google_api_key and google_api_key != "your_google_api_key_here":
+    if MODEL_PROVIDER == "google":
+        google_api_key = os.getenv("GOOGLE_API_KEY")
         try:
             logger.info("Initializing Gemini model")
             return ChatGoogleGenerativeAI(
@@ -32,18 +32,22 @@ def _create_model() -> Optional[BaseChatModel]:
         except Exception as e:
             logger.warning(f"Failed to initialize Gemini model: {e}")
 
-    # Fallback to OpenAI if available
-    if openai_api_key and openai_api_key != "your_openai_api_key_here":
+    elif MODEL_PROVIDER == "openai":
+        openai_api_key = os.getenv("OPENAI_API_KEY")
         try:
             logger.info("Initializing OpenAI model")
             return ChatOpenAI(model="gpt-4o-mini", api_key=openai_api_key)
         except Exception as e:
             logger.warning(f"Failed to initialize OpenAI model: {e}")
 
-    # No valid API keys found
-    logger.warning("No valid API keys found. Agent will be created without a model.")
-    logger.warning("Please set GOOGLE_API_KEY or OPENAI_API_KEY in your .env file")
-    return None
+    else:
+        logger.warning(
+            "No valid model provider found. Agent will be created without a model."
+        )
+        logger.warning(
+            "Please set MODEL_PROVIDER in your .env file to 'google' or 'openai'"
+        )
+        return None
 
 
 def _create_agent():
