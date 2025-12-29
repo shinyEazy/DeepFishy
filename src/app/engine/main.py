@@ -13,7 +13,7 @@ from app.core.logging import logger
 
 load_dotenv()
 
-MODEL_PROVIDER = "openai"
+MODEL_PROVIDER = os.getenv("MODEL_PROVIDER")
 
 
 def _create_model() -> Optional[BaseChatModel]:

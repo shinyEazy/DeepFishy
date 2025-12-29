@@ -34,6 +34,18 @@ class MarkerPDFParser:
             use_llm: Use LLM to improve conversion quality (requires GOOGLE_API_KEY)
         """
         self.use_llm = use_llm
+        llm_adapter = None
+        if self.use_llm:
+            from marker.llm import GeminiV2Adapter
+
+            # This will automatically use GOOGLE_API_KEY from env
+            llm_adapter = GeminiV2Adapter()
+
+        # Initialize the PDF converter with model artifacts
+        artifact_dict = create_model_dict()
+        self.converter = PdfConverter(
+            artifact_dict=artifact_dict, llm_adapter=llm_adapter
+        )
 
         # Initialize the PDF converter with model artifacts
         artifact_dict = create_model_dict()
@@ -58,23 +70,18 @@ class MarkerPDFParser:
         logger.info(f"Parsing PDF from URL: {pdf_url}")
 
         # Download PDF to temporary file
-        tmp_path = None
-        try:
-            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
-                response = requests.get(pdf_url, timeout=30)
-                response.raise_for_status()
-                tmp_file.write(response.content)
-                tmp_path = tmp_file.name
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = os.path.join(tmpdir, "temp.pdf")
+
+            response = requests.get(pdf_url, timeout=30)
+            response.raise_for_status()
+            with open(tmp_path, "wb") as f:
+                f.write(response.content)
 
             # Convert PDF using Marker
             markdown_content = self._convert_pdf_to_markdown(tmp_path)
             logger.info(f"✅ Parsed PDF from URL ({len(markdown_content)} chars)")
             return markdown_content
-
-        finally:
-            # Clean up temporary file
-            if tmp_path and os.path.exists(tmp_path):
-                os.unlink(tmp_path)
 
     def parse_from_file(self, file_path: str) -> str:
         """
