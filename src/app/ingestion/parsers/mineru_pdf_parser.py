@@ -110,7 +110,14 @@ class MineruPDFParser:
         )
         logger.info(f"Generated {len(chunks)} chunks")
 
-        final_markdown = self._process_chunks_with_llm(chunks, table_map, task_id)
+        final_markdown = self._process_chunks_with_llm(chunks, table_map)
+
+        # Save final output for inspection
+        results_dir = Path(__file__).parent / "results" / task_id
+        output_file = results_dir / "full_fixed.md"
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(final_markdown)
+        logger.info(f"Saved final output to {output_file}")
 
         logger.info("✅ Processing completed")
         return final_markdown
@@ -341,7 +348,7 @@ class MineruPDFParser:
         return chunks
 
     def _process_chunks_with_llm(
-        self, chunks: List[Tuple[str, str]], table_map: dict, task_id: str
+        self, chunks: List[Tuple[str, str]], table_map: dict
     ) -> str:
         """
         Process text chunks with LLM for Vietnamese text cleanup and convert HTML tables to markdown.
@@ -349,7 +356,6 @@ class MineruPDFParser:
         Args:
             chunks: List of (chunk_type, chunk_content) tuples
             table_map: Dictionary mapping HTML tables to their image paths
-            task_id: Task ID for saving output
 
         Returns:
             Final processed markdown content
@@ -390,14 +396,7 @@ class MineruPDFParser:
                 cleaned_content = self._clean_markdown_response(response.content)
                 final_content.append(cleaned_content)
 
-        results_dir = Path(__file__).parent / "results" / task_id
-        output_file = results_dir / "full_fixed.md"
-        logger.info(f"Saved output to {output_file}")
-
         final_markdown = "\n\n".join(final_content)
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(final_markdown)
-
         return final_markdown
 
     def _image_to_base64(self, image_path: str) -> str:
@@ -497,15 +496,12 @@ class MineruPDFParser:
     def _clean_markdown_response(self, content: str) -> str:
         """Remove markdown code fences from LLM response if present."""
         content = content.strip()
-
-        if content.startswith("```"):
-            first_newline = content.find("\n")
-            if first_newline != -1:
-                content = content[first_newline + 1 :]
-
-        if content.endswith("```"):
-            content = content[:-3].rstrip()
-
+        if content.startswith("```") and content.endswith("```"):
+            lines = content.split("\n")
+            if len(lines) > 1:
+                return "\n".join(lines[1:-1]).strip()
+            else:
+                return content[3:-3].strip()
         return content
 
 
