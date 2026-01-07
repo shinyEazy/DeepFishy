@@ -430,6 +430,10 @@ class MilvusService:
                 else:
                     filter_expr = date_filter
 
+            logger.debug(f"Filter expression: '{filter_expr}' (empty={not filter_expr})")
+            logger.debug(f"Query embedding dimension: {len(query_embedding)}")
+            logger.debug(f"Collection info: num_entities={self.collection.num_entities}")
+
             # Load collection into memory
             self.collection.load()
 
@@ -473,11 +477,13 @@ class MilvusService:
                         }
                     )
 
-            logger.info(f"Search returned {len(formatted_results)} results")
+            logger.info(f"Search returned {len(formatted_results)} results with top_k={top_k}")
+            if len(formatted_results) == 0:
+                logger.warning(f"No results found. Collection has {self.collection.num_entities} entities")
             return formatted_results
 
         except Exception as e:
-            logger.error(f"Search failed: {e}")
+            logger.error(f"Search failed: {e}", exc_info=True)
             return []
 
     def count(self) -> int:

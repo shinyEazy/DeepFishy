@@ -52,7 +52,7 @@ def search_local_knowledge(
         # Validate top_k
         top_k = max(1, min(top_k, 20))
 
-        logger.info(f"Knowledge search: query='{query[:50]}...', top_k={top_k}")
+        logger.info(f"Knowledge search: query='{query}', top_k={top_k}, category={repr(category)}")
 
         rag_service = _get_rag_service()
 
@@ -63,10 +63,11 @@ def search_local_knowledge(
             include_metadata=True,
         )
 
+        logger.debug(f"Knowledge search result: num_results={result.get('num_results', 'unknown')}")
         return result
 
     except Exception as e:
-        logger.error(f"Knowledge search failed: {e}")
+        logger.error(f"Knowledge search failed: {e}", exc_info=True)
         return {
             "context": f"Error searching knowledge base: {str(e)}",
             "sources": [],
