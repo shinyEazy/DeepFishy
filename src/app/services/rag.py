@@ -99,7 +99,7 @@ class RAGService:
 
         try:
             # Generate embedding for the query
-            logger.info(f"Generating embedding for query: {query[:50]}...")
+            logger.info(f"Generating embedding for query: {query}")
             query_embeddings = self._embedding_service.embed_texts([query])
 
             if not query_embeddings:
@@ -107,9 +107,10 @@ class RAGService:
                 return []
 
             query_embedding = query_embeddings[0]
+            logger.debug(f"Query embedding generated. Dimension: {len(query_embedding)}")
 
             # Search Milvus
-            logger.info(f"Searching Milvus for top {top_k} results")
+            logger.info(f"Searching Milvus for top {top_k} results with category_filter={repr(category)}")
             results = self._milvus_service.search(
                 query_embedding=query_embedding,
                 top_k=top_k,
@@ -133,10 +134,12 @@ class RAGService:
                 )
 
             logger.info(f"RAG search returned {len(search_results)} results")
+            if len(search_results) == 0:
+                logger.warning(f"RAG search returned 0 results for query: '{query}'")
             return search_results
 
         except Exception as e:
-            logger.error(f"RAG search failed: {e}")
+            logger.error(f"RAG search failed: {e}", exc_info=True)
             return []
 
     def search_with_context(
