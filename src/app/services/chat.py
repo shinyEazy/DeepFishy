@@ -1,8 +1,9 @@
 """Chat service for managing conversations and agent interactions."""
 
-from typing import Optional, List, Dict, Any, AsyncGenerator
+from typing import Optional, List, Dict, Any, AsyncGenerator, Tuple
 from datetime import datetime
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 import json
 
 from app.db.models.conversation import Conversation, Message
@@ -47,7 +48,9 @@ class ChatService:
 
     def get_conversation(self, conversation_id: str) -> Optional[Conversation]:
         """
-        Get conversation by ID.
+        Get conversation by ID, including its messages.
+
+        Uses eager-loading to avoid N+1 query problems when accessing messages.
 
         Args:
             conversation_id: Conversation ID
@@ -58,6 +61,7 @@ class ChatService:
         try:
             return (
                 self.db.query(Conversation)
+                .options(joinedload(Conversation.messages))
                 .filter(Conversation.id == conversation_id)
                 .first()
             )
@@ -111,6 +115,45 @@ class ChatService:
         except Exception as e:
             logger.error(f"Failed to list conversations: {e}")
             return []
+
+    def list_conversations_with_counts(
+        self, limit: int = 50, offset: int = 0
+    ) -> Tuple[List[Tuple[Conversation, int]], int]:
+        """
+        List conversations with message counts in a single optimized query.
+
+        Uses a single query with JOIN and GROUP BY to efficiently get conversation
+        data with message counts, avoiding the N+1 query problem.
+
+        Args:
+            limit: Maximum number of conversations to return
+            offset: Number of conversations to skip
+
+        Returns:
+            Tuple of (list of (conversation, message_count) tuples, total_count)
+        """
+        try:
+            # Get total count of all conversations
+            total_count = self.db.query(func.count(Conversation.id)).scalar() or 0
+
+            # Query for conversations with message counts using a join and group by
+            results = (
+                self.db.query(
+                    Conversation, func.count(Message.id).label("message_count")
+                )
+                .outerjoin(Message, Conversation.id == Message.conversation_id)
+                .group_by(Conversation.id)
+                .order_by(Conversation.updated_at.desc())
+                .limit(limit)
+                .offset(offset)
+                .all()
+            )
+
+            return results, total_count
+
+        except Exception as e:
+            logger.error(f"Failed to list conversations with counts: {e}")
+            return [], 0
 
     def delete_conversation(self, conversation_id: str) -> bool:
         """

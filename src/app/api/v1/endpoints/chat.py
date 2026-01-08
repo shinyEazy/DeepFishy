@@ -67,7 +67,7 @@ async def chat_completion(request: ChatRequest, db: Session = Depends(get_db)) -
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
 async def get_conversation(
     conversation_id: str, db: Session = Depends(get_db)
-) -> Dict[str, Any]:
+) -> ConversationDetail:
     """
     Get a conversation by ID with all its messages.
 
@@ -82,24 +82,7 @@ async def get_conversation(
                 status_code=404, detail=f"Conversation {conversation_id} not found"
             )
 
-        messages = chat_service.get_messages(conversation_id)
-
-        return {
-            "id": conversation.id,
-            "title": conversation.title,
-            "created_at": conversation.created_at,
-            "updated_at": conversation.updated_at,
-            "messages": [
-                {
-                    "id": msg.id,
-                    "role": msg.role,
-                    "content": msg.content,
-                    "created_at": msg.created_at,
-                    "metadata": msg.meta,
-                }
-                for msg in messages
-            ],
-        }
+        return conversation
 
     except HTTPException:
         raise
@@ -120,25 +103,26 @@ async def list_conversations(
     try:
         chat_service = ChatService(db)
 
-        conversations = chat_service.list_conversations(limit=limit, offset=offset)
+        # Fetch conversations with message counts in a single optimized query
+        results, total_count = chat_service.list_conversations_with_counts(
+            limit=limit, offset=offset
+        )
 
-        # Count messages for each conversation
-        conversation_summaries = []
-        for conv in conversations:
-            message_count = len(chat_service.get_messages(conv.id))
-            conversation_summaries.append(
-                {
-                    "id": conv.id,
-                    "title": conv.title,
-                    "created_at": conv.created_at,
-                    "updated_at": conv.updated_at,
-                    "message_count": message_count,
-                }
-            )
+        # Build conversation summaries from the optimized query results
+        conversation_summaries = [
+            {
+                "id": conv.id,
+                "title": conv.title,
+                "created_at": conv.created_at,
+                "updated_at": conv.updated_at,
+                "message_count": message_count,
+            }
+            for conv, message_count in results
+        ]
 
         return {
             "conversations": conversation_summaries,
-            "total": len(conversations),
+            "total": total_count,
             "limit": limit,
             "offset": offset,
         }

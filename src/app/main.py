@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from app.api.v1.endpoints.rag import router as rag_router
 from app.api.v1.endpoints.chat import router as chat_router
-from app.db.session import init_db, close_db
+from app.db.session import close_db
 from app.core.logging import logger
 
 
@@ -15,11 +15,6 @@ async def lifespan(app: FastAPI):
     """Application lifespan events."""
     # Startup
     logger.info("Starting DeepFishy application...")
-    try:
-        init_db()
-        logger.info("Database initialized successfully")
-    except Exception as e:
-        logger.warning(f"Database initialization failed (will retry on first use): {e}")
 
     yield
 

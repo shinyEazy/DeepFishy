@@ -32,7 +32,6 @@ def upgrade() -> None:
     )
     op.create_index("idx_conversations_created_at", "conversations", ["created_at"])
     op.create_index("idx_conversations_updated_at", "conversations", ["updated_at"])
-    op.create_index(op.f("ix_conversations_id"), "conversations", ["id"], unique=False)
 
     # Create messages table
     op.create_table(
@@ -53,30 +52,18 @@ def upgrade() -> None:
         "messages",
         ["conversation_id", "created_at"],
     )
-    op.create_index("idx_messages_conversation_id", "messages", ["conversation_id"])
     op.create_index("idx_messages_created_at", "messages", ["created_at"])
-    op.create_index(
-        op.f("ix_messages_conversation_id"),
-        "messages",
-        ["conversation_id"],
-        unique=False,
-    )
-    op.create_index(op.f("ix_messages_id"), "messages", ["id"], unique=False)
     op.create_index(op.f("ix_messages_role"), "messages", ["role"], unique=False)
 
 
 def downgrade() -> None:
     # Drop messages table
     op.drop_index(op.f("ix_messages_role"), table_name="messages")
-    op.drop_index(op.f("ix_messages_id"), table_name="messages")
-    op.drop_index(op.f("ix_messages_conversation_id"), table_name="messages")
     op.drop_index("idx_messages_created_at", table_name="messages")
-    op.drop_index("idx_messages_conversation_id", table_name="messages")
     op.drop_index("idx_messages_conversation_created", table_name="messages")
     op.drop_table("messages")
 
     # Drop conversations table
-    op.drop_index(op.f("ix_conversations_id"), table_name="conversations")
     op.drop_index("idx_conversations_updated_at", table_name="conversations")
     op.drop_index("idx_conversations_created_at", table_name="conversations")
     op.drop_table("conversations")
