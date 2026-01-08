@@ -1,6 +1,28 @@
 name: deepfishy
 
 services:
+  # PostgreSQL - Primary database for chat conversations and metadata
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    ports:
+      - "2345:5432"
+    environment:
+      - POSTGRES_DB=deepfishy
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d deepfishy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - deepfishy
+    restart: unless-stopped
+
   # Redis - message broker and result backend
   redis:
     image: redis:7-alpine
@@ -30,6 +52,8 @@ services:
     env_file:
       - ../.env
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       minio:
@@ -55,6 +79,8 @@ services:
     env_file:
       - ../.env
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       minio:
@@ -78,6 +104,8 @@ services:
     ports:
       - "8000:8000"
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       minio:
@@ -189,6 +217,8 @@ services:
     ports:
       - "2024:2024"
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       minio:
@@ -202,6 +232,7 @@ services:
       - deepfishy
 
 volumes:
+  postgres_data:
   redis_data:
   minio_data:
   milvus_data:

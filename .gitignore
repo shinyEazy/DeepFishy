@@ -211,3 +211,9 @@ data/
 .github/
 .langgraph_api/
 src/app/ingestion/parsers/results/
+src/app/engine/results/
+
+# Agent workspace (todos, context, memories)
+# Comment this line out if you want to track agent execution history in git
+agent_workspace/
+docs/
