@@ -210,9 +210,9 @@ class ChatService:
             self.db.add(message)
 
             # Update conversation's updated_at timestamp
-            conversation = self.get_conversation(conversation_id)
-            if conversation:
-                conversation.updated_at = datetime.utcnow()
+            self.db.query(Conversation).filter(
+                Conversation.id == conversation_id
+            ).update({"updated_at": datetime.utcnow()})
 
             self.db.commit()
             self.db.refresh(message)

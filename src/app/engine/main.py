@@ -114,7 +114,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--input", type=str, default="Tạo báo cáo tài chính toàn diện về VNINDEX với phân tích xu hướng và biểu đồ 6 tháng gần đây"
+        "--input",
+        type=str,
+        default="Tạo báo cáo tài chính toàn diện về VNINDEX với phân tích xu hướng và biểu đồ 6 tháng gần đây",
     )
     parser.add_argument(
         "--show-workspace",

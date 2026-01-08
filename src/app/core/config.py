@@ -40,9 +40,7 @@ class Settings(BaseSettings):
     MINIO_SECURE: bool = os.getenv("MINIO_SECURE", "false").lower() == "true"
 
     # PostgreSQL Database
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL", "postgresql://user:password@localhost:5432/deepfishy"
-    )
+    DATABASE_URL: str = os.getenv("DATABASE_URL")
 
     class Config:
         env_file = ".env"
