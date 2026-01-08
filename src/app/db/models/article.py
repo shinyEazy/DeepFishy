@@ -1,7 +1,7 @@
 """SQLAlchemy models for articles."""
 
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, Text, JSON, Index
+from sqlalchemy import Column, String, Integer, DateTime, Text, JSON, Index, Boolean
 from sqlalchemy.orm import Mapped
 
 from app.db.base import Base
@@ -41,7 +41,7 @@ class Article(Base):
     )
 
     # Processing status
-    is_processed: Mapped[bool] = Column(default=False, index=True)
+    is_processed: Mapped[bool] = Column(Boolean, default=False, index=True)
     chunks_count: Mapped[int] = Column(Integer, default=0)
     milvus_ids: Mapped[list] = Column(
         JSON, default=list, nullable=True
@@ -60,37 +60,3 @@ class Article(Base):
 
     def __repr__(self) -> str:
         return f"<Article(id={self.id}, title={self.title[:50]}..., url={self.url})>"
-
-
-class ArticleChunk(Base):
-    """Chunk metadata (optional - for tracking which chunks exist for an article).
-
-    This table maintains a reference between articles and their chunks in Milvus.
-    Useful for managing chunk lifecycles and performing cleanup.
-    """
-
-    __tablename__ = "article_chunks"
-
-    # Primary key
-    chunk_id: Mapped[str] = Column(String(32), primary_key=True, index=True)
-
-    # Foreign key to article
-    article_id: Mapped[str] = Column(String(255), index=True, nullable=False)
-
-    # Chunk metadata
-    chunk_index: Mapped[int] = Column(Integer, nullable=False)
-    text_preview: Mapped[str] = Column(String(500), nullable=True)  # First 500 chars
-    embedding_dim: Mapped[int] = Column(Integer, default=1024, nullable=False)
-
-    # Timestamps
-    created_at: Mapped[datetime] = Column(
-        DateTime, default=datetime.utcnow, nullable=False
-    )
-
-    __table_args__ = (
-        Index("idx_chunks_article_id", "article_id"),
-        Index("idx_chunks_created_at", "created_at"),
-    )
-
-    def __repr__(self) -> str:
-        return f"<ArticleChunk(chunk_id={self.chunk_id}, article_id={self.article_id})>"

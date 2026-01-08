@@ -107,10 +107,14 @@ class RAGService:
                 return []
 
             query_embedding = query_embeddings[0]
-            logger.debug(f"Query embedding generated. Dimension: {len(query_embedding)}")
+            logger.debug(
+                f"Query embedding generated. Dimension: {len(query_embedding)}"
+            )
 
             # Search Milvus
-            logger.info(f"Searching Milvus for top {top_k} results with category_filter={repr(category)}")
+            logger.info(
+                f"Searching Milvus for top {top_k} results with category_filter={repr(category)}"
+            )
             results = self._milvus_service.search(
                 query_embedding=query_embedding,
                 top_k=top_k,

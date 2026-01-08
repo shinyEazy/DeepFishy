@@ -189,4 +189,3 @@ def create_trend_analysis_chart(
 
     except Exception as e:
         return f"Error creating trend analysis chart: {str(e)}"
-
