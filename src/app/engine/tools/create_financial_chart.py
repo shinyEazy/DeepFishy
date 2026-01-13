@@ -48,11 +48,13 @@ def create_financial_chart(
         ...     chart_type="bar",
         ...     ylabel="Doanh thu (tỷ VNĐ)"
         ... )
-        'results/charts/chart_abc123.png'
+        'outputs/{session_id}/images/chart_20260113_140000_abc12345.png'
     """
     try:
-        # Create charts directory if not exists
-        charts_dir = os.path.join("results", "charts")
+        # Create charts directory - use OUTPUT_DIR env var if available (for session-based paths)
+        # Falls back to results/charts if not set
+        base_dir = os.getenv("OUTPUT_DIR", "results")
+        charts_dir = os.path.join(base_dir, "images")
         os.makedirs(charts_dir, exist_ok=True)
 
         # Generate unique filename

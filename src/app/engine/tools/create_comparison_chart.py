@@ -55,11 +55,13 @@ def create_comparison_chart(
         ...     ],
         ...     ylabel="Doanh thu (tỷ VNĐ)"
         ... )
-        'results/charts/comparison_abc123.png'
+        'outputs/{session_id}/images/comparison_20260113_140000_abc12345.png'
     """
     try:
-        # Create charts directory
-        charts_dir = os.path.join("results", "charts")
+        # Create charts directory - use OUTPUT_DIR env var if available (for session-based paths)
+        # Falls back to results/charts if not set
+        base_dir = os.getenv("OUTPUT_DIR", "results")
+        charts_dir = os.path.join(base_dir, "images")
         os.makedirs(charts_dir, exist_ok=True)
 
         # Generate unique filename
