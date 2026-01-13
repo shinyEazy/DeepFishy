@@ -102,6 +102,7 @@ def _create_agent(session_id: Optional[str] = None):
             "market_data",
             "knowledge_search",
             "financial_research",
+            "report_outline",
             "financial_report_writer",
         ]
     )
@@ -160,6 +161,7 @@ def agent():
             "market_data",
             "knowledge_search",
             "financial_research",
+            "report_outline",
             "financial_report_writer",
         ]
     )
@@ -261,10 +263,6 @@ if __name__ == "__main__":
 
             # Replace with relative path: images/
             normalized_response = re.sub(pattern, "images/", final_response)
-
-            logger.info(
-                f"Normalized {len(re.findall(pattern, final_response))} image path(s) in markdown content"
-            )
 
             with open(full_md_path, "w", encoding="utf-8") as f:
                 f.write(normalized_response)
