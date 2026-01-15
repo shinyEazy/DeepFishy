@@ -22,7 +22,7 @@ from app.core.logging import logger
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
 
-@router.post("", response_model=ChatResponse)
+@router.post("/completions", response_model=ChatResponse)
 async def chat_completion(request: ChatRequest, db: Session = Depends(get_db)) -> Any:
     """
     Send a chat message and get AI response.
