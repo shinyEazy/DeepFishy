@@ -1,14 +1,16 @@
 import os
 import re
+import json
 from typing import Optional
 from datetime import datetime
-from deepagents import create_deep_agent
-from deepagents.backends import FilesystemBackend
 from dotenv import load_dotenv
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from langchain_core.language_models.chat_models import BaseChatModel
+
+from deepagents import create_deep_agent
+from deepagents.backends import FilesystemBackend
 
 from app.core.logging import logger
 from app.engine.prompts.orchestrator_prompt import ORCHESTRATOR_PROMPT
@@ -272,7 +274,6 @@ if __name__ == "__main__":
 
             # Save todos if any exist
             if todos:
-                import json
 
                 with open(todos_path, "w", encoding="utf-8") as f:
                     json.dump(
