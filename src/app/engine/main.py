@@ -95,19 +95,38 @@ def _create_model() -> Optional[BaseChatModel]:
         return None
 
 
-def _create_agent(session_id: Optional[str] = None):
-    """Factory function to create the agent with lazy initialization."""
+def _create_agent(session_id: Optional[str] = None, phase: str = "write"):
+    """Factory function to create the agent with lazy initialization.
+
+    Args:
+        session_id: Optional session ID for workspace persistence
+        phase: 'build' for Graph RAG building, 'write' for Report writing
+    """
     custom_model = _create_model()
 
-    subagents = load_agents(
-        names=[
+    # Select subagents and prompt based on phase
+    if phase == "build":
+        from app.engine.prompts.graph_builder_prompt import GRAPH_BUILDER_PROMPT
+
+        system_prompt = GRAPH_BUILDER_PROMPT
+        subagent_names = [
+            "knowledge_search",
+            "financial_research",
+            "graph_extractor",
+        ]
+        logger.info("Creating Graph Builder agent (Phase 1)")
+    else:
+        system_prompt = ORCHESTRATOR_PROMPT
+        subagent_names = [
             "market_data",
             "knowledge_search",
             "financial_research",
             "report_outline",
             "financial_report_writer",
         ]
-    )
+        logger.info("Creating Report Writer agent (Phase 2)")
+
+    subagents = load_agents(names=subagent_names)
 
     logger.info(f"Loaded {len(subagents)} subagent(s)")
 
@@ -139,7 +158,7 @@ def _create_agent(session_id: Optional[str] = None):
     agent = create_deep_agent(
         model=custom_model,
         tools=[],
-        system_prompt=ORCHESTRATOR_PROMPT,
+        system_prompt=system_prompt,
         subagents=subagents,
         backend=backend,  # Pass backend to enable disk persistence
     ).with_config(config)
@@ -193,20 +212,46 @@ def get_agent(session_id: Optional[str] = None):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="DeepFishy Agent - Two-phase workflow for financial analysis"
+    )
     parser.add_argument(
-        "--input",
+        "--phase",
         type=str,
-        default="Tạo báo cáo tài chính toàn diện về VNINDEX với phân tích xu hướng và biểu đồ 1 tuần gần đây",
+        choices=["build", "write"],
+        default="write",
+        help="Phase to run: 'build' for Graph RAG building, 'write' for Report writing (default: write)",
+    )
+    parser.add_argument(
+        "--input", type=str, default=None, help="User input/query for the agent"
     )
     args = parser.parse_args()
-    user_input = args.input
+
+    # Set default input based on phase
+    if args.input:
+        user_input = args.input
+    elif args.phase == "build":
+        user_input = "Xây dựng knowledge graph về tình hình của VNINDEX"
+    else:
+        user_input = "Tạo báo cáo tài chính toàn diện về VNINDEX với phân tích xu hướng và biểu đồ 1 tuần gần đây"
 
     # Generate session ID once for this run
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Create agent with this session's workspace
-    agent = _create_agent(session_id) if ENABLE_DISK_BACKEND else _create_agent()
+    # Log phase info
+    if args.phase == "build":
+        logger.info("=" * 60)
+        logger.info("PHASE 1: Graph RAG Builder")
+        logger.info("=" * 60)
+    else:
+        logger.info("=" * 60)
+        logger.info("PHASE 2: Report Writer")
+        logger.info("=" * 60)
+
+    # Create agent with phase parameter (uses the same proven creation pattern)
+    agent = _create_agent(
+        session_id=session_id if ENABLE_DISK_BACKEND else None, phase=args.phase
+    )
 
     # Set OUTPUT_DIR environment variable for chart tools
     # This ensures charts are saved to outputs/{session_id}/images
@@ -214,6 +259,7 @@ if __name__ == "__main__":
         os.environ["OUTPUT_DIR"] = agent._workspace_path
         logger.info(f"Set OUTPUT_DIR to: {agent._workspace_path}")
 
+    logger.info(f"Phase: {args.phase.upper()}")
     logger.info(f"Starting agent invocation with input: {user_input[:100]}...")
     result = agent.invoke({"messages": [{"role": "user", "content": user_input}]})
     logger.info(f"Agent invocation completed. Result keys: {list(result.keys())}")
@@ -236,7 +282,7 @@ if __name__ == "__main__":
     logger.info(f"Todos extracted: {len(todos) if isinstance(todos, list) else 'N/A'}")
 
     print("\n" + "=" * 80)
-    print("AGENT RESPONSE:")
+    print(f"AGENT RESPONSE ({args.phase.upper()} PHASE):")
     print("=" * 80)
     print(final_response)
 
@@ -249,6 +295,7 @@ if __name__ == "__main__":
             full_md_path = os.path.join(workspace_path, "full.md")
             user_query_path = os.path.join(workspace_path, "user_query.txt")
             todos_path = os.path.join(workspace_path, "todos.json")
+            phase_path = os.path.join(workspace_path, "phase.txt")
 
             os.makedirs(workspace_path, exist_ok=True)
 
@@ -272,6 +319,9 @@ if __name__ == "__main__":
             with open(user_query_path, "w", encoding="utf-8") as f:
                 f.write(user_input)
 
+            with open(phase_path, "w", encoding="utf-8") as f:
+                f.write(args.phase)
+
             # Save todos if any exist
             if todos:
 
@@ -282,6 +332,8 @@ if __name__ == "__main__":
                         indent=2,
                         ensure_ascii=False,
                     )
+
+            logger.info(f"Outputs saved to: {workspace_path}")
 
         except Exception as e:
             logger.warning(f"Could not save agent response: {e}")
