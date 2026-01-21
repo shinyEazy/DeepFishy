@@ -19,7 +19,6 @@ dependencies = [
     "matplotlib>=3.9.0",
     "minio>=7.2.0",
     "psycopg2-binary>=2.9.9",
-    "numpy>=1.26.0",
     "pydantic-settings>=2.12.0",
     "pymilvus[milvus-lite]>=2.6.4",
     "redis>=7.1.0",
@@ -28,4 +27,8 @@ dependencies = [
     "tavily>=1.1.0",
     "uvicorn>=0.27.0",
     "vnstock>=3.3.0",
+    "langchain-experimental>=0.4.1",
+    "numpy>=2.4.0",
+    "langchain-neo4j>=0.7.0",
+    "neo4j>=6.1.0",
 ]
