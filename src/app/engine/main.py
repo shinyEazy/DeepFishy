@@ -116,15 +116,22 @@ def _create_agent(session_id: Optional[str] = None, phase: str = "write"):
         ]
         logger.info("Creating Graph Builder agent (Phase 1)")
     else:
-        system_prompt = ORCHESTRATOR_PROMPT
+        from app.engine.prompts.write_phase_prompt import WRITE_PHASE_PROMPT
+
+        system_prompt = WRITE_PHASE_PROMPT
         subagent_names = [
-            "market_data",
-            "knowledge_search",
-            "financial_research",
-            "report_outline",
-            "financial_report_writer",
+            "graph_query",  # Query existing GraphRAG
+            "gap_analyzer",  # Analyze knowledge gaps
+            "knowledge_search",  # Search for missing info
+            "financial_research",  # Deep research when needed
+            "graph_extractor",  # Add new knowledge to graph
+            "report_outline",  # Generate outline with sections
+            "section_writer",  # Write each section individually
+            "critique",  # Self-critic optimization
+            "financial_report_writer",  # Final formatting
         ]
-        logger.info("Creating Report Writer agent (Phase 2)")
+        # Note: Sections are concatenated programmatically, no synthesizer needed
+        logger.info("Creating Report Writer agent (Phase 2 - Write Phase)")
 
     subagents = load_agents(names=subagent_names)
 
