@@ -1,0 +1,71 @@
+# Git
+.git/
+.gitignore
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.eggs/
+
+# Docker configs (don't need to copy themselves)
+docker/
+
+# Runtime data (mounted at runtime)
+data/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Build artifacts
+build/
+dist/
+*.egg
+
+# Logs
+*.log
+
+# Environment files (secrets - use env_file in compose)
+.env
+.env.*
+
+# Documentation and misc
+docs/
+README.md
+LICENSE
+*.md
+
+# Agent/Local workspaces
+agent_workspace/
+.langgraph_api/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Type checking
+.mypy_cache/
+.ruff_cache/
+
+# Results directories
+ingestion/parsers/results/
+engine/results/
+engine/outputs/
