@@ -4,6 +4,9 @@ import yaml
 from typing import List, Dict, Optional, Any
 from importlib import import_module
 
+from utils.model_factory import create_model_client
+from core.logging import logger
+
 
 def _resolve_tool(tool_name: str) -> Any:
     """Resolve a tool name to the actual tool object.
@@ -90,12 +93,35 @@ def load_agents(
 
         tools = [_resolve_tool(name) for name in tool_names]
 
+        # Handle model configuration
+        # If model is specified in agent.md, load from config.yaml
+        # If not specified, subagent will use orchestrator's model (deepagents default)
+        model_name = meta.get("model")
+        model = None
+        if model_name:
+            model = create_model_client(model_name)
+            if model:
+                logger.info(
+                    f"Using custom model '{model_name}' for agent '{meta.get('name')}'"
+                )
+            else:
+                logger.warning(
+                    f"Model '{model_name}' not found in config for agent '{meta.get('name')}', "
+                    "will use orchestrator model"
+                )
+
         agent_def = {
             "name": meta.get("name", "").strip(),
             "description": meta.get("description", "").strip(),
             "system_prompt": prompt,
             "tools": tools,
         }
+
+        # Only add model to agent_def if explicitly configured
+        # This allows deepagents to fall back to orchestrator's model when None
+        if model is not None:
+            agent_def["model"] = model
+
         agents.append(agent_def)
 
     return agents

@@ -16,6 +16,7 @@ from core.logging import logger
 from engine.prompts.orchestrator_prompt import ORCHESTRATOR_PROMPT
 from engine.tools.get_current_date import get_current_date
 from utils.load_agents import load_agents
+from utils.model_factory import create_model_client
 
 
 load_dotenv()
@@ -63,36 +64,21 @@ def _extract_text_from_content(content) -> str:
 
 def _create_model() -> Optional[BaseChatModel]:
     """
-    Lazy model initialization to avoid credential errors during import.
-    Checks for model provider before attempting to initialize models.
+    Model initialization using factory and config.yaml.
     """
-
+    model = None
     if MODEL_PROVIDER == "google":
-        google_api_key = os.getenv("GOOGLE_API_KEY")
-        try:
-            logger.info("Initializing Gemini model")
-            return ChatGoogleGenerativeAI(
-                model="gemini-2.5-flash", google_api_key=google_api_key
-            )
-        except Exception as e:
-            logger.warning(f"Failed to initialize Gemini model: {e}")
-
+        model = create_model_client("gemini-2.5-flash")
     elif MODEL_PROVIDER == "openai":
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        try:
-            logger.info("Initializing OpenAI model")
-            return ChatOpenAI(model="gpt-4o-mini", api_key=openai_api_key)
-        except Exception as e:
-            logger.warning(f"Failed to initialize OpenAI model: {e}")
+        model = create_model_client("gpt-4o-mini")
 
-    else:
+    if not model:
         logger.warning(
-            "No valid model provider found. Agent will be created without a model."
+            f"Could not create model for provider '{MODEL_PROVIDER}'. "
+            "Please check config.yaml or MODEL_PROVIDER env var."
         )
-        logger.warning(
-            "Please set MODEL_PROVIDER in your .env file to 'google' or 'openai'"
-        )
-        return None
+
+    return model
 
 
 def _create_agent(session_id: Optional[str] = None, phase: str = "write"):
@@ -139,7 +125,7 @@ def _create_agent(session_id: Optional[str] = None, phase: str = "write"):
     logger.info(f"Loaded {len(subagents)} subagent(s)")
 
     # Configure agent with optional disk backend
-    config = {"recursion_limit": 100}
+    config = {"recursion_limit": 1000}
     backend = None
     workspace_path = None
 
@@ -226,122 +212,149 @@ if __name__ == "__main__":
     parser.add_argument(
         "--phase",
         type=str,
-        choices=["build", "write"],
-        default="write",
-        help="Phase to run: 'build' for Graph RAG building, 'write' for Report writing (default: write)",
+        default=None,
+        help="Phase to run: 'build' for Graph RAG building, 'write' for Report writing. If not specified, runs both in sequence.",
     )
     parser.add_argument(
         "--input", type=str, default=None, help="User input/query for the agent"
     )
     args = parser.parse_args()
 
-    # Set default input based on phase
-    if args.input:
-        user_input = args.input
-    elif args.phase == "build":
-        user_input = "Xây dựng knowledge graph về tình hình của VNINDEX"
+    # Determine which phases to run
+    if args.phase:
+        phases_to_run = [args.phase]
     else:
-        user_input = "Tạo báo cáo tài chính toàn diện về VNINDEX với phân tích xu hướng và biểu đồ 1 tuần gần đây"
+        phases_to_run = ["build", "write"]
 
-    # Generate session ID once for this run
+    # Generate session ID once for this run (shared across phases)
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Log phase info
-    if args.phase == "build":
+    for current_phase in phases_to_run:
+        # Validate phase
+        if current_phase not in ["build", "write"]:
+            logger.error(f"Invalid phase: {current_phase}. Must be 'build' or 'write'.")
+            continue
+
+        # Set default input based on phase if not provided by user
+        if args.input:
+            user_input = args.input
+        elif current_phase == "build":
+            user_input = "Xây dựng knowledge graph về tình hình của VNINDEX"
+        else:
+            user_input = "Tạo báo cáo tài chính toàn diện về VNINDEX với phân tích xu hướng và biểu đồ 1 tuần gần đây"
+
+        # Log phase info
         logger.info("=" * 60)
-        logger.info("PHASE 1: Graph RAG Builder")
+        if current_phase == "build":
+            logger.info("PHASE 1: Graph RAG Builder")
+        else:
+            logger.info(f"PHASE 2: Report Writer")
         logger.info("=" * 60)
-    else:
-        logger.info("=" * 60)
-        logger.info("PHASE 2: Report Writer")
-        logger.info("=" * 60)
 
-    # Create agent with phase parameter (uses the same proven creation pattern)
-    agent = _create_agent(
-        session_id=session_id if ENABLE_DISK_BACKEND else None, phase=args.phase
-    )
+        # Create agent with phase parameter (uses the same proven creation pattern)
+        # Session ID is passed to ensure workspaces are shared/persisted
+        agent = _create_agent(
+            session_id=session_id if ENABLE_DISK_BACKEND else None, phase=current_phase
+        )
 
-    # Set OUTPUT_DIR environment variable for chart tools
-    # This ensures charts are saved to outputs/{session_id}/images
-    if ENABLE_DISK_BACKEND and hasattr(agent, "_workspace_path"):
-        os.environ["OUTPUT_DIR"] = agent._workspace_path
-        logger.info(f"Set OUTPUT_DIR to: {agent._workspace_path}")
+        # Set OUTPUT_DIR environment variable for chart tools
+        # This ensures charts are saved to outputs/{session_id}/images
+        if ENABLE_DISK_BACKEND and hasattr(agent, "_workspace_path"):
+            os.environ["OUTPUT_DIR"] = agent._workspace_path
+            logger.info(f"Set OUTPUT_DIR to: {agent._workspace_path}")
 
-    logger.info(f"Phase: {args.phase.upper()}")
-    logger.info(f"Starting agent invocation with input: {user_input[:100]}...")
-    result = agent.invoke({"messages": [{"role": "user", "content": user_input}]})
-    logger.info(f"Agent invocation completed. Result keys: {list(result.keys())}")
+        logger.info(f"Phase: {current_phase.upper()}")
+        logger.info(f"Starting agent invocation with input: {user_input[:100]}...")
 
-    # Extract text from response (handles both string and list content formats)
-    logger.info(f"Number of messages in result: {len(result.get('messages', []))}")
-
-    if not result.get("messages"):
-        logger.error("No messages found in result!")
-        logger.error(f"Result structure: {result}")
-        print("ERROR: No response from agent")
-        exit(1)
-
-    final_response_raw = result["messages"][-1].content
-    logger.info(f"Final response type: {type(final_response_raw)}")
-    final_response = _extract_text_from_content(final_response_raw)
-
-    # Extract todos from agent state if available
-    todos = result.get("todos", [])
-    logger.info(f"Todos extracted: {len(todos) if isinstance(todos, list) else 'N/A'}")
-
-    print("\n" + "=" * 80)
-    print(f"AGENT RESPONSE ({args.phase.upper()} PHASE):")
-    print("=" * 80)
-    print(final_response)
-
-    # Save outputs to the unified session directory
-    if ENABLE_DISK_BACKEND and hasattr(agent, "_workspace_path"):
-        workspace_path = agent._workspace_path
-
-        # Save final response, query, and todos to the workspace
         try:
-            full_md_path = os.path.join(workspace_path, "full.md")
-            user_query_path = os.path.join(workspace_path, "user_query.txt")
-            todos_path = os.path.join(workspace_path, "todos.json")
-            phase_path = os.path.join(workspace_path, "phase.txt")
+            result = agent.invoke(
+                {"messages": [{"role": "user", "content": user_input}]}
+            )
+            logger.info(
+                f"Agent invocation completed. Result keys: {list(result.keys())}"
+            )
 
-            os.makedirs(workspace_path, exist_ok=True)
+            # Extract text from response (handles both string and list content formats)
+            logger.info(
+                f"Number of messages in result: {len(result.get('messages', []))}"
+            )
 
-            # Normalize paths in the markdown content
-            # Replace absolute paths like "outputs/20260113_071152/images/" with relative "images/"
-            # This ensures markdown links work correctly when full.md is in the same directory
+            if not result.get("messages"):
+                logger.error("No messages found in result!")
+                logger.error(f"Result structure: {result}")
+                print("ERROR: No response from agent")
+                continue
 
-            # Get the session ID from workspace_path (e.g., "outputs/20260113_071152" -> "20260113_071152")
-            session_id_from_path = os.path.basename(workspace_path)
+            final_response_raw = result["messages"][-1].content
+            logger.info(f"Final response type: {type(final_response_raw)}")
+            final_response = _extract_text_from_content(final_response_raw)
 
-            # Pattern to match: outputs/{session_id}/images/
-            # or {OUTPUT_BASE_PATH}/{session_id}/images/
-            pattern = rf"{re.escape(OUTPUT_BASE_PATH)}/{re.escape(session_id_from_path)}/images/"
+            # Extract todos from agent state if available
+            todos = result.get("todos", [])
+            logger.info(
+                f"Todos extracted: {len(todos) if isinstance(todos, list) else 'N/A'}"
+            )
 
-            # Replace with relative path: images/
-            normalized_response = re.sub(pattern, "images/", final_response)
+            print("\n" + "=" * 80)
+            print(f"AGENT RESPONSE ({current_phase.upper()} PHASE):")
+            print("=" * 80)
+            print(final_response)
 
-            with open(full_md_path, "w", encoding="utf-8") as f:
-                f.write(normalized_response)
+            # Save outputs to the unified session directory
+            if ENABLE_DISK_BACKEND and hasattr(agent, "_workspace_path"):
+                workspace_path = agent._workspace_path
 
-            with open(user_query_path, "w", encoding="utf-8") as f:
-                f.write(user_input)
+                # Save final response, query, and todos to the workspace
+                try:
+                    full_md_path = os.path.join(workspace_path, "full.md")
+                    user_query_path = os.path.join(workspace_path, "user_query.txt")
+                    todos_path = os.path.join(workspace_path, "todos.json")
+                    phase_path = os.path.join(workspace_path, "phase.txt")
 
-            with open(phase_path, "w", encoding="utf-8") as f:
-                f.write(args.phase)
+                    os.makedirs(workspace_path, exist_ok=True)
 
-            # Save todos if any exist
-            if todos:
+                    # Normalize paths in the markdown content
+                    # Replace absolute paths like "outputs/20260113_071152/images/" with relative "images/"
+                    session_id_from_path = os.path.basename(workspace_path)
 
-                with open(todos_path, "w", encoding="utf-8") as f:
-                    json.dump(
-                        todos,
-                        f,
-                        indent=2,
-                        ensure_ascii=False,
-                    )
+                    # Pattern to match: outputs/{session_id}/images/
+                    pattern = rf"{re.escape(OUTPUT_BASE_PATH)}/{re.escape(session_id_from_path)}/images/"
 
-            logger.info(f"Outputs saved to: {workspace_path}")
+                    # Replace with relative path: images/
+                    normalized_response = re.sub(pattern, "images/", final_response)
+
+                    # Append mode if it's the second phase, or just write?
+                    # The user likely wants to see the final report in full.md.
+                    # Usually 'write' phase produces the final report. 'build' phase might produce some status.
+                    # We will overwrite full.md for each phase so the latest is there,
+                    # but for 'build' -> 'write', 'write' is the final output.
+
+                    with open(full_md_path, "w", encoding="utf-8") as f:
+                        f.write(normalized_response)
+
+                    with open(user_query_path, "w", encoding="utf-8") as f:
+                        f.write(user_input)
+
+                    with open(phase_path, "w", encoding="utf-8") as f:
+                        f.write(current_phase)
+
+                    # Save todos if any exist
+                    if todos:
+                        with open(todos_path, "w", encoding="utf-8") as f:
+                            json.dump(
+                                todos,
+                                f,
+                                indent=2,
+                                ensure_ascii=False,
+                            )
+
+                    logger.info(f"Outputs saved to: {workspace_path}")
+
+                except Exception as e:
+                    logger.warning(f"Could not save agent response: {e}")
 
         except Exception as e:
-            logger.warning(f"Could not save agent response: {e}")
+            logger.error(f"Error during execution of phase {current_phase}: {e}")
+            import traceback
+
+            traceback.print_exc()

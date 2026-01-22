@@ -25,7 +25,7 @@ def _get_embedding_service():
     )
 
 
-@celery_task(
+@celery_app.task(
     bind=True,
     name="ingestion.embed_and_insert_articles",
     queue="ingestion",
@@ -227,7 +227,7 @@ def _load_articles_from_minio(
     return articles
 
 
-@celery_task(
+@celery_app.task(
     bind=True,
     name="ingestion.embed_single_article",
     queue="ingestion",

@@ -11,6 +11,7 @@ from langchain_core.tools import tool
 
 # Set up matplotlib for non-interactive backend
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
@@ -26,11 +27,11 @@ def execute_chart_code(
 ) -> str:
     """
     Execute Python matplotlib code to generate a chart image.
-    
+
     This tool executes dynamically generated Python code that creates charts
     using matplotlib. The code should create a figure and plot data, but
     should NOT include plt.show() or plt.savefig() - these are handled automatically.
-    
+
     Args:
         code: Python code that generates a matplotlib chart.
               The code should:
@@ -40,15 +41,15 @@ def execute_chart_code(
               - Set labels, titles, legends as needed
               DO NOT include plt.show() or plt.savefig()
         chart_title: Optional title for the chart file (used in filename)
-    
+
     Returns:
         Path to the saved chart image file, or error message if execution fails.
-    
+
     Example:
         >>> execute_chart_code(
         ...     code='''
         ... import matplotlib.pyplot as plt
-        ... 
+        ...
         ... data = {"Q1": 1500, "Q2": 1800, "Q3": 2000, "Q4": 2200}
         ... fig, ax = plt.subplots(figsize=(10, 6))
         ... ax.bar(data.keys(), data.values(), color='#2E86AB')
@@ -74,7 +75,7 @@ def execute_chart_code(
         filepath = os.path.join(charts_dir, filename)
 
         # Close any existing figures to prevent memory issues
-        plt.close('all')
+        plt.close("all")
 
         # Create a restricted execution namespace
         exec_namespace = {
@@ -86,6 +87,7 @@ def execute_chart_code(
         # Add common libraries if available
         try:
             import numpy as np
+
             exec_namespace["np"] = np
             exec_namespace["numpy"] = np
         except ImportError:
@@ -93,6 +95,7 @@ def execute_chart_code(
 
         try:
             import pandas as pd
+
             exec_namespace["pd"] = pd
             exec_namespace["pandas"] = pd
         except ImportError:
@@ -107,10 +110,10 @@ def execute_chart_code(
             # Apply tight layout and save
             plt.tight_layout()
             plt.savefig(filepath, dpi=300, bbox_inches="tight", facecolor="white")
-            plt.close('all')
+            plt.close("all")
             return filepath
         else:
-            plt.close('all')
+            plt.close("all")
             return "Error: No figure was created by the provided code"
 
     except SyntaxError as e:
