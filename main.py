@@ -4,10 +4,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from app.api.v1.endpoints.rag import router as rag_router
-from app.api.v1.endpoints.chat import router as chat_router
-from app.db.session import close_db
-from app.core.logging import logger
+from api.v1.endpoints.rag import router as rag_router
+from api.v1.endpoints.chat import router as chat_router
+from db.session import close_db
+from core.logging import logger
 
 
 @asynccontextmanager
@@ -32,7 +32,7 @@ app = FastAPI(
 )
 
 # Add CORS middleware
-app.add_middleware(
+add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
@@ -41,11 +41,11 @@ app.add_middleware(
 )
 
 # Register API routers
-app.include_router(chat_router, prefix="/api/v1")
-app.include_router(rag_router, prefix="/api/v1")
+include_router(chat_router, prefix="/api/v1")
+include_router(rag_router, prefix="/api/v1")
 
 
-@app.get("/")
+@get("/")
 async def root():
     """Root endpoint."""
     return {
@@ -55,7 +55,7 @@ async def root():
     }
 
 
-@app.get("/health")
+@get("/health")
 async def health():
     """Health check endpoint."""
     return {

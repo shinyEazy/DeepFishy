@@ -12,10 +12,10 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 
-from app.core.logging import logger
-from app.engine.prompts.orchestrator_prompt import ORCHESTRATOR_PROMPT
-from app.engine.tools.get_current_date import get_current_date
-from app.utils.load_agents import load_agents
+from core.logging import logger
+from engine.prompts.orchestrator_prompt import ORCHESTRATOR_PROMPT
+from engine.tools.get_current_date import get_current_date
+from utils.load_agents import load_agents
 
 
 load_dotenv()
@@ -106,7 +106,7 @@ def _create_agent(session_id: Optional[str] = None, phase: str = "write"):
 
     # Select subagents and prompt based on phase
     if phase == "build":
-        from app.engine.prompts.graph_builder_prompt import GRAPH_BUILDER_PROMPT
+        from engine.prompts.graph_builder_prompt import GRAPH_BUILDER_PROMPT
 
         system_prompt = GRAPH_BUILDER_PROMPT
         subagent_names = [
@@ -116,7 +116,7 @@ def _create_agent(session_id: Optional[str] = None, phase: str = "write"):
         ]
         logger.info("Creating Graph Builder agent (Phase 1)")
     else:
-        from app.engine.prompts.write_phase_prompt import WRITE_PHASE_PROMPT
+        from engine.prompts.write_phase_prompt import WRITE_PHASE_PROMPT
 
         system_prompt = WRITE_PHASE_PROMPT
         subagent_names = [

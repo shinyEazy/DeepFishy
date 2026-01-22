@@ -3,12 +3,12 @@
 from typing import Dict, Any, Optional, List, Literal
 from langchain_core.tools import tool
 
-from app.core.logging import logger
+from core.logging import logger
 
 
 def _get_query_service():
     """Lazy import to avoid circular imports and side effects on module load."""
-    from app.engine.graph_rag.neo4j_ingestion import get_graph_query_service
+    from engine.graph_rag.neo4j_ingestion import get_graph_query_service
 
     return get_graph_query_service()
 

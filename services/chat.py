@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 import json
 
-from app.db.models.conversation import Conversation, Message
-from app.core.logging import logger
+from db.models.conversation import Conversation, Message
+from core.logging import logger
 
 
 class ChatService:
@@ -270,7 +270,7 @@ class ChatService:
         """
         try:
             # Import agent here to avoid circular imports
-            from app.engine.main import agent
+            from engine.main import agent
 
             # Get or create conversation
             conversation = self.get_or_create_conversation(conversation_id)
@@ -353,7 +353,7 @@ class ChatService:
         """
         try:
             # Import agent here to avoid circular imports
-            from app.engine.main import agent
+            from engine.main import agent
 
             # Get or create conversation
             conversation = self.get_or_create_conversation(conversation_id)

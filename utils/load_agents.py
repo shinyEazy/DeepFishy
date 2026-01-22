@@ -17,7 +17,7 @@ def _resolve_tool(tool_name: str) -> Any:
             if filename.endswith(".py") and not filename.startswith("_"):
                 module_name = filename[:-3]  # Remove .py extension
                 try:
-                    module = import_module(f"app.engine.tools.{module_name}")
+                    module = import_module(f"engine.tools.{module_name}")
                     if hasattr(module, tool_name):
                         return getattr(module, tool_name)
                 except ImportError:

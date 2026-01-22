@@ -11,7 +11,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from app.core.logging import logger
+from core.logging import logger
 
 
 @dataclass

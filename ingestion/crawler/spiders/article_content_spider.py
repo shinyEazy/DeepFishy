@@ -116,11 +116,11 @@ class ArticleContentSpider(BaseSpider):
         Returns:
             True if successful, False otherwise
         """
-        from app.core.logging import logger
+        from core.logging import logger
         from time import sleep
 
         try:
-            from app.services.minio import MinioService
+            from services.minio import MinioService
         except ImportError:
             logger.warning(
                 f"MinIO service not available - skipping upload for {url_path}"

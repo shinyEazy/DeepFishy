@@ -6,9 +6,9 @@ from collections import Counter
 from langchain_core.documents import Document
 from langchain_experimental.graph_transformers import LLMGraphTransformer
 
-from app.core.logging import logger
-from app.services.neo4j import get_neo4j_service
-from app.engine.graph_rag.models import ExtractionConfig, GraphBuildResult
+from core.logging import logger
+from services.neo4j import get_neo4j_service
+from engine.graph_rag.models import ExtractionConfig, GraphBuildResult
 
 
 class GraphRAGTransformer:
@@ -180,7 +180,7 @@ def get_graph_transformer(llm=None, config: Optional[ExtractionConfig] = None):
     """
     if llm is None:
         # Lazy import to avoid circular dependencies
-        from app.services.llm_provider import get_llm
+        from services.llm_provider import get_llm
 
         llm = get_llm()
 

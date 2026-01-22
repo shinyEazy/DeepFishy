@@ -2,9 +2,9 @@
 
 from typing import List, Dict, Optional, Tuple
 
-from app.core.logging import logger
-from app.services.embeddings import ChunkedArticle, EmbeddingService
-from app.services.milvus import MilvusService
+from core.logging import logger
+from services.embeddings import ChunkedArticle, EmbeddingService
+from services.milvus import MilvusService
 
 
 class EmbeddingPipeline:

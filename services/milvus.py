@@ -4,8 +4,8 @@ from typing import List, Dict, Any, Optional
 from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType
 from pymilvus.orm.index import Index
 
-from app.core.logging import logger
-from app.core.config import settings
+from core.logging import logger
+from core.config import settings
 
 
 class MilvusService:

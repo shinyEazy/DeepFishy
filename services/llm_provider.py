@@ -6,7 +6,7 @@ from typing import Optional
 from langchain_core.language_models.chat_models import BaseChatModel
 from dotenv import load_dotenv
 
-from app.core.logging import logger
+from core.logging import logger
 
 load_dotenv()
 

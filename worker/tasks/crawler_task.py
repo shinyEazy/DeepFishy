@@ -8,22 +8,22 @@ from datetime import datetime
 import requests
 
 from celery import chain, group
-from app.celery_app import celery_app
-from app.ingestion.crawler.spiders import ArticleURLSpider, ArticleContentSpider
-from app.ingestion.crawler.pipeline import CrawlerPipeline
-from app.services.minio import MinioService
-from app.core.logging import logger
-from app.core.constants import (
+from celery_app import celery_app
+from ingestion.crawler.spiders import ArticleURLSpider, ArticleContentSpider
+from ingestion.crawler.pipeline import CrawlerPipeline
+from services.minio import MinioService
+from core.logging import logger
+from core.constants import (
     CRAWLER_BASE_URL,
     CRAWLER_PATHS,
     CRAWLER_MAX_PAGES,
     CRAWLER_MAX_WORKERS,
 )
-from app.core.config import settings
-from app.worker.utils import check_embedding_server_health
+from core.config import settings
+from worker.utils import check_embedding_server_health
 
 
-@celery_app.task(bind=True, name="crawler.crawl_article_urls", queue="crawler")
+@celery_task(bind=True, name="crawler.crawl_article_urls", queue="crawler")
 def crawl_article_urls_task(
     self,
     paths: List[str] = None,
@@ -174,7 +174,7 @@ def crawl_article_urls_task(
         }
 
 
-@celery_app.task(bind=True, name="crawler.crawl_article_content", queue="crawler")
+@celery_task(bind=True, name="crawler.crawl_article_content", queue="crawler")
 def crawl_article_content_task(self, previous_task_result: dict) -> dict:
     """
     Celery task to crawl article content from URLs.
@@ -214,7 +214,7 @@ def crawl_article_content_task(self, previous_task_result: dict) -> dict:
         # Chain to embedding task for vector embedding and Milvus insertion
         if successful > 0:
             logger.info(f"🔗 Chaining to embedding task with {successful} articles...")
-            from app.worker.tasks.embedding_task import embed_and_insert_articles_task
+            from worker.tasks.embedding_task import embed_and_insert_articles_task
 
             # Pass articles data directly to embedding task (no need to reload from MinIO)
             try:
@@ -249,7 +249,7 @@ def crawl_article_content_task(self, previous_task_result: dict) -> dict:
         }
 
 
-@celery_app.task(bind=True, name="crawler.crawl_full_pipeline", queue="crawler")
+@celery_task(bind=True, name="crawler.crawl_full_pipeline", queue="crawler")
 def crawl_full_pipeline_task(self) -> dict:
     """
     Celery task to run the full crawling pipeline SEQUENTIALLY.

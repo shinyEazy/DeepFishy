@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import Column, String, Integer, DateTime, Text, JSON, Index, Boolean
 from sqlalchemy.orm import Mapped
 
-from app.db.base import Base
+from db.base import Base
 
 
 class Article(Base):

@@ -3,8 +3,8 @@
 import requests
 from urllib.parse import urljoin
 
-from app.core.logging import logger
-from app.core.config import settings
+from core.logging import logger
+from core.config import settings
 
 
 def check_embedding_server_health(timeout: int = 5) -> tuple[bool, str]:

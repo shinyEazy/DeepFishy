@@ -5,14 +5,14 @@ import json
 from typing import List, Dict, Any
 import requests
 
-from app.celery_app import celery_app
-from app.services.embeddings import EmbeddingService
-from app.services.milvus import MilvusService
-from app.services.minio import MinioService
-from app.ingestion.embedding_pipeline import EmbeddingPipeline
-from app.core.logging import logger
-from app.core.config import settings
-from app.worker.utils import check_embedding_server_health
+from celery_app import celery_app
+from services.embeddings import EmbeddingService
+from services.milvus import MilvusService
+from services.minio import MinioService
+from ingestion.embedding_pipeline import EmbeddingPipeline
+from core.logging import logger
+from core.config import settings
+from worker.utils import check_embedding_server_health
 
 
 def _get_embedding_service():
@@ -25,7 +25,7 @@ def _get_embedding_service():
     )
 
 
-@celery_app.task(
+@celery_task(
     bind=True,
     name="ingestion.embed_and_insert_articles",
     queue="ingestion",
@@ -227,7 +227,7 @@ def _load_articles_from_minio(
     return articles
 
 
-@celery_app.task(
+@celery_task(
     bind=True,
     name="ingestion.embed_single_article",
     queue="ingestion",

@@ -7,8 +7,8 @@ import threading
 
 from neo4j import GraphDatabase, Driver
 
-from app.core.logging import logger
-from app.core.config import settings
+from core.logging import logger
+from core.config import settings
 
 
 class Neo4jService:

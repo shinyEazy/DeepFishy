@@ -5,7 +5,7 @@ from sqlalchemy import Column, String, DateTime, Text, JSON, ForeignKey, Index
 from sqlalchemy.orm import Mapped, relationship
 import uuid
 
-from app.db.base import Base
+from db.base import Base
 
 
 def generate_uuid():

@@ -3,13 +3,13 @@
 from typing import Dict, Any
 from fastapi import APIRouter, HTTPException
 
-from app.api.schemas.rag import (
+from api.schemas.rag import (
     KnowledgeSearchRequest,
     KnowledgeSearchResponse,
     KnowledgeStatsResponse,
 )
-from app.services.rag import get_rag_service
-from app.core.logging import logger
+from services.rag import get_rag_service
+from core.logging import logger
 
 
 router = APIRouter(prefix="/rag", tags=["RAG - Knowledge Search"])

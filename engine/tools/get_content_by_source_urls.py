@@ -3,12 +3,12 @@
 from typing import List, Dict, Any
 from langchain_core.tools import tool
 
-from app.core.logging import logger
+from core.logging import logger
 
 
 def _get_milvus_service():
     """Lazy import to avoid circular imports."""
-    from app.services.milvus import MilvusService
+    from services.milvus import MilvusService
 
     return MilvusService()
 

@@ -3,10 +3,10 @@
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
-from app.core.logging import logger
-from app.core.config import settings
-from app.services.milvus import MilvusService
-from app.services.embeddings import EmbeddingService
+from core.logging import logger
+from core.config import settings
+from services.milvus import MilvusService
+from services.embeddings import EmbeddingService
 
 
 @dataclass

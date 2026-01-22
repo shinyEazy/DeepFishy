@@ -183,7 +183,7 @@ class CrawlerPipeline:
         Returns:
             Statistics dictionary
         """
-        from app.core.logging import logger
+        from core.logging import logger
 
         json_dir = Path(json_dir)
         json_files = list(json_dir.glob("*.json"))

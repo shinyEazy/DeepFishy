@@ -5,8 +5,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
-from app.api.schemas.chat import (
+from api.deps import get_db
+from api.schemas.chat import (
     ChatRequest,
     ChatResponse,
     ConversationDetail,
@@ -15,8 +15,8 @@ from app.api.schemas.chat import (
     DeleteConversationResponse,
     ChatMessage,
 )
-from app.services.chat import ChatService
-from app.core.logging import logger
+from services.chat import ChatService
+from core.logging import logger
 
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -174,7 +174,7 @@ async def chat_health_check() -> Dict[str, str]:
     Verifies that the agent is loaded and ready.
     """
     try:
-        from app.engine.main import agent
+        from engine.main import agent
 
         if agent is None:
             return {"status": "unhealthy", "message": "Agent not initialized"}

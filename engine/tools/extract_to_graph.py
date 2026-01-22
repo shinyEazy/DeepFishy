@@ -4,12 +4,12 @@ from typing import Dict, Any, Optional, List
 from langchain_core.tools import tool
 from langchain_core.documents import Document
 
-from app.core.logging import logger
+from core.logging import logger
 
 
 def _get_transformer():
     """Lazy import to avoid circular imports and side effects on module load."""
-    from app.engine.graph_rag.transformer import get_graph_transformer
+    from engine.graph_rag.transformer import get_graph_transformer
 
     return get_graph_transformer()
 

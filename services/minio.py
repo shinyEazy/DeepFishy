@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 from minio import Minio
 from minio.error import S3Error
 
-from app.core.logging import logger
+from core.logging import logger
 
 
 class MinioService:

@@ -7,9 +7,9 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 
-from app.core.logging import logger
-from app.engine.prompts.report_writer_prompt import REPORT_WRITER_PROMPT
-from app.utils.load_agents import load_agents
+from core.logging import logger
+from engine.prompts.report_writer_prompt import REPORT_WRITER_PROMPT
+from utils.load_agents import load_agents
 
 
 class ReportWriterOrchestrator:

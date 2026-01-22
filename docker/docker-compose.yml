@@ -45,10 +45,10 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: celery_worker
-    command: celery -A src.app.celery_app worker --loglevel=info --concurrency=2 -Q crawler,ingestion,celery
+    command: celery -A celery_app worker --loglevel=info --concurrency=2 -Q crawler,ingestion,celery
     environment:
       - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app/src
+      - PYTHONPATH=/app
     env_file:
       - .env
     depends_on:
@@ -61,7 +61,17 @@ services:
       milvus:
         condition: service_healthy
     volumes:
-      - ../src:/app/src
+      - ../api:/app/api
+      - ../core:/app/core
+      - ../db:/app/db
+      - ../engine:/app/engine
+      - ../ingestion:/app/ingestion
+      - ../services:/app/services
+      - ../utils:/app/utils
+      - ../worker:/app/worker
+      - ../configs:/app/configs
+      - ../main.py:/app/main.py
+      - ../celery_py:/app/celery_py
       - ../data:/app/data
     networks:
       - deepfishy
@@ -72,10 +82,10 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: celery_beat
-    command: celery -A src.app.celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
+    command: celery -A celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
     environment:
       - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app/src
+      - PYTHONPATH=/app
     env_file:
       - .env
     depends_on:
@@ -88,7 +98,8 @@ services:
       milvus:
         condition: service_healthy
     volumes:
-      - ../src:/app/src
+      - ../worker:/app/worker
+      - ../celery_py:/app/celery_py
     networks:
       - deepfishy
 
@@ -98,7 +109,10 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: server
-    command: python -m uvicorn src.app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
     env_file:
       - .env
     ports:
@@ -113,7 +127,17 @@ services:
       milvus:
         condition: service_healthy
     volumes:
-      - ../src:/app/src
+      - ../api:/app/api
+      - ../core:/app/core
+      - ../db:/app/db
+      - ../engine:/app/engine
+      - ../ingestion:/app/ingestion
+      - ../services:/app/services
+      - ../utils:/app/utils
+      - ../worker:/app/worker
+      - ../configs:/app/configs
+      - ../main.py:/app/main.py
+      - ../celery_py:/app/celery_py
       - ../data:/app/data
     networks:
       - deepfishy
@@ -241,11 +265,11 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: langgraph_studio
-    working_dir: /app/src/app/engine
+    working_dir: /app/engine
     command: langgraph dev --host 0.0.0.0 --port 2024 --allow-blocking --no-browser
     environment:
       - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app/src
+      - PYTHONPATH=/app
     env_file:
       - .env
     ports:
@@ -260,7 +284,17 @@ services:
       milvus:
         condition: service_healthy
     volumes:
-      - ../src:/app/src
+      - ../api:/app/api
+      - ../core:/app/core
+      - ../db:/app/db
+      - ../engine:/app/engine
+      - ../ingestion:/app/ingestion
+      - ../services:/app/services
+      - ../utils:/app/utils
+      - ../worker:/app/worker
+      - ../configs:/app/configs
+      - ../main.py:/app/main.py
+      - ../celery_py:/app/celery_py
       - ../data:/app/data
     networks:
       - deepfishy

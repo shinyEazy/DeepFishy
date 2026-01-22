@@ -4,8 +4,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 
-from app.core.config import settings
-from app.core.logging import logger
+from core.config import settings
+from core.logging import logger
 
 # Create SQLAlchemy engine
 engine = create_engine(
@@ -28,7 +28,7 @@ def get_db() -> Generator[Session, None, None]:
         Database session that automatically closes after use.
 
     Example:
-        @app.get("/items")
+        @get("/items")
         def get_items(db: Session = Depends(get_db)):
             return db.query(Item).all()
     """
@@ -45,8 +45,8 @@ def init_db() -> None:
     This should be called on application startup.
     """
     try:
-        from app.db.base import Base
-        from app.db.models import Conversation, Message, Article
+        from db.base import Base
+        from db.models import Conversation, Message, Article
 
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")

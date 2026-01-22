@@ -3,9 +3,9 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-from app.core.logging import logger
-from app.services.neo4j import get_neo4j_service
-from app.engine.graph_rag.models import GraphQueryResult, TemporalFilter
+from core.logging import logger
+from services.neo4j import get_neo4j_service
+from engine.graph_rag.models import GraphQueryResult, TemporalFilter
 
 
 class GraphQueryService:
