@@ -1,20 +1,19 @@
 import os
 import re
 import json
+import argparse
 from typing import Optional
 from datetime import datetime
 from dotenv import load_dotenv
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_openai import ChatOpenAI
 from langchain_core.language_models.chat_models import BaseChatModel
-
 from deepagents import create_deep_agent
-from deepagents.backends import FilesystemBackend
 
 from core.logging import logger
 from engine.prompts.orchestrator_prompt import ORCHESTRATOR_PROMPT
-from engine.tools.get_current_date import get_current_date
+from engine.orchestrators.graph_builder import create_graph_builder_orchestrator
+from engine.orchestrators.report_writer import create_report_writer_orchestrator
+
 from utils.load_agents import load_agents
 from utils.model_factory import create_model_client
 
@@ -22,8 +21,8 @@ from utils.model_factory import create_model_client
 load_dotenv()
 
 MODEL_PROVIDER = os.getenv("MODEL_PROVIDER")
-ENABLE_DISK_BACKEND = os.getenv("ENABLE_DISK_BACKEND", "true").lower() == "true"
-OUTPUT_BASE_PATH = os.getenv("OUTPUT_BASE_PATH", "outputs")
+ENABLE_DISK_BACKEND = "true"
+OUTPUT_BASE_PATH = "outputs"
 
 
 def _extract_text_from_content(content) -> str:
@@ -68,9 +67,9 @@ def _create_model() -> Optional[BaseChatModel]:
     """
     model = None
     if MODEL_PROVIDER == "google":
-        model = create_model_client("gemini-2.5-flash")
+        model = create_model_client("gpt-5-nano-2025-08-07")
     elif MODEL_PROVIDER == "openai":
-        model = create_model_client("gpt-4o-mini")
+        model = create_model_client("gpt-5-nano-2025-08-07")
 
     if not model:
         logger.warning(
@@ -90,79 +89,16 @@ def _create_agent(session_id: Optional[str] = None, phase: str = "write"):
     """
     custom_model = _create_model()
 
-    # Select subagents and prompt based on phase
     if phase == "build":
-        from engine.prompts.graph_builder_prompt import GRAPH_BUILDER_PROMPT
-
-        system_prompt = GRAPH_BUILDER_PROMPT
-        subagent_names = [
-            "knowledge_search",
-            "financial_research",
-            "graph_extractor",
-        ]
         logger.info("Creating Graph Builder agent (Phase 1)")
-    else:
-        from engine.prompts.write_phase_prompt import WRITE_PHASE_PROMPT
-
-        system_prompt = WRITE_PHASE_PROMPT
-        subagent_names = [
-            "graph_query",  # Query existing GraphRAG
-            "gap_analyzer",  # Analyze knowledge gaps
-            "knowledge_search",  # Search for missing info
-            "financial_research",  # Deep research when needed
-            "graph_extractor",  # Add new knowledge to graph
-            "report_outline",  # Generate outline with sections
-            "section_writer",  # Write each section individually
-            "critique",  # Self-critic optimization
-            "chart_generator",  # Generate charts from data
-            "financial_report_writer",  # Final formatting
-        ]
-        # Note: Sections are concatenated programmatically, no synthesizer needed
-        logger.info("Creating Report Writer agent (Phase 2 - Write Phase)")
-
-    subagents = load_agents(names=subagent_names)
-
-    logger.info(f"Loaded {len(subagents)} subagent(s)")
-
-    # Configure agent with optional disk backend
-    config = {"recursion_limit": 1000}
-    backend = None
-    workspace_path = None
-
-    if ENABLE_DISK_BACKEND and session_id:
-        workspace_path = os.path.join(OUTPUT_BASE_PATH, session_id)
-
-        # Create standard directory structure
-        os.makedirs(os.path.join(workspace_path, "images"), exist_ok=True)
-
-        # Use DeepAgents' built-in FilesystemBackend
-        # This backend writes files directly to disk and is used by FilesystemMiddleware
-        backend = FilesystemBackend(root_dir=workspace_path, virtual_mode=True)
-
-        logger.info(f"Agent workspace: {workspace_path}")
-        logger.info(
-            "Agent todos and files will be saved to disk using FilesystemBackend"
+        return create_graph_builder_orchestrator(
+            model=custom_model, session_id=session_id, output_base_path=OUTPUT_BASE_PATH
         )
-
-        # Add configurable_fields for the agent to use custom backend
-        config["configurable"] = {"thread_id": session_id}
-
-    # Create the agent with FilesystemMiddleware (built-in to create_deep_agent)
-    # The middleware will use the backend we provide for file operations
-    agent = create_deep_agent(
-        model=custom_model,
-        tools=[],
-        system_prompt=system_prompt,
-        subagents=subagents,
-        backend=backend,  # Pass backend to enable disk persistence
-    ).with_config(config)
-
-    # Store workspace path for later use
-    if workspace_path:
-        agent._workspace_path = workspace_path
-        agent._session_id = session_id
-
-    return agent
+    else:
+        logger.info("Creating Report Writer agent (Phase 2)")
+        return create_report_writer_orchestrator(
+            model=custom_model, session_id=session_id, output_base_path=OUTPUT_BASE_PATH
+        )
 
 
 # Export a factory function for LangGraph API
@@ -194,21 +130,8 @@ def agent():
     )
 
 
-def get_agent(session_id: Optional[str] = None):
-    """Get or create the agent. If session_id provided, creates new agent with that session."""
-    if session_id:
-        # Create new agent with specific session
-        return _create_agent(session_id)
-    # Create agent without disk backend for API use
-    return _create_agent()
-
-
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="DeepFishy Agent - Two-phase workflow for financial analysis"
-    )
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--phase",
         type=str,
@@ -246,7 +169,7 @@ if __name__ == "__main__":
         # Log phase info
         logger.info("=" * 60)
         if current_phase == "build":
-            logger.info("PHASE 1: Graph RAG Builder")
+            logger.info("PHASE 1: Graph Builder")
         else:
             logger.info(f"PHASE 2: Report Writer")
         logger.info("=" * 60)
@@ -257,26 +180,15 @@ if __name__ == "__main__":
             session_id=session_id if ENABLE_DISK_BACKEND else None, phase=current_phase
         )
 
-        # Set OUTPUT_DIR environment variable for chart tools
         # This ensures charts are saved to outputs/{session_id}/images
         if ENABLE_DISK_BACKEND and hasattr(agent, "_workspace_path"):
             os.environ["OUTPUT_DIR"] = agent._workspace_path
-            logger.info(f"Set OUTPUT_DIR to: {agent._workspace_path}")
 
-        logger.info(f"Phase: {current_phase.upper()}")
-        logger.info(f"Starting agent invocation with input: {user_input[:100]}...")
+        logger.info(f"Starting agent invocation with input: {user_input}")
 
         try:
             result = agent.invoke(
                 {"messages": [{"role": "user", "content": user_input}]}
-            )
-            logger.info(
-                f"Agent invocation completed. Result keys: {list(result.keys())}"
-            )
-
-            # Extract text from response (handles both string and list content formats)
-            logger.info(
-                f"Number of messages in result: {len(result.get('messages', []))}"
             )
 
             if not result.get("messages"):
@@ -286,14 +198,9 @@ if __name__ == "__main__":
                 continue
 
             final_response_raw = result["messages"][-1].content
-            logger.info(f"Final response type: {type(final_response_raw)}")
             final_response = _extract_text_from_content(final_response_raw)
 
-            # Extract todos from agent state if available
             todos = result.get("todos", [])
-            logger.info(
-                f"Todos extracted: {len(todos) if isinstance(todos, list) else 'N/A'}"
-            )
 
             print("\n" + "=" * 80)
             print(f"AGENT RESPONSE ({current_phase.upper()} PHASE):")

@@ -8,7 +8,7 @@ from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 
 from core.logging import logger
-from engine.prompts.report_writer_prompt import REPORT_WRITER_PROMPT
+from engine.prompts.write_phase_prompt import WRITE_PHASE_PROMPT
 from utils.load_agents import load_agents
 
 
@@ -20,7 +20,10 @@ class ReportWriterOrchestrator:
     1. Gather data from market_data, knowledge_search, financial_research
     2. Query knowledge graph for enhanced context
     3. Create structured report outline
-    4. Fill in report content with charts
+    4. Write sections:
+       - Informational: Direct writing
+       - Analysis: Bull/Bear debate -> Synthesis
+    5. Fill in report content with charts
 
     Example:
         >>> orchestrator = ReportWriterOrchestrator(model)
@@ -30,12 +33,10 @@ class ReportWriterOrchestrator:
 
     # Subagents for Phase 2
     SUBAGENT_NAMES = [
-        "market_data",
-        "knowledge_search",
-        "financial_research",
-        "graph_query",  # NEW: Query knowledge graph
-        "report_outline",
-        "financial_report_writer",
+        "bull_agent",
+        "bear_agent",
+        "synthesizer_agent",
+        "critique",
     ]
 
     def __init__(
@@ -54,7 +55,7 @@ class ReportWriterOrchestrator:
         subagents = load_agents(names=self.SUBAGENT_NAMES)
         logger.info(f"Report Writer: Loaded {len(subagents)} subagent(s)")
 
-        config = {"recursion_limit": 100}
+        config = {"recursion_limit": 250}
         backend = None
         workspace_path = None
 
@@ -71,7 +72,7 @@ class ReportWriterOrchestrator:
         agent = create_deep_agent(
             model=self.model,
             tools=[],
-            system_prompt=REPORT_WRITER_PROMPT,
+            system_prompt=WRITE_PHASE_PROMPT,
             subagents=subagents,
             backend=backend,
         ).with_config(config)

@@ -1,7 +1,7 @@
 ---
 name: section_writer_agent
 description: Writes individual report sections by querying GraphRAG for relevant context and Milvus for detailed content. Produces well-researched, citation-rich section content.
-tools: query_knowledge_graph, query_graph_natural, get_content_by_source_urls, get_current_date
+tools: query_graph_natural, get_content_by_source_urls, get_current_date
 ---
 
 # Section Writing Expert

@@ -1,7 +1,7 @@
 ---
 name: graph_query_agent
 description: Queries the Neo4j knowledge graph for entities, events, and causal relationships with temporal filtering. Use this agent to find context from the knowledge graph for reports.
-tools: query_knowledge_graph, query_graph_natural
+tools:
 ---
 
 You are a Knowledge Graph Query specialist.
@@ -106,7 +106,6 @@ The query results include:
 ## Workflow
 
 1. **Analyze the request** to determine:
-
    - Query type needed
    - Query value (entity/time period)
    - Direction (for causal chains)
