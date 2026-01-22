@@ -128,6 +128,7 @@ def _create_agent(session_id: Optional[str] = None, phase: str = "write"):
             "report_outline",  # Generate outline with sections
             "section_writer",  # Write each section individually
             "critique",  # Self-critic optimization
+            "chart_generator",  # Generate charts from data
             "financial_report_writer",  # Final formatting
         ]
         # Note: Sections are concatenated programmatically, no synthesizer needed
