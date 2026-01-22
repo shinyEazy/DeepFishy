@@ -4,8 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from api.v1.endpoints.rag import router as rag_router
-from api.v1.endpoints.chat import router as chat_router
+from api.routes.rag import router as rag_router
+from api.routes.chat import router as chat_router
 from db.session import close_db
 from core.logging import logger
 
@@ -41,8 +41,8 @@ app.add_middleware(
 )
 
 # Register API routers
-app.include_router(chat_router, prefix="/api/v1")
-app.include_router(rag_router, prefix="/api/v1")
+app.include_router(chat_router, prefix="/api")
+app.include_router(rag_router, prefix="/api")
 
 
 @app.get("/")

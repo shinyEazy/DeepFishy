@@ -12,7 +12,7 @@ from services.rag import get_rag_service
 from core.logging import logger
 
 
-router = APIRouter(prefix="/rag", tags=["RAG - Knowledge Search"])
+router = APIRouter(prefix="/rag", tags=["RAG"])
 
 
 @router.post("/search", response_model=KnowledgeSearchResponse)
