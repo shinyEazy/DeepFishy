@@ -71,7 +71,7 @@ services:
       - ../worker:/app/worker
       - ../configs:/app/configs
       - ../main.py:/app/main.py
-      - ../celery_py:/app/celery_py
+      - ../celery_app.py:/app/celery_app.py
       - ../data:/app/data
     networks:
       - deepfishy
@@ -99,7 +99,7 @@ services:
         condition: service_healthy
     volumes:
       - ../worker:/app/worker
-      - ../celery_py:/app/celery_py
+      - ../celery_app.py:/app/celery_app.py
     networks:
       - deepfishy
 
@@ -137,7 +137,7 @@ services:
       - ../worker:/app/worker
       - ../configs:/app/configs
       - ../main.py:/app/main.py
-      - ../celery_py:/app/celery_py
+      - ../celery_app.py:/app/celery_app.py
       - ../data:/app/data
     networks:
       - deepfishy
@@ -294,7 +294,7 @@ services:
       - ../worker:/app/worker
       - ../configs:/app/configs
       - ../main.py:/app/main.py
-      - ../celery_py:/app/celery_py
+      - ../celery_app.py:/app/celery_app.py
       - ../data:/app/data
     networks:
       - deepfishy

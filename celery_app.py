@@ -11,10 +11,10 @@ celery_app = Celery(
 )
 
 # Load configuration
-celery_config_from_object("worker.celery_config")
+celery_app.config_from_object("worker.celery_config")
 
 # Auto-discover and import tasks
-celery_autodiscover_tasks(["worker.tasks"])
+celery_app.autodiscover_tasks(["worker.tasks"])
 
 # Explicitly import tasks to ensure registration
 from worker.tasks import crawler_task  # noqa: F401

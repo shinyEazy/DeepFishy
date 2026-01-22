@@ -32,7 +32,7 @@ app = FastAPI(
 )
 
 # Add CORS middleware
-add_middleware(
+app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
@@ -41,11 +41,11 @@ add_middleware(
 )
 
 # Register API routers
-include_router(chat_router, prefix="/api/v1")
-include_router(rag_router, prefix="/api/v1")
+app.include_router(chat_router, prefix="/api/v1")
+app.include_router(rag_router, prefix="/api/v1")
 
 
-@get("/")
+@app.get("/")
 async def root():
     """Root endpoint."""
     return {
@@ -55,7 +55,7 @@ async def root():
     }
 
 
-@get("/health")
+@app.get("/health")
 async def health():
     """Health check endpoint."""
     return {
