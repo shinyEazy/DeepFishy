@@ -23,7 +23,7 @@ from core.config import settings
 from worker.utils import check_embedding_server_health
 
 
-@celery_task(bind=True, name="crawler.crawl_article_urls", queue="crawler")
+@celery_app.task(bind=True, name="crawler.crawl_article_urls", queue="crawler")
 def crawl_article_urls_task(
     self,
     paths: List[str] = None,
@@ -174,7 +174,7 @@ def crawl_article_urls_task(
         }
 
 
-@celery_task(bind=True, name="crawler.crawl_article_content", queue="crawler")
+@celery_app.task(bind=True, name="crawler.crawl_article_content", queue="crawler")
 def crawl_article_content_task(self, previous_task_result: dict) -> dict:
     """
     Celery task to crawl article content from URLs.
@@ -249,7 +249,7 @@ def crawl_article_content_task(self, previous_task_result: dict) -> dict:
         }
 
 
-@celery_task(bind=True, name="crawler.crawl_full_pipeline", queue="crawler")
+@celery_app.task(bind=True, name="crawler.crawl_full_pipeline", queue="crawler")
 def crawl_full_pipeline_task(self) -> dict:
     """
     Celery task to run the full crawling pipeline SEQUENTIALLY.
