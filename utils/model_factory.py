@@ -51,23 +51,17 @@ def create_model_client(model_name: str) -> Optional[BaseChatModel]:
                 "api_key": config.get("api_key"),
             }
 
-            if config.get("base_url"):
-                model_kwargs["base_url"] = config["base_url"]
-
-            if config.get("temperature"):
-                model_kwargs["temperature"] = config["temperature"]
-
-            if config.get("top_p"):
-                model_kwargs["top_p"] = config["top_p"]
-
-            if config.get("max_tokens"):
-                model_kwargs["max_tokens"] = config["max_tokens"]
-
-            if config.get("timeout"):
-                model_kwargs["timeout"] = config["timeout"]
-
-            if config.get("reasoning_effort"):
-                model_kwargs["reasoning_effort"] = config["reasoning_effort"]
+            optional_params = [
+                "base_url",
+                "temperature",
+                "top_p",
+                "max_tokens",
+                "timeout",
+                "reasoning_effort",
+            ]
+            for param in optional_params:
+                if param in config:
+                    model_kwargs[param] = config[param]
 
             logger.info(f"Creating OpenAI-compatible model: {config.get('model')}")
             return ChatOpenAI(**model_kwargs)
