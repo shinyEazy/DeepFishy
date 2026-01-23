@@ -23,7 +23,7 @@ from logging import INFO
 
 from dotenv import load_dotenv
 
-from utils.model_factory import create_llm_client, create_embedding_client
+from utils.model_factory import create_llm_client
 from utils.load_config import get_llm_config
 
 from graphiti_core import Graphiti
@@ -72,9 +72,9 @@ async def main():
     #################################################
 
     # Set OpenAI API Key from config for Graphiti's internal components (like default CrossEncoder)
-    openai_config = get_llm_config("gemini-2.5-flash")
-    if openai_config and "api_key" in openai_config:
-        api_key = openai_config["api_key"]
+    gemini_llm_config = get_llm_config("gemini-2.5-flash")
+    if gemini_llm_config and "api_key" in gemini_llm_config:
+        api_key = gemini_llm_config["api_key"]
 
     # Initialize Graphiti with Neo4j connection
     graphiti = Graphiti(
