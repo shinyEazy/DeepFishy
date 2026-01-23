@@ -82,23 +82,16 @@ async def main():
         "neo4j",
         "password",
         llm_client=GeminiClient(
-            config=LLMConfig(
-                api_key=api_key,
-                model="gemini-2.0-flash"
-            )
+            config=LLMConfig(api_key=api_key, model="gemini-2.0-flash")
         ),
         embedder=GeminiEmbedder(
             config=GeminiEmbedderConfig(
-                api_key=api_key,
-                embedding_model="embedding-001"
+                api_key=api_key, embedding_model="embedding-001"
             )
         ),
         cross_encoder=GeminiRerankerClient(
-            config=LLMConfig(
-                api_key=api_key,
-                model="gemini-2.5-flash-lite"
-            )
-        )
+            config=LLMConfig(api_key=api_key, model="gemini-2.5-flash-lite")
+        ),
     )
 
     try:
