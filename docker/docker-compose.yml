@@ -148,6 +148,8 @@ services:
       - ../main.py:/app/main.py
       - ../celery_app.py:/app/celery_app.py
       - ../data:/app/data
+      - ../graph_rag:/app/graph_rag
+      - ../embedding:/app/embedding
     networks:
       - deepfishy
 

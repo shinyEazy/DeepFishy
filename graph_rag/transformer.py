@@ -8,7 +8,7 @@ from langchain_experimental.graph_transformers import LLMGraphTransformer
 
 from core.logging import logger
 from services.neo4j import get_neo4j_service
-from engine.graph_rag.models import ExtractionConfig, GraphBuildResult
+from models import ExtractionConfig, GraphBuildResult
 
 
 class GraphRAGTransformer:

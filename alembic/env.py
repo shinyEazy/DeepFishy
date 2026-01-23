@@ -20,7 +20,7 @@ from db.models import Conversation, Message, Article
 config = context.config
 
 # Override sqlalchemy.url with the one from settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", settings.POSTGRES_CONN_URL)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

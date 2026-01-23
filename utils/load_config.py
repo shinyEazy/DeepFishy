@@ -31,7 +31,7 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
         return yaml.safe_load(f)
 
 
-def get_model_config(model_name: str) -> Optional[Dict[str, Any]]:
+def get_llm_config(model_name: str) -> Optional[Dict[str, Any]]:
     """Get model configuration by name from config.yaml.
 
     Args:
@@ -52,3 +52,16 @@ def get_vlm_config() -> Optional[Dict[str, Any]]:
     """
     config = load_config()
     return config.get("vlm")
+
+
+def get_embedding_config(model_name: str) -> Optional[Dict[str, Any]]:
+    """Get model configuration by name from config.yaml.
+
+    Args:
+        model_name: The name of the model as defined in config.yaml under 'embedding'.
+
+    Returns:
+        Model configuration dict or None if not found.
+    """
+    config = load_config()
+    return config.get("embedding", {}).get(model_name)
