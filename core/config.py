@@ -8,45 +8,45 @@ class Settings(BaseSettings):
     """Application settings."""
 
     # Celery
-    CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-    CELERY_RESULT_BACKEND: str = os.getenv(
-        "CELERY_RESULT_BACKEND", "redis://localhost:6379/0"
-    )
-
-    # API
-    API_HOST: str = os.getenv("API_HOST", "0.0.0.0")
-    API_PORT: int = int(os.getenv("API_PORT", "8000"))
+    CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL")
+    CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND")
 
     # Milvus Vector Database
-    MILVUS_HOST: str = os.getenv("MILVUS_HOST", "localhost")
-    MILVUS_PORT: int = int(os.getenv("MILVUS_PORT", "19530"))
-    MILVUS_COLLECTION_NAME: str = os.getenv("MILVUS_COLLECTION_NAME", "articles")
-    MILVUS_EMBEDDING_DIM: int = int(os.getenv("MILVUS_EMBEDDING_DIM", "1024"))
+    MILVUS_HOST: str = os.getenv("MILVUS_HOST")
+    MILVUS_PORT: int = int(os.getenv("MILVUS_PORT"))
+    MILVUS_COLLECTION_NAME: str = os.getenv("MILVUS_COLLECTION_NAME")
+    MILVUS_EMBEDDING_DIM: int = int(os.getenv("MILVUS_EMBEDDING_DIM"))
 
-    # Embeddings - Remote API (via Kaggle + ngrok)
-    EMBEDDING_API_URL: str = os.getenv("EMBEDDING_API_URL", "http://localhost:8001")
-    EMBEDDING_API_TIMEOUT: int = int(os.getenv("EMBEDDING_API_TIMEOUT", "60"))
-    EMBEDDING_API_MAX_RETRIES: int = int(os.getenv("EMBEDDING_API_MAX_RETRIES", "3"))
+    # Embeddings
+    EMBEDDING_API_URL: str = os.getenv("EMBEDDING_API_URL")
+    EMBEDDING_API_TIMEOUT: int = int(os.getenv("EMBEDDING_API_TIMEOUT"))
+    EMBEDDING_API_MAX_RETRIES: int = int(os.getenv("EMBEDDING_API_MAX_RETRIES"))
 
     # Ingestion Pipeline
-    CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1024"))
-    CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "128"))
-    BATCH_INSERT_SIZE: int = int(os.getenv("BATCH_INSERT_SIZE", "64"))
+    CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE"))
+    CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP"))
+    BATCH_INSERT_SIZE: int = int(os.getenv("BATCH_INSERT_SIZE"))
 
     # MinIO Storage
-    MINIO_URL: str = os.getenv("MINIO_URL", "localhost:9000")
-    MINIO_ACCESS_KEY: str = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
-    MINIO_SECRET_KEY: str = os.getenv("MINIO_SECRET_KEY", "minioadmin")
-    MINIO_SECURE: bool = os.getenv("MINIO_SECURE", "false").lower() == "true"
+    MINIO_URL: str = os.getenv("MINIO_URL")
+    MINIO_ACCESS_KEY: str = os.getenv("MINIO_ACCESS_KEY")
+    MINIO_SECRET_KEY: str = os.getenv("MINIO_SECRET_KEY")
+    MINIO_SECURE: bool = os.getenv("MINIO_SECURE").lower() == "true"
 
     # PostgreSQL Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL")
+    POSTGRES_CONN_URL: str = os.getenv("POSTGRES_CONN_URL")
+    POSTGRES_USER: str = os.getenv("POSTGRES_USER")
+    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD")
 
-    # Neo4j Graph Database (Docker Local)
-    NEO4J_URI: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-    NEO4J_USER: str = os.getenv("NEO4J_USER", "neo4j")
-    NEO4J_PASSWORD: str = os.getenv("NEO4J_PASSWORD", "password")
-    NEO4J_DATABASE: str = os.getenv("NEO4J_DATABASE", "neo4j")
+    # Neo4j Graph Database
+    NEO4J_URI: str = os.getenv("NEO4J_URI")
+    NEO4J_USER: str = os.getenv("NEO4J_USER")
+    NEO4J_PASSWORD: str = os.getenv("NEO4J_PASSWORD")
+    NEO4J_DATABASE: str = os.getenv("NEO4J_DATABASE")
+
+    MINERU_API_KEY: str = os.getenv("MINERU_API_KEY")
+    TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY")
+    MODEL_PROVIDER: str = os.getenv("MODEL_PROVIDER")
 
     class Config:
         env_file = ".env"
