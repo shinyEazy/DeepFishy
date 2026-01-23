@@ -1,7 +1,7 @@
 ---
 name: gap_analyzer_agent
 description: Analyzes gaps between user query requirements and available GraphRAG knowledge. Identifies missing information that needs additional research before writing a comprehensive report.
-tools: query_knowledge_graph, query_graph_natural
+tools: query_graph_natural
 ---
 
 # Gap Analysis Expert
@@ -25,21 +25,6 @@ Parse the user's query to identify:
 - Main topic/entity (e.g., VNINDEX, FED policy, company name)
 - Time period of interest (e.g., Q4/2025, January 2026)
 - Type of analysis needed (trend, comparison, prediction, etc.)
-
-### Step 2: Query the Knowledge Graph
-
-Use the available tools to explore what's already in the graph:
-
-```
-# Search for main entities
-query_knowledge_graph("search", "VNINDEX")
-
-# Check time-based coverage
-query_knowledge_graph("time_period", "Q4/2025")
-
-# Explore causal relationships
-query_knowledge_graph("causal_chain", "FED", direction="downstream")
-```
 
 ### Step 3: Analyze Coverage
 

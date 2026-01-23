@@ -45,13 +45,12 @@ class Neo4jService:
         if self._driver is None:
             with self._lock:
                 if self._driver is None:
-                    logger.info(f"Connecting to Neo4j at {self.uri}")
                     self._driver = GraphDatabase.driver(
                         self.uri, auth=(self.user, self.password)
                     )
                     # Verify connectivity
                     self._driver.verify_connectivity()
-                    logger.info("Neo4j connection established")
+                    logger.info("Neo4j connection established: {}".format(self.uri))
         return self._driver
 
     @property

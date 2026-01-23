@@ -33,6 +33,9 @@ def create_model_client(model_name: str) -> Optional[BaseChatModel]:
                 "api_key": config.get("api_key"),
             }
 
+            if config.get("reasoning_effort"):
+                model_kwargs["reasoning_effort"] = config.get("reasoning_effort")
+
             logger.info(f"Creating OpenAI model: {config.get('model')}")
             return ChatOpenAI(**model_kwargs)
 

@@ -115,7 +115,6 @@ class GraphQueryService:
             cypher = f"""
             MATCH (start)
             WHERE start.id CONTAINS $name 
-               OR start.name CONTAINS $name
                OR toLower(start.id) CONTAINS toLower($name)
             WITH start LIMIT 5
             MATCH path = (start)-[:{rel_pattern}*1..{max_depth}]->(end)
@@ -129,7 +128,6 @@ class GraphQueryService:
             cypher = f"""
             MATCH (end)
             WHERE end.id CONTAINS $name 
-               OR end.name CONTAINS $name
                OR toLower(end.id) CONTAINS toLower($name)
             WITH end LIMIT 5
             MATCH path = (start)-[:{rel_pattern}*1..{max_depth}]->(end)
@@ -180,9 +178,7 @@ class GraphQueryService:
         cypher = f"""
         MATCH (n)
         WHERE (n.id CONTAINS $query 
-               OR n.name CONTAINS $query
-               OR toLower(n.id) CONTAINS toLower($query)
-               OR toLower(n.name) CONTAINS toLower($query))
+               OR toLower(n.id) CONTAINS toLower($query))
               {type_clause}
         WITH n LIMIT $limit
         OPTIONAL MATCH (n)-[r]->(m)
@@ -221,7 +217,7 @@ class GraphQueryService:
 
         cypher = f"""
         MATCH (source)-[r{rel_filter}]-(target)
-        WHERE source.id CONTAINS $name OR source.name CONTAINS $name
+        WHERE source.id CONTAINS $name
         RETURN source, r, target, type(r) as rel_type
         LIMIT $limit
         """
