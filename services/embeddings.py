@@ -284,3 +284,38 @@ class EmbeddingService:
     def close(self):
         """Close HTTP session."""
         self.session.close()
+
+
+if __name__ == "__main__":
+    embedding_client = EmbeddingClient()
+    chunked_articles, embeddings = embedding_client.process_articles_batch(
+        [
+            {
+                "url": "https://vnexpress.net/",
+                "title": "Title",
+                "sapo": "Sapo",
+                "content": "Content",
+                "date": "2022-01-01",
+                "category": "Category",
+                "tags": ["Tag1", "Tag2"],
+            }
+        ]
+    )
+    print(chunked_articles)
+    print(embeddings)
+
+    # from google import genai
+
+    # client = genai.Client(api_key="AIzaSyAgzFxxbKbw1ME6QV4JJeOcA9Yk-3-a1zQ")
+
+    # result = client.models.embed_content(
+    #         model="gemini-embedding-001",
+    #         contents= [
+    #             "What is the meaning of life?",
+    #             "What is the purpose of existence?",
+    #             "How do I bake a cake?"
+    #         ]
+    # )
+
+    # for embedding in result.embeddings:
+    #     print(embedding)

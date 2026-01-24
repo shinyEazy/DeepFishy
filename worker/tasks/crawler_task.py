@@ -20,7 +20,6 @@ from core.constants import (
     CRAWLER_MAX_WORKERS,
 )
 from core.config import settings
-from worker.utils import check_embedding_server_health
 
 
 @celery_app.task(bind=True, name="crawler.crawl_article_urls", queue="crawler")
@@ -34,11 +33,10 @@ def crawl_article_urls_task(
     Celery task to crawl article URLs from category pages with checkpoint support.
 
     Workflow:
-    1. Check embedding server health (fail-fast before starting any crawl)
-    2. Load checkpoint to avoid re-crawling known URLs
-    3. Crawl article URLs from category pages
-    4. Save URLs to MinIO
-    5. Automatically chain to content crawl task
+    1. Load checkpoint to avoid re-crawling known URLs
+    2. Crawl article URLs from category pages
+    3. Save URLs to MinIO
+    4. Automatically chain to content crawl task
 
     Args:
         paths: List of category paths to crawl (uses CRAWLER_PATHS if None)
@@ -50,31 +48,12 @@ def crawl_article_urls_task(
     """
     from datetime import timezone
 
-    # Use constants as defaults (with defensive programming) ✅ CLEANER PATTERN
+    # Use constants as defaults (with defensive programming)
     paths = paths or CRAWLER_PATHS
     max_pages = max_pages or CRAWLER_MAX_PAGES
     max_workers = max_workers or CRAWLER_MAX_WORKERS
 
     try:
-        # Step 0: Check embedding server health FIRST (before starting any crawl work)
-        logger.info(
-            "🏥 [STEP 0] Checking embedding server health before crawl pipeline..."
-        )
-        is_healthy, health_message = check_embedding_server_health(
-            timeout=getattr(settings, "EMBEDDING_API_TIMEOUT", 10)
-        )
-
-        if not is_healthy:
-            error_msg = f"❌ Embedding server is not healthy: {health_message}. Aborting entire crawl pipeline."
-            logger.error(error_msg)
-            return {
-                "status": "error",
-                "error": error_msg,
-                "urls": [],
-            }
-
-        logger.info("✓ Embedding server health check passed. Starting crawl pipeline.")
-
         logger.info(f"🔍 [STEP 1] Crawling article URLs from {len(paths)} paths...")
 
         # Load checkpoint from MinIO (all URLs crawled so far)

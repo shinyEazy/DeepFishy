@@ -7,117 +7,70 @@ from langchain_core.documents import Document
 from core.logging import logger
 
 
-def _get_transformer():
-    """Lazy import to avoid circular imports and side effects on module load."""
-    from engine.graph_rag.transformer import get_graph_transformer
+def _get_graphiti():
+    """Lazy import to avoid circular imports."""
+    from engine.graph_rag.graphiti_client import get_graphiti_service
 
-    return get_graph_transformer()
+    return get_graphiti_service()
 
 
 @tool
-def extract_to_graph(
+async def extract_to_graph(
     texts: List[str],
     source_urls: Optional[List[str]] = None,
     time_context: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Extract entities, events, and relationships from texts and store in Neo4j.
+    Extract entities, events, and relationships from texts and store in Neo4j using Graphiti.
 
-    Uses LangChain's LLMGraphTransformer to extract structured knowledge:
-    - Entities: Organizations, People, Indices, Currencies, Companies
-    - Events: Policy changes, market events with timestamps
-    - Relationships: CAUSES, AFFECTS, LEADS_TO, PREDICTS, etc.
-
-    The extracted graph is automatically stored in Neo4j for later querying.
+    Graphiti automatically handles entity extraction, relationship building, and
+    temporal indexing using the configured Gemini model.
 
     Args:
-        texts: List of text contents to process. Each text will be converted
-               to a LangChain Document and processed by LLMGraphTransformer.
-        source_urls: Optional list of URLs for attribution. Should match
-                     the length of texts list for proper source tracking.
-        time_context: Optional time context hint (e.g., "Q4/2025", "2025")
-                      to help with temporal extraction when not explicit.
+        texts: List of text contents to process.
+        source_urls: Optional list of URLs for attribution.
+        time_context: Optional time context (e.g., "Q4/2025") to append to text.
 
     Returns:
         Dictionary containing:
         - status: "success" or "error"
-        - nodes_created: Number of nodes created in Neo4j
-        - relationships_created: Number of relationships created
-        - documents_processed: Number of documents processed
-        - node_types: Breakdown by node type
-        - relationship_types: Breakdown by relationship type
+        - episodes_created: Number of episodes added
         - error: Error message if status is "error"
-
-    Example:
-        >>> extract_to_graph(
-        ...     texts=["FED tăng lãi suất 0.25% vào Q4/2025, gây áp lực lên tỷ giá VND"],
-        ...     source_urls=["https://example.com/article1"],
-        ...     time_context="Q4/2025"
-        ... )
-        {
-            "status": "success",
-            "nodes_created": 3,
-            "relationships_created": 1,
-            "documents_processed": 1,
-            "node_types": {"Organization": 1, "Currency": 1, "Event": 1},
-            "relationship_types": {"CAUSES": 1}
-        }
     """
     try:
         if not texts:
             return {
                 "status": "error",
                 "error": "No texts provided",
-                "nodes_created": 0,
-                "relationships_created": 0,
-                "documents_processed": 0,
+                "episodes_created": 0,
             }
 
-        logger.info(f"Extracting graph from {len(texts)} text(s)")
+        logger.info(f"Extracting graph from {len(texts)} text(s) using Graphiti")
 
-        # Convert to LangChain Documents
-        documents = []
+        graphiti = _get_graphiti()
+        episodes_created = 0
+
         for i, text in enumerate(texts):
-            metadata = {}
+            url = source_urls[i] if source_urls and i < len(source_urls) else None
 
-            # Add source URL if available
-            if source_urls and i < len(source_urls):
-                metadata["source"] = source_urls[i]
+            # Add episode to graph
+            await graphiti.add_episode(
+                text=text, source_url=url, time_context=time_context
+            )
+            episodes_created += 1
 
-            # Add time context if provided
-            if time_context:
-                metadata["time_context"] = time_context
-
-            documents.append(Document(page_content=text, metadata=metadata))
-
-        # Get transformer and extract
-        transformer = _get_transformer()
-        result = transformer.extract_and_store(documents)
-
-        logger.info(
-            f"Graph extraction complete: {result.nodes_created} nodes, "
-            f"{result.relationships_created} relationships"
-        )
+        logger.info(f"Graph extraction complete. Added {episodes_created} episodes.")
 
         return {
             "status": "success",
-            "nodes_created": result.nodes_created,
-            "relationships_created": result.relationships_created,
-            "documents_processed": result.source_documents,
-            "node_types": result.node_types,
-            "relationship_types": result.relationship_types,
-            "errors": result.errors if result.errors else None,
+            "episodes_created": episodes_created,
+            # Graphiti doesn't strictly return node/rel counts per episode insertion in the same way
+            # so we omit detailed stats for now or could query them separately if needed.
         }
 
     except Exception as e:
         logger.error(f"Graph extraction failed: {e}", exc_info=True)
-        return {
-            "status": "error",
-            "error": str(e),
-            "nodes_created": 0,
-            "relationships_created": 0,
-            "documents_processed": 0,
-        }
+        return {"status": "error", "error": str(e), "episodes_created": 0}
 
 
 @tool
@@ -125,40 +78,17 @@ def get_graph_stats() -> Dict[str, Any]:
     """
     Get statistics about the Neo4j knowledge graph.
 
-    Returns information about the current state of the graph:
-    - Total number of nodes
-    - Total number of relationships
-    - Distribution of node labels
-    - Connection status
-
-    Returns:
-        Dictionary containing:
-        - total_nodes: Number of nodes in the graph
-        - total_relationships: Number of relationships
-        - node_labels: List of node types and their counts
-        - status: "connected" or "error"
-
-    Example:
-        >>> get_graph_stats()
-        {
-            "total_nodes": 150,
-            "total_relationships": 230,
-            "node_labels": [
-                {"labels": ["Organization"], "count": 45},
-                {"labels": ["Event"], "count": 60}
-            ],
-            "status": "connected"
-        }
+    Warning: Graphiti might store data in a specific structure.
+    This currently returns a placeholder or basic count if implemented.
     """
     try:
-        transformer = _get_transformer()
-        stats = transformer.get_graph_stats()
-        return stats
+        # TODO: Implement proper stats for Graphiti schema
+        # For now, we return a simple connected status or we can run a direct cypher count query
+        # via the driver exposed by Graphiti if available, or just skip detailed stats.
+        return {
+            "status": "connected (Graphiti)",
+            "message": "Detailed stats not yet implemented for Graphiti schema",
+        }
     except Exception as e:
         logger.error(f"Failed to get graph stats: {e}")
-        return {
-            "status": "error",
-            "error": str(e),
-            "total_nodes": 0,
-            "total_relationships": 0,
-        }
+        return {"status": "error", "error": str(e)}

@@ -6,7 +6,7 @@ from typing import List, Dict, Any
 import requests
 
 from celery_app import celery_app
-from services.embeddings import EmbeddingService
+from services.embedding_factory import get_embedding_provider, get_embedding_dim
 from services.milvus import MilvusService
 from services.minio import MinioService
 from ingestion.embedding_pipeline import EmbeddingPipeline
@@ -15,14 +15,14 @@ from core.config import settings
 from worker.utils import check_embedding_server_health
 
 
-def _get_embedding_service():
-    """Initialize EmbeddingService for embeddings via remote API."""
-    logger.info("Initializing EmbeddingService")
-    return EmbeddingService(
-        api_url=settings.EMBEDDING_API_URL + "/embed",
-        timeout=settings.EMBEDDING_API_TIMEOUT,
-        max_retries=settings.EMBEDDING_API_MAX_RETRIES,
-    )
+def _get_embedding_provider(model_name: str = None):
+    """Get embedding provider from config.yaml.
+    
+    Args:
+        model_name: Model name. If None, uses deepfishy.embedding from config.
+    """
+    logger.info(f"Initializing embedding provider: {model_name or 'default from config'}")
+    return get_embedding_provider(model_name)
 
 
 @celery_app.task(
@@ -103,29 +103,29 @@ def embed_and_insert_articles_task(
         logger.info(f"✓ Loaded {len(articles_data)} articles")
 
         # Step 2: Initialize services
-        logger.info("🔧 Initializing EmbeddingService...")
+        logger.info("🔧 Initializing embedding provider...")
         try:
-            embedding_service = _get_embedding_service()
-            logger.info("✓ EmbeddingService initialized")
+            embedding_provider = _get_embedding_provider()
+            logger.info("✓ Embedding provider initialized")
         except Exception as e:
             logger.error(
-                f"❌ Failed to initialize EmbeddingService: {e}", exc_info=True
+                f"❌ Failed to initialize embedding provider: {e}", exc_info=True
             )
-            errors.append(f"EmbeddingService init failed: {e}")
+            errors.append(f"Embedding provider init failed: {e}")
             return {
                 "status": "error",
-                "message": f"EmbeddingService initialization failed: {e}",
+                "message": f"Embedding provider initialization failed: {e}",
                 "errors": errors,
             }
 
         logger.info("🔧 Initializing MilvusService...")
         milvus_service = MilvusService(
-            embedding_dim=embedding_service.embedding_dim,
+            embedding_dim=get_embedding_dim(),
         )
         logger.info("✓ MilvusService initialized")
 
         # Step 3: Create embedding pipeline
-        pipeline = EmbeddingPipeline(embedding_service, milvus_service)
+        pipeline = EmbeddingPipeline(embedding_provider, milvus_service)
 
         # Step 4: Process articles into chunks
         logger.info("🔄 Processing articles and generating embeddings...")
@@ -246,13 +246,13 @@ def embed_single_article_task(
         Dictionary with result
     """
     try:
-        embedding_service = _get_embedding_service()
+        embedding_provider = _get_embedding_provider()
         milvus_service = MilvusService(
-            embedding_dim=embedding_service.embedding_dim,
+            embedding_dim=get_embedding_dim(),
         )
 
         # Create pipeline for single article
-        pipeline = EmbeddingPipeline(embedding_service, milvus_service)
+        pipeline = EmbeddingPipeline(embedding_provider, milvus_service)
 
         # Process single article
         chunked_articles, errors = pipeline.process_article(article_data)

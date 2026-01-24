@@ -5,11 +5,11 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from utils.load_config import get_model_config
+from utils.load_config import get_llm_config, get_embedding_config
 from core.logging import logger
 
 
-def create_model_client(model_name: str) -> Optional[BaseChatModel]:
+def create_llm_client(model_name: str) -> Optional[BaseChatModel]:
     """Create a LangChain chat model from config.yaml settings.
 
     Args:
@@ -19,7 +19,7 @@ def create_model_client(model_name: str) -> Optional[BaseChatModel]:
     Returns:
         A configured BaseChatModel instance, or None if model not found or creation fails.
     """
-    config = get_model_config(model_name)
+    config = get_llm_config(model_name)
     if not config:
         logger.warning(f"Model '{model_name}' not found in config.yaml")
         return None

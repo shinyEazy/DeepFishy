@@ -3,7 +3,8 @@
 from typing import List, Dict, Optional, Tuple
 
 from core.logging import logger
-from services.embeddings import ChunkedArticle, EmbeddingService
+from services.embeddings import ChunkedArticle
+from embedding.base_embedding import BaseEmbedding
 from services.milvus import MilvusService
 
 
@@ -11,17 +12,22 @@ class EmbeddingPipeline:
     """Pipeline for processing articles into chunked, embedded articles ready for Milvus."""
 
     def __init__(
-        self, embedding_service: EmbeddingService, milvus_service: MilvusService
+        self,
+        embedding_provider: BaseEmbedding,
+        milvus_service: MilvusService,
+        chunking_service=None,
     ):
         """
         Initialize embedding pipeline.
 
         Args:
-            embedding_service: Service for generating text embeddings
+            embedding_provider: Provider for generating text embeddings (BaseEmbedding)
             milvus_service: Service for Milvus database operations
+            chunking_service: Optional service for chunking articles (uses default if None)
         """
-        self.embedding_service = embedding_service
+        self.embedding_provider = embedding_provider
         self.milvus_service = milvus_service
+        self._chunking_service = chunking_service
 
     def process_article(self, article: Dict) -> Tuple[List[ChunkedArticle], List[str]]:
         """
@@ -49,8 +55,15 @@ class EmbeddingPipeline:
                 errors.append(error)
                 return [], errors
 
-            # Use EmbeddingService to process article with fixed-size fields
-            chunked_articles = self.embedding_service.process_article(article)
+            # Use chunking service if available, otherwise create one for chunking only
+            if self._chunking_service:
+                chunked_articles = self._chunking_service.process_article(article)
+            else:
+                from services.embeddings import EmbeddingService
+                # Create a minimal EmbeddingService instance just for chunking
+                # The api_url is not used for chunking, only for embedding
+                chunking_svc = EmbeddingService(api_url="unused", timeout=60, max_retries=1)
+                chunked_articles = chunking_svc.process_article(article)
 
             if not chunked_articles:
                 error = (
@@ -130,10 +143,8 @@ class EmbeddingPipeline:
             # Extract texts to embed
             texts_to_embed = [ca.vector_source for ca in chunked_articles]
 
-            # Generate embeddings in batches
-            embeddings = self.embedding_service.embed_texts(
-                texts_to_embed, batch_size=32
-            )
+            # Generate embeddings using new interface (batch_encode)
+            embeddings = self.embedding_provider.batch_encode(texts_to_embed)
 
             if len(embeddings) != len(chunked_articles):
                 error = (
