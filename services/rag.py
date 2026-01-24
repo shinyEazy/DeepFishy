@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from core.logging import logger
 from core.config import settings
 from services.milvus import MilvusService
-from services.embeddings import EmbeddingService
+from services.embedding_factory import get_embedding_provider, get_embedding_dim
+from embedding.base_embedding import BaseEmbedding
 
 
 @dataclass
@@ -32,18 +33,21 @@ class RAGService:
 
     def __init__(
         self,
-        embedding_service: Optional[EmbeddingService] = None,
+        embedding_provider: Optional[BaseEmbedding] = None,
         milvus_service: Optional[MilvusService] = None,
+        model_name: str = None,
     ):
         """
         Initialize RAG service.
 
         Args:
-            embedding_service: Optional EmbeddingService instance (created if not provided)
+            embedding_provider: Optional embedding provider instance (created if not provided)
             milvus_service: Optional MilvusService instance (created if not provided)
+            model_name: Name of embedding model. If None, uses deepfishy.embedding from config.
         """
-        self._embedding_service = embedding_service
+        self._embedding_provider = embedding_provider
         self._milvus_service = milvus_service
+        self._model_name = model_name
         self._initialized = False
 
     def _ensure_initialized(self) -> None:
@@ -52,22 +56,13 @@ class RAGService:
             return
 
         try:
-            if self._embedding_service is None:
-                api_url = getattr(settings, "EMBEDDING_API_URL", None)
-                if not api_url:
-                    raise ValueError("EMBEDDING_API_URL not configured in settings")
-
-                timeout = getattr(settings, "EMBEDDING_API_TIMEOUT", 60)
-                max_retries = getattr(settings, "EMBEDDING_API_MAX_RETRIES", 3)
-
-                self._embedding_service = EmbeddingService(
-                    api_url=api_url + "/embed",
-                    timeout=timeout,
-                    max_retries=max_retries,
-                )
+            if self._embedding_provider is None:
+                self._embedding_provider = get_embedding_provider(self._model_name)
 
             if self._milvus_service is None:
-                self._milvus_service = MilvusService()
+                self._milvus_service = MilvusService(
+                    embedding_dim=get_embedding_dim(self._model_name)
+                )
 
             self._initialized = True
             logger.info("RAGService initialized successfully")
@@ -98,15 +93,14 @@ class RAGService:
         self._ensure_initialized()
 
         try:
-            # Generate embedding for the query
+            # Generate embedding for the query using encode (single text)
             logger.info(f"Generating embedding for query: {query}")
-            query_embeddings = self._embedding_service.embed_texts([query])
+            query_embedding = self._embedding_provider.encode(query)
 
-            if not query_embeddings:
+            if not query_embedding:
                 logger.error("Failed to generate query embedding")
                 return []
 
-            query_embedding = query_embeddings[0]
             logger.debug(
                 f"Query embedding generated. Dimension: {len(query_embedding)}"
             )

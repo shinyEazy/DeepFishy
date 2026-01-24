@@ -65,3 +65,44 @@ def get_embedding_config(model_name: str) -> Optional[Dict[str, Any]]:
     """
     config = load_config()
     return config.get("embedding", {}).get(model_name)
+
+
+# ============================================================
+# DeepFishy Default Model Helpers
+# ============================================================
+
+def get_deepfishy_defaults() -> Dict[str, Any]:
+    """Get the deepfishy defaults section from config.yaml.
+
+    Returns:
+        Dictionary with default model names for llm, vlm, embedding.
+    """
+    config = load_config()
+    return config.get("deepfishy", {})
+
+
+def get_default_llm_name() -> Optional[str]:
+    """Get the default LLM model name from deepfishy config.
+
+    Returns:
+        The default LLM model name, or None if not set.
+    """
+    return get_deepfishy_defaults().get("llm")
+
+
+def get_default_vlm_name() -> Optional[str]:
+    """Get the default VLM model name from deepfishy config.
+
+    Returns:
+        The default VLM model name, or None if not set.
+    """
+    return get_deepfishy_defaults().get("vlm")
+
+
+def get_default_embedding_name() -> Optional[str]:
+    """Get the default embedding model name from deepfishy config.
+
+    Returns:
+        The default embedding model name, or None if not set.
+    """
+    return get_deepfishy_defaults().get("embedding")

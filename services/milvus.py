@@ -13,7 +13,7 @@ class MilvusService:
 
     # Collection schema definition
     COLLECTION_NAME = "articles"
-    EMBEDDING_DIM = 1024
+    EMBEDDING_DIM = 1536
 
     def __init__(
         self,

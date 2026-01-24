@@ -16,5 +16,5 @@ CRAWLER_PATHS = [
     "dan-sinh",
     "nhip-cau-doanh-nghiep",
 ]
-CRAWLER_MAX_PAGES = 10
+CRAWLER_MAX_PAGES = 50
 CRAWLER_MAX_WORKERS = 4
