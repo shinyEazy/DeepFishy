@@ -29,7 +29,9 @@ def get_embedding_provider(
     if model_name is None:
         model_name = get_default_embedding_name()
         if not model_name:
-            raise ValueError("No embedding model specified and deepfishy.embedding not set in config.yaml")
+            raise ValueError(
+                "No embedding model specified and deepfishy.embedding not set in config.yaml"
+            )
     config = get_embedding_config(model_name)
 
     if not config:

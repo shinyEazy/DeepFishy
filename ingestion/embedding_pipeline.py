@@ -60,9 +60,12 @@ class EmbeddingPipeline:
                 chunked_articles = self._chunking_service.process_article(article)
             else:
                 from services.embeddings import EmbeddingService
+
                 # Create a minimal EmbeddingService instance just for chunking
                 # The api_url is not used for chunking, only for embedding
-                chunking_svc = EmbeddingService(api_url="unused", timeout=60, max_retries=1)
+                chunking_svc = EmbeddingService(
+                    api_url="unused", timeout=60, max_retries=1
+                )
                 chunked_articles = chunking_svc.process_article(article)
 
             if not chunked_articles:

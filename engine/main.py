@@ -11,16 +11,16 @@ from deepagents import create_deep_agent
 
 from core.logging import logger
 from engine.prompts.orchestrator_prompt import ORCHESTRATOR_PROMPT
-from engine.orchestrators.graph_builder import create_graph_builder_orchestrator
 from engine.orchestrators.report_writer import create_report_writer_orchestrator
+from engine.orchestrators.research import create_research_orchestrator
 
 from utils.load_agents import load_agents
-from utils.model_factory import create_model_client
+from utils.load_config import get_default_llm_name
+from utils.model_factory import create_llm_client
 
 
 load_dotenv()
 
-MODEL_PROVIDER = os.getenv("MODEL_PROVIDER")
 ENABLE_DISK_BACKEND = "true"
 OUTPUT_BASE_PATH = "outputs"
 
@@ -65,16 +65,22 @@ def _create_model() -> Optional[BaseChatModel]:
     """
     Model initialization using factory and config.yaml.
     """
-    model = None
-    if MODEL_PROVIDER == "google":
-        model = create_model_client("gpt-5-nano-2025-08-07")
-    elif MODEL_PROVIDER == "openai":
-        model = create_model_client("gpt-5-nano-2025-08-07")
+    # Read the default LLM model name from config.yaml (deepfishy.llm)
+    default_model_name = get_default_llm_name()
+
+    if not default_model_name:
+        logger.warning(
+            "No default LLM model found in config.yaml under 'deepfishy.llm'. "
+            "Please check your configs/config.yaml file."
+        )
+        return None
+
+    model = create_llm_client(default_model_name)
 
     if not model:
         logger.warning(
-            f"Could not create model for provider '{MODEL_PROVIDER}'. "
-            "Please check config.yaml or MODEL_PROVIDER env var."
+            f"Could not create model '{default_model_name}'. "
+            "Please check config.yaml has the model definition under 'llm' section."
         )
 
     return model
@@ -85,19 +91,32 @@ def _create_agent(session_id: Optional[str] = None, phase: str = "write"):
 
     Args:
         session_id: Optional session ID for workspace persistence
-        phase: 'build' for Graph RAG building, 'write' for Report writing
+        phase: 'build' for Graph RAG building (uses ResearchOrchestrator with Graphiti),
+               'write' for Report writing
+
+    Returns:
+        For 'build' phase: tuple of (agent, orchestrator) for async graph processing
+        For 'write' phase: agent only
     """
     custom_model = _create_model()
 
     if phase == "build":
-        logger.info("Creating Graph Builder agent (Phase 1)")
-        return create_graph_builder_orchestrator(
+        # 'build' phase now uses ResearchOrchestrator with iterative Graphiti pipeline
+        logger.info("Creating Research Orchestrator (Build Phase with Graphiti)")
+        orchestrator = create_research_orchestrator(
             model=custom_model, session_id=session_id, output_base_path=OUTPUT_BASE_PATH
         )
+        # Return both agent and orchestrator for async processing
+        return orchestrator.create(), orchestrator
     else:
-        logger.info("Creating Report Writer agent (Phase 2)")
-        return create_report_writer_orchestrator(
-            model=custom_model, session_id=session_id, output_base_path=OUTPUT_BASE_PATH
+        logger.info("Creating Report Writer agent (Write Phase)")
+        return (
+            create_report_writer_orchestrator(
+                model=custom_model,
+                session_id=session_id,
+                output_base_path=OUTPUT_BASE_PATH,
+            ),
+            None,
         )
 
 
@@ -136,7 +155,7 @@ if __name__ == "__main__":
         "--phase",
         type=str,
         default=None,
-        help="Phase to run: 'build' for Graph RAG building, 'write' for Report writing. If not specified, runs both in sequence.",
+        help="Phase to run: 'build' for Graph RAG building with Graphiti, 'write' for Report writing. If not specified, runs both in sequence.",
     )
     parser.add_argument(
         "--input", type=str, default=None, help="User input/query for the agent"
@@ -147,6 +166,7 @@ if __name__ == "__main__":
     if args.phase:
         phases_to_run = [args.phase]
     else:
+        # Default: build (Graphiti) then write
         phases_to_run = ["build", "write"]
 
     # Generate session ID once for this run (shared across phases)
@@ -162,21 +182,21 @@ if __name__ == "__main__":
         if args.input:
             user_input = args.input
         elif current_phase == "build":
-            user_input = "Xây dựng knowledge graph về tình hình của VNINDEX"
+            user_input = "Báo cáo tài chính về VNINDEX tháng 12/2025"
         else:
-            user_input = "Tạo báo cáo tài chính toàn diện về VNINDEX với phân tích xu hướng và biểu đồ 1 tuần gần đây"
+            user_input = "Báo cáo tài chính về VNINDEX tháng 12/2025"
 
         # Log phase info
         logger.info("=" * 60)
         if current_phase == "build":
-            logger.info("PHASE 1: Graph Builder")
+            logger.info("PHASE 1: Build Knowledge Graph (Graphiti)")
         else:
-            logger.info(f"PHASE 2: Report Writer")
+            logger.info("PHASE 2: Write Report")
         logger.info("=" * 60)
 
         # Create agent with phase parameter (uses the same proven creation pattern)
         # Session ID is passed to ensure workspaces are shared/persisted
-        agent = _create_agent(
+        agent, orchestrator = _create_agent(
             session_id=session_id if ENABLE_DISK_BACKEND else None, phase=current_phase
         )
 
@@ -190,6 +210,18 @@ if __name__ == "__main__":
             result = agent.invoke(
                 {"messages": [{"role": "user", "content": user_input}]}
             )
+
+            # Process pending graph updates for build phase
+            # This handles the async Graphiti operations in the correct event loop
+            if orchestrator is not None:
+                import asyncio
+
+                try:
+                    added = asyncio.run(orchestrator.process_pending_graph_updates())
+                    if added > 0:
+                        logger.info(f"Added {added} results to knowledge graph")
+                except Exception as e:
+                    logger.warning(f"Failed to process pending graph updates: {e}")
 
             if not result.get("messages"):
                 logger.error("No messages found in result!")
@@ -229,12 +261,6 @@ if __name__ == "__main__":
 
                     # Replace with relative path: images/
                     normalized_response = re.sub(pattern, "images/", final_response)
-
-                    # Append mode if it's the second phase, or just write?
-                    # The user likely wants to see the final report in full.md.
-                    # Usually 'write' phase produces the final report. 'build' phase might produce some status.
-                    # We will overwrite full.md for each phase so the latest is there,
-                    # but for 'build' -> 'write', 'write' is the final output.
 
                     with open(full_md_path, "w", encoding="utf-8") as f:
                         f.write(normalized_response)

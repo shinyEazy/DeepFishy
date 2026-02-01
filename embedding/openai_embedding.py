@@ -49,17 +49,21 @@ class OpenAIEmbedding(BaseEmbedding):
                     )
                     time.sleep(self.RETRY_DELAY * (attempt + 1))
                 else:
-                    logger.error(f"Embed query failed after {self.MAX_RETRIES} attempts: {e}")
+                    logger.error(
+                        f"Embed query failed after {self.MAX_RETRIES} attempts: {e}"
+                    )
                     raise
 
-    def batch_encode(self, texts: List[str], batch_size: int = None) -> List[List[float]]:
+    def batch_encode(
+        self, texts: List[str], batch_size: int = None
+    ) -> List[List[float]]:
         """
         Encode a list of texts with batching and retry logic.
-        
+
         Args:
             texts: List of texts to embed
             batch_size: Override batch size (uses config value if not specified)
-            
+
         Returns:
             List of embedding vectors
         """
@@ -83,11 +87,13 @@ class OpenAIEmbedding(BaseEmbedding):
                 try:
                     embeddings = self.client.embed_documents(batch)
                     all_embeddings.extend(embeddings)
-                    
+
                     if batch_num % 10 == 0 or batch_num == total_batches:
-                        logger.info(f"Progress: {batch_num}/{total_batches} batches completed")
+                        logger.info(
+                            f"Progress: {batch_num}/{total_batches} batches completed"
+                        )
                     break
-                    
+
                 except Exception as e:
                     if attempt < self.MAX_RETRIES - 1:
                         wait_time = self.RETRY_DELAY * (attempt + 1)
@@ -114,4 +120,3 @@ if __name__ == "__main__":
     logger.info(f"Encode success. Vector length: {len(vec)}")
     batch_vec = openai_emb.batch_encode(["Hello", "World"])
     logger.info(f"Batch encode success. Number of vectors: {len(batch_vec)}")
-

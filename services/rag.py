@@ -1,5 +1,6 @@
 """RAG (Retrieval-Augmented Generation) service for local knowledge search."""
 
+import threading
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
@@ -242,11 +243,22 @@ class RAGService:
 
 # Singleton instance for reuse across the application
 _rag_service_instance: Optional[RAGService] = None
+_rag_service_lock = threading.Lock()
 
 
 def get_rag_service() -> RAGService:
-    """Get or create the singleton RAGService instance."""
+    """Get or create the singleton RAGService instance (thread-safe)."""
     global _rag_service_instance
     if _rag_service_instance is None:
-        _rag_service_instance = RAGService()
+        with _rag_service_lock:
+            # Double-check pattern for thread safety
+            if _rag_service_instance is None:
+                _rag_service_instance = RAGService()
     return _rag_service_instance
+
+
+if __name__ == "__main__":
+    rag_service = get_rag_service()
+    search_results = rag_service.search("VNINDEX")
+    print(search_results)
+    rag_service.close()

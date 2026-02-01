@@ -1,5 +1,6 @@
 """Milvus vector database service."""
 
+import threading
 from typing import List, Dict, Any, Optional
 from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType
 from pymilvus.orm.index import Index
@@ -14,6 +15,10 @@ class MilvusService:
     # Collection schema definition
     COLLECTION_NAME = "articles"
     EMBEDDING_DIM = 1536
+
+    # Class-level lock for thread-safe connection management
+    _connection_lock = threading.Lock()
+    _connection_count = 0  # Track active connections
 
     def __init__(
         self,
@@ -40,24 +45,73 @@ class MilvusService:
         self._connect()
 
     def _connect(self) -> None:
-        """Connect to Milvus server."""
-        try:
-            # Disconnect any existing connections
+        """Connect to Milvus server (thread-safe)."""
+        with MilvusService._connection_lock:
             try:
-                connections.disconnect("default")
-            except Exception:
-                pass
+                # Check if already connected
+                try:
+                    from pymilvus import connections as milvus_connections
 
-            # Connect to Milvus
-            connections.connect("default", host=self.host, port=self.port)
-            logger.info(f"Connected to Milvus at {self.host}:{self.port}")
+                    conn = milvus_connections._fetch_handler("default")
+                    if conn is not None:
+                        # Already connected, just increment count and init collection
+                        MilvusService._connection_count += 1
+                        self._init_collection()
+                        return
+                except Exception:
+                    pass
 
-            # Initialize collection
-            self._init_collection()
+                # Connect to Milvus
+                connections.connect("default", host=self.host, port=self.port)
+                MilvusService._connection_count = 1
+                logger.info(f"Connected to Milvus at {self.host}:{self.port}")
+
+                # Initialize collection
+                self._init_collection()
+
+            except Exception as e:
+                logger.error(f"Failed to connect to Milvus: {e}")
+                raise
+
+    def _ensure_connected(self) -> bool:
+        """Check connection and reconnect if necessary (thread-safe).
+
+        Returns:
+            True if connected, False if reconnection failed
+        """
+        try:
+            # Try to check if connection is alive
+            from pymilvus import connections as milvus_connections
+
+            # Check if 'default' connection exists and is valid
+            try:
+                conn = milvus_connections._fetch_handler("default")
+                if conn is None:
+                    raise Exception("No connection handler")
+                # Try a simple operation to verify connection is alive
+                if self.collection:
+                    _ = self.collection.num_entities
+                return True
+            except Exception as e:
+                logger.warning(f"Connection lost, reconnecting: {e}")
+                # Use lock for reconnection
+                with MilvusService._connection_lock:
+                    # Double-check after acquiring lock
+                    try:
+                        conn = milvus_connections._fetch_handler("default")
+                        if conn is not None:
+                            self._init_collection()
+                            return True
+                    except Exception:
+                        pass
+                    # Actually need to reconnect
+                    connections.connect("default", host=self.host, port=self.port)
+                    self._init_collection()
+                return True
 
         except Exception as e:
-            logger.error(f"Failed to connect to Milvus: {e}")
-            raise
+            logger.error(f"Failed to reconnect to Milvus: {e}")
+            return False
 
     def _init_collection(self) -> None:
         """Initialize or get the articles collection."""
@@ -414,6 +468,11 @@ class MilvusService:
             List of search results with scores
         """
         try:
+            # Ensure connection is alive before searching
+            if not self._ensure_connected():
+                logger.error("Failed to ensure Milvus connection")
+                return []
+
             if not self.collection:
                 logger.error("Collection not initialized")
                 return []

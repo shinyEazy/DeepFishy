@@ -1,17 +1,10 @@
 """Graph RAG module for knowledge graph extraction and querying."""
 
-from engine.graph_rag.models import (
-    ExtractionConfig,
-    GraphBuildResult,
-    GraphQueryResult,
-)
-from engine.graph_rag.transformer import GraphRAGTransformer
-from engine.graph_rag.neo4j_ingestion import GraphQueryService
+from graph_rag.graphiti_service import GraphitiService, get_graphiti_service
+from graph_rag.chunk_tracker import ChunkTracker
 
 __all__ = [
-    "ExtractionConfig",
-    "GraphBuildResult",
-    "GraphQueryResult",
-    "GraphRAGTransformer",
-    "GraphQueryService",
+    "GraphitiService",
+    "get_graphiti_service",
+    "ChunkTracker",
 ]

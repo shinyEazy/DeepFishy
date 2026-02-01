@@ -13,7 +13,7 @@ load_dotenv()
 MODEL_PROVIDER = os.getenv("MODEL_PROVIDER")
 
 
-from utils.model_factory import create_model_client
+from utils.model_factory import create_llm_client
 
 
 def get_llm() -> Optional[BaseChatModel]:
@@ -27,10 +27,10 @@ def get_llm() -> Optional[BaseChatModel]:
         ValueError: If MODEL_PROVIDER is not recognized
     """
     if MODEL_PROVIDER == "google":
-        return create_model_client("gemini-2.5-flash")
+        return create_llm_client("gemini-2.5-flash")
 
     elif MODEL_PROVIDER == "openai":
-        return create_model_client("gpt-4o-mini")
+        return create_llm_client("gpt-4o-mini")
 
     else:
         logger.warning(

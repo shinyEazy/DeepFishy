@@ -4,7 +4,7 @@ import yaml
 from typing import List, Dict, Optional, Any
 from importlib import import_module
 
-from utils.model_factory import create_model_client
+from utils.model_factory import create_llm_client
 from core.logging import logger
 
 
@@ -99,7 +99,7 @@ def load_agents(
         model_name = meta.get("model")
         model = None
         if model_name:
-            model = create_model_client(model_name)
+            model = create_llm_client(model_name)
             if model:
                 logger.info(
                     f"Using custom model '{model_name}' for agent '{meta.get('name')}'"
