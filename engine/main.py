@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import asyncio
 import argparse
 from typing import Optional
 from datetime import datetime
@@ -211,11 +212,7 @@ if __name__ == "__main__":
                 {"messages": [{"role": "user", "content": user_input}]}
             )
 
-            # Process pending graph updates for build phase
-            # This handles the async Graphiti operations in the correct event loop
             if orchestrator is not None:
-                import asyncio
-
                 try:
                     added = asyncio.run(orchestrator.process_pending_graph_updates())
                     if added > 0:

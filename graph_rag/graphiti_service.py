@@ -5,10 +5,9 @@ knowledge graph operations for the iterative research pipeline.
 """
 
 import os
-from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone
-
 from dotenv import load_dotenv
+from datetime import datetime, timezone
+from typing import List, Dict, Any, Optional
 
 from graphiti_core import Graphiti
 from graphiti_core.nodes import EpisodeType
@@ -85,7 +84,7 @@ class GraphitiService:
 
         try:
             # Get API key from config
-            gemini_config = get_llm_config("gemini-2.5-flash")
+            gemini_config = get_llm_config(self.llm_model)
             if not gemini_config or "api_key" not in gemini_config:
                 raise ValueError("Gemini API key not found in config.yaml")
 

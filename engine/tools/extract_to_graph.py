@@ -2,10 +2,14 @@
 
 import asyncio
 from typing import Dict, Any, Optional, List
+from datetime import datetime, timezone
+
 from langchain_core.tools import tool
 from langchain_core.documents import Document
 
 from core.logging import logger
+
+from services.rag import SearchResult
 
 
 def _get_graphiti():
@@ -36,12 +40,6 @@ async def _extract_to_graph_async(
 
         for i, text in enumerate(texts):
             url = source_urls[i] if source_urls and i < len(source_urls) else None
-
-            # Add episode to graph (using the service's method)
-            from services.rag import SearchResult
-            from datetime import datetime, timezone
-
-            # Create a minimal SearchResult for the service
             result = SearchResult(
                 content=text,
                 url=url or f"manual_input_{i}",

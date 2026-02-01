@@ -2,6 +2,7 @@
 
 import asyncio
 from typing import Dict, Any, Optional, List, Literal
+
 from langchain_core.tools import tool
 
 from core.logging import logger
@@ -99,7 +100,6 @@ def query_knowledge_graph(
     query_type: Literal["time_period", "causal_chain", "search", "related"],
     query_value: str,
     limit: int = 10,
-    direction: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Query the Neo4j knowledge graph using Graphiti.
@@ -112,7 +112,6 @@ def query_knowledge_graph(
             - "related": (Mapped to search for now)
         query_value: The search value or entity name
         limit: Maximum number of results
-        direction: Unused in Graphiti version currently
 
     Returns:
         Dictionary containing search results
