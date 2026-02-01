@@ -71,6 +71,7 @@ def get_embedding_config(model_name: str) -> Optional[Dict[str, Any]]:
 # DeepFishy Default Model Helpers
 # ============================================================
 
+
 def get_deepfishy_defaults() -> Dict[str, Any]:
     """Get the deepfishy defaults section from config.yaml.
 

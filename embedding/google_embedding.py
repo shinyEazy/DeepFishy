@@ -9,10 +9,11 @@ from core.logging import logger
 class GoogleEmbedding(BaseEmbedding):
     """
     Google Gemini embedding provider.
-    
+
     Note: LangChain's GoogleGenerativeAIEmbeddings handles batching internally
     (Google API max is 100 texts per request). We just add retry logic.
     """
+
     MAX_RETRIES = 3
     RETRY_DELAY = 2  # seconds
 
@@ -53,18 +54,20 @@ class GoogleEmbedding(BaseEmbedding):
                     )
                     time.sleep(wait_time)
                 else:
-                    logger.error(f"Embed query failed after {self.MAX_RETRIES} attempts: {e}")
+                    logger.error(
+                        f"Embed query failed after {self.MAX_RETRIES} attempts: {e}"
+                    )
                     raise
 
     def batch_encode(self, texts: List[str]) -> List[List[float]]:
         """
         Encode a list of texts with retry logic.
-        
+
         Note: LangChain handles internal batching (max 100 texts per API call).
-        
+
         Args:
             texts: List of texts to embed
-            
+
         Returns:
             List of embedding vectors
         """
@@ -87,7 +90,9 @@ class GoogleEmbedding(BaseEmbedding):
                     )
                     time.sleep(wait_time)
                 else:
-                    logger.error(f"Batch embed failed after {self.MAX_RETRIES} attempts: {e}")
+                    logger.error(
+                        f"Batch embed failed after {self.MAX_RETRIES} attempts: {e}"
+                    )
                     raise
 
 
@@ -97,5 +102,3 @@ if __name__ == "__main__":
     logger.info(f"Encode success. Vector length: {len(vec)}")
     batch_vec = google_emb.batch_encode(["Hello", "World"])
     logger.info(f"Batch encode success. Number of vectors: {len(batch_vec)}")
-
-

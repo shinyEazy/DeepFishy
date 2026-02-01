@@ -36,7 +36,7 @@ class ReportWriterOrchestrator:
         "bull_agent",
         "bear_agent",
         "synthesizer_agent",
-        "critique",
+        # "critique",
     ]
 
     def __init__(

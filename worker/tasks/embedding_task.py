@@ -17,11 +17,13 @@ from worker.utils import check_embedding_server_health
 
 def _get_embedding_provider(model_name: str = None):
     """Get embedding provider from config.yaml.
-    
+
     Args:
         model_name: Model name. If None, uses deepfishy.embedding from config.
     """
-    logger.info(f"Initializing embedding provider: {model_name or 'default from config'}")
+    logger.info(
+        f"Initializing embedding provider: {model_name or 'default from config'}"
+    )
     return get_embedding_provider(model_name)
 
 

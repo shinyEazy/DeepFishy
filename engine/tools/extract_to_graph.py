@@ -1,21 +1,74 @@
 """Tool for extracting knowledge graph from text and storing in Neo4j."""
 
+import asyncio
 from typing import Dict, Any, Optional, List
+from datetime import datetime, timezone
+
 from langchain_core.tools import tool
 from langchain_core.documents import Document
 
 from core.logging import logger
 
+from services.rag import SearchResult
+
 
 def _get_graphiti():
     """Lazy import to avoid circular imports."""
-    from engine.graph_rag.graphiti_client import get_graphiti_service
+    from graph_rag.graphiti_service import get_graphiti_service
 
     return get_graphiti_service()
 
 
+async def _extract_to_graph_async(
+    texts: List[str],
+    source_urls: Optional[List[str]] = None,
+    time_context: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Async implementation of extract_to_graph."""
+    try:
+        if not texts:
+            return {
+                "status": "error",
+                "error": "No texts provided",
+                "episodes_created": 0,
+            }
+
+        logger.info(f"Extracting graph from {len(texts)} text(s) using Graphiti")
+
+        graphiti = await _get_graphiti()
+        episodes_created = 0
+
+        for i, text in enumerate(texts):
+            url = source_urls[i] if source_urls and i < len(source_urls) else None
+            result = SearchResult(
+                content=text,
+                url=url or f"manual_input_{i}",
+                chunk_index=0,
+                category=None,
+                tags=[],
+                date_ts=int(datetime.now(timezone.utc).timestamp()),
+                score=1.0,
+            )
+
+            added = await graphiti.add_search_results(
+                [result], time_context or "manual extraction"
+            )
+            episodes_created += added
+
+        logger.info(f"Graph extraction complete. Added {episodes_created} episodes.")
+
+        return {
+            "status": "success",
+            "episodes_created": episodes_created,
+        }
+
+    except Exception as e:
+        logger.error(f"Graph extraction failed: {e}", exc_info=True)
+        return {"status": "error", "error": str(e), "episodes_created": 0}
+
+
 @tool
-async def extract_to_graph(
+def extract_to_graph(
     texts: List[str],
     source_urls: Optional[List[str]] = None,
     time_context: Optional[str] = None,
@@ -37,40 +90,7 @@ async def extract_to_graph(
         - episodes_created: Number of episodes added
         - error: Error message if status is "error"
     """
-    try:
-        if not texts:
-            return {
-                "status": "error",
-                "error": "No texts provided",
-                "episodes_created": 0,
-            }
-
-        logger.info(f"Extracting graph from {len(texts)} text(s) using Graphiti")
-
-        graphiti = _get_graphiti()
-        episodes_created = 0
-
-        for i, text in enumerate(texts):
-            url = source_urls[i] if source_urls and i < len(source_urls) else None
-
-            # Add episode to graph
-            await graphiti.add_episode(
-                text=text, source_url=url, time_context=time_context
-            )
-            episodes_created += 1
-
-        logger.info(f"Graph extraction complete. Added {episodes_created} episodes.")
-
-        return {
-            "status": "success",
-            "episodes_created": episodes_created,
-            # Graphiti doesn't strictly return node/rel counts per episode insertion in the same way
-            # so we omit detailed stats for now or could query them separately if needed.
-        }
-
-    except Exception as e:
-        logger.error(f"Graph extraction failed: {e}", exc_info=True)
-        return {"status": "error", "error": str(e), "episodes_created": 0}
+    return asyncio.run(_extract_to_graph_async(texts, source_urls, time_context))
 
 
 @tool
@@ -82,12 +102,15 @@ def get_graph_stats() -> Dict[str, Any]:
     This currently returns a placeholder or basic count if implemented.
     """
     try:
-        # TODO: Implement proper stats for Graphiti schema
-        # For now, we return a simple connected status or we can run a direct cypher count query
-        # via the driver exposed by Graphiti if available, or just skip detailed stats.
+
+        async def _get_stats():
+            graphiti = await _get_graphiti()
+            return await graphiti.get_graph_stats()
+
+        stats = asyncio.run(_get_stats())
         return {
-            "status": "connected (Graphiti)",
-            "message": "Detailed stats not yet implemented for Graphiti schema",
+            "status": "success",
+            **stats,
         }
     except Exception as e:
         logger.error(f"Failed to get graph stats: {e}")
