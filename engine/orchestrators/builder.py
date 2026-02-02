@@ -1,4 +1,4 @@
-"""Research Orchestrator: Iterative knowledge graph building pipeline.
+"""Builder Orchestrator: Iterative knowledge graph building pipeline.
 
 This orchestrator implements the iterative research loop:
 1. Generate search queries for user topic
@@ -20,7 +20,7 @@ from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 
 from core.logging import logger
-from engine.prompts.research_orchestrator_prompt import RESEARCH_ORCHESTRATOR_PROMPT
+from engine.prompts.builder_orchestrator_prompt import BUILDER_ORCHESTRATOR_PROMPT
 from utils.load_agents import load_agents
 from graph_rag.graphiti_service import GraphitiService, get_graphiti_service
 from graph_rag.chunk_tracker import ChunkTracker
@@ -40,9 +40,9 @@ from engine.tools.search_and_build_graph import (
 )
 
 
-class ResearchOrchestrator:
+class BuilderOrchestrator:
     """
-    Iterative research orchestrator for building comprehensive knowledge graphs.
+    Iterative Builder Orchestrator for building comprehensive knowledge graphs.
 
     This orchestrator handles the research phase before report writing:
     - Generates diverse search queries to explore a topic
@@ -55,7 +55,7 @@ class ResearchOrchestrator:
     hand off to the ReportWriterOrchestrator.
 
     Example:
-        >>> orchestrator = ResearchOrchestrator(model)
+        >>> orchestrator = BuilderOrchestrator(model)
         >>> agent = orchestrator.create()
         >>> result = agent.invoke({
         ...     "messages": [{"role": "user", "content": "Phân tích tác động thuế quan Trump"}]
@@ -84,7 +84,7 @@ class ResearchOrchestrator:
         graphiti_service: Optional[GraphitiService] = None,
     ):
         """
-        Initialize ResearchOrchestrator.
+        Initialize BuilderOrchestrator.
 
         Args:
             model: LangChain chat model for the orchestrator
@@ -116,9 +116,9 @@ class ResearchOrchestrator:
     def create(self):
         """Create and return the orchestrator agent."""
         subagents = load_agents(names=self.SUBAGENT_NAMES)
-        logger.info(f"Research: Loaded {len(subagents)} subagent(s)")
+        logger.info(f"Builder: Loaded {len(subagents)} subagent(s)")
 
-        config = {"recursion_limit": 150}  # Higher limit for iterative loop
+        config = {"recursion_limit": 150}
         backend = None
         workspace_path = None
 
@@ -127,7 +127,7 @@ class ResearchOrchestrator:
             os.makedirs(workspace_path, exist_ok=True)
             backend = FilesystemBackend(root_dir=workspace_path, virtual_mode=True)
             config["configurable"] = {"thread_id": self.session_id}
-            logger.info(f"Research workspace: {workspace_path}")
+            logger.info(f"Builder workspace: {workspace_path}")
 
         tools = [
             # cluster_topics_from_graph,
@@ -140,7 +140,7 @@ class ResearchOrchestrator:
         agent = create_deep_agent(
             model=self.model,
             tools=tools,
-            system_prompt=RESEARCH_ORCHESTRATOR_PROMPT,
+            system_prompt=BUILDER_ORCHESTRATOR_PROMPT,
             # subagents=subagents,
             backend=backend,
         ).with_config(config)
@@ -285,13 +285,13 @@ class ResearchOrchestrator:
         }
 
 
-def create_research_orchestrator(
+def create_builder_orchestrator(
     model: BaseChatModel,
     session_id: Optional[str] = None,
     output_base_path: str = "outputs",
-) -> ResearchOrchestrator:
+) -> BuilderOrchestrator:
     """
-    Factory function to create a Research orchestrator.
+    Factory function to create a Builder Orchestrator.
 
     Args:
         model: LangChain chat model
@@ -299,9 +299,9 @@ def create_research_orchestrator(
         output_base_path: Base path for outputs
 
     Returns:
-        Configured ResearchOrchestrator instance
+        Configured BuilderOrchestrator instance
     """
-    orchestrator = ResearchOrchestrator(
+    orchestrator = BuilderOrchestrator(
         model=model,
         session_id=session_id,
         output_base_path=output_base_path,

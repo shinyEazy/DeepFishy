@@ -46,7 +46,6 @@ class Settings(BaseSettings):
 
     MINERU_API_KEY: str = os.getenv("MINERU_API_KEY")
     TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY")
-    MODEL_PROVIDER: str = os.getenv("MODEL_PROVIDER")
 
     class Config:
         env_file = ".env"

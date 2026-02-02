@@ -98,7 +98,7 @@ def search_and_build_graph(
         # Validate top_k
         top_k = max(1, min(top_k, 10))
 
-        logger.info(f"Search+Graph: query='{query}', top_k={top_k}")
+        logger.info(f"Builder: query='{query}', top_k={top_k}")
 
         rag_service = _get_rag_service()
 
@@ -178,7 +178,7 @@ async def search_and_build_graph_async(
     """Async version of search_and_build_graph.
 
     Same functionality but designed for async contexts like the
-    ResearchOrchestrator's iterative loop.
+    BuilderOrchestrator's iterative loop.
     """
     try:
         top_k = max(1, min(top_k, 10))
