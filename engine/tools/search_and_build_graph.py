@@ -124,6 +124,7 @@ def search_and_build_graph(
             {
                 "results": results,
                 "query": query,
+                "group_id": None,  # Will be set by orchestrator with session_id
             }
         )
         logger.debug(f"Queued {len(results)} results for deferred graph building")

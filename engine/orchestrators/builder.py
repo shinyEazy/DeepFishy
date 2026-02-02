@@ -160,13 +160,14 @@ class BuilderOrchestrator:
         return self._agent
 
     async def reset_session(self) -> None:
-        """Reset the research session for a new query."""
+        """Reset the research session for a new query.
+
+        Note: Unlike before, we no longer clear the graph. Each session uses
+        group_id (session_id) for namespacing, preserving historical data.
+        """
         await self._ensure_services()
 
-        # Clear graph for new session
-        await self._graphiti_service.clear_graph()
-
-        # Reset tracking state
+        # Reset tracking state (no longer clearing graph - using group_id namespacing)
         self.chunk_tracker.reset()
         self.current_iteration = 0
         self.topics = []
@@ -174,7 +175,9 @@ class BuilderOrchestrator:
         # Clear any pending graph updates from previous session
         clear_pending_graph_updates()
 
-        logger.info("Research session reset for new query")
+        logger.info(
+            f"Research session reset for new query (group_id={self.session_id})"
+        )
 
     async def process_pending_graph_updates(self) -> int:
         """
@@ -198,18 +201,19 @@ class BuilderOrchestrator:
             results = update.get("results", [])
             query = update.get("query", "research")
 
-            # Filter new results and add to graph
+            # Filter new results and add to graph with session namespace
             new_results = self.chunk_tracker.filter_new(results)
             if new_results:
                 added = await self._graphiti_service.add_search_results(
                     results=new_results,
                     source_query=query,
+                    group_id=self.session_id,  # Use session_id as namespace
                 )
                 total_added += added
 
         if total_added > 0:
             logger.info(
-                f"Processed {len(updates)} pending updates, added {total_added} to graph"
+                f"Processed {len(updates)} pending updates, added {total_added} to graph (group_id={self.session_id})"
             )
 
         return total_added
