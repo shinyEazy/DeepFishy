@@ -94,8 +94,6 @@ class RAGService:
         self._ensure_initialized()
 
         try:
-            # Generate embedding for the query using encode (single text)
-            logger.info(f"Generating embedding for query: {query}")
             query_embedding = self._embedding_provider.encode(query)
 
             if not query_embedding:

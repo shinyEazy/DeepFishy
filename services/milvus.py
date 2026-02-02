@@ -64,7 +64,6 @@ class MilvusService:
                 # Connect to Milvus
                 connections.connect("default", host=self.host, port=self.port)
                 MilvusService._connection_count = 1
-                logger.info(f"Connected to Milvus at {self.host}:{self.port}")
 
                 # Initialize collection
                 self._init_collection()
@@ -119,7 +118,6 @@ class MilvusService:
             # Check if collection exists
             try:
                 self.collection = Collection(self.collection_name)
-                logger.info(f"Loaded existing collection: {self.collection_name}")
             except Exception:
                 # Collection doesn't exist, create it
                 self._create_collection()
@@ -540,9 +538,6 @@ class MilvusService:
                         }
                     )
 
-            logger.info(
-                f"Search returned {len(formatted_results)} results with top_k={top_k}"
-            )
             if len(formatted_results) == 0:
                 logger.warning(
                     f"No results found. Collection has {self.collection.num_entities} entities"

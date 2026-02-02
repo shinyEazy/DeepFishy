@@ -1,4 +1,4 @@
-"""Research Orchestrator: Iterative knowledge graph building pipeline.
+"""Builder Orchestrator: Iterative knowledge graph building pipeline.
 
 This orchestrator implements the iterative research loop:
 1. Generate search queries for user topic
@@ -20,7 +20,7 @@ from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 
 from core.logging import logger
-from engine.prompts.research_orchestrator_prompt import RESEARCH_ORCHESTRATOR_PROMPT
+from engine.prompts.builder_orchestrator_prompt import BUILDER_ORCHESTRATOR_PROMPT
 from utils.load_agents import load_agents
 from graph_rag.graphiti_service import GraphitiService, get_graphiti_service
 from graph_rag.chunk_tracker import ChunkTracker
@@ -40,9 +40,9 @@ from engine.tools.search_and_build_graph import (
 )
 
 
-class ResearchOrchestrator:
+class BuilderOrchestrator:
     """
-    Iterative research orchestrator for building comprehensive knowledge graphs.
+    Iterative Builder Orchestrator for building comprehensive knowledge graphs.
 
     This orchestrator handles the research phase before report writing:
     - Generates diverse search queries to explore a topic
@@ -55,7 +55,7 @@ class ResearchOrchestrator:
     hand off to the ReportWriterOrchestrator.
 
     Example:
-        >>> orchestrator = ResearchOrchestrator(model)
+        >>> orchestrator = BuilderOrchestrator(model)
         >>> agent = orchestrator.create()
         >>> result = agent.invoke({
         ...     "messages": [{"role": "user", "content": "Phân tích tác động thuế quan Trump"}]
@@ -84,7 +84,7 @@ class ResearchOrchestrator:
         graphiti_service: Optional[GraphitiService] = None,
     ):
         """
-        Initialize ResearchOrchestrator.
+        Initialize BuilderOrchestrator.
 
         Args:
             model: LangChain chat model for the orchestrator
@@ -116,9 +116,9 @@ class ResearchOrchestrator:
     def create(self):
         """Create and return the orchestrator agent."""
         subagents = load_agents(names=self.SUBAGENT_NAMES)
-        logger.info(f"Research: Loaded {len(subagents)} subagent(s)")
+        logger.info(f"Builder: Loaded {len(subagents)} subagent(s)")
 
-        config = {"recursion_limit": 150}  # Higher limit for iterative loop
+        config = {"recursion_limit": 150}
         backend = None
         workspace_path = None
 
@@ -127,7 +127,7 @@ class ResearchOrchestrator:
             os.makedirs(workspace_path, exist_ok=True)
             backend = FilesystemBackend(root_dir=workspace_path, virtual_mode=True)
             config["configurable"] = {"thread_id": self.session_id}
-            logger.info(f"Research workspace: {workspace_path}")
+            logger.info(f"Builder workspace: {workspace_path}")
 
         tools = [
             # cluster_topics_from_graph,
@@ -140,7 +140,7 @@ class ResearchOrchestrator:
         agent = create_deep_agent(
             model=self.model,
             tools=tools,
-            system_prompt=RESEARCH_ORCHESTRATOR_PROMPT,
+            system_prompt=BUILDER_ORCHESTRATOR_PROMPT,
             # subagents=subagents,
             backend=backend,
         ).with_config(config)
@@ -160,13 +160,14 @@ class ResearchOrchestrator:
         return self._agent
 
     async def reset_session(self) -> None:
-        """Reset the research session for a new query."""
+        """Reset the research session for a new query.
+
+        Note: Unlike before, we no longer clear the graph. Each session uses
+        group_id (session_id) for namespacing, preserving historical data.
+        """
         await self._ensure_services()
 
-        # Clear graph for new session
-        await self._graphiti_service.clear_graph()
-
-        # Reset tracking state
+        # Reset tracking state (no longer clearing graph - using group_id namespacing)
         self.chunk_tracker.reset()
         self.current_iteration = 0
         self.topics = []
@@ -174,7 +175,9 @@ class ResearchOrchestrator:
         # Clear any pending graph updates from previous session
         clear_pending_graph_updates()
 
-        logger.info("Research session reset for new query")
+        logger.info(
+            f"Research session reset for new query (group_id={self.session_id})"
+        )
 
     async def process_pending_graph_updates(self) -> int:
         """
@@ -198,18 +201,19 @@ class ResearchOrchestrator:
             results = update.get("results", [])
             query = update.get("query", "research")
 
-            # Filter new results and add to graph
+            # Filter new results and add to graph with session namespace
             new_results = self.chunk_tracker.filter_new(results)
             if new_results:
                 added = await self._graphiti_service.add_search_results(
                     results=new_results,
                     source_query=query,
+                    group_id=self.session_id,  # Use session_id as namespace
                 )
                 total_added += added
 
         if total_added > 0:
             logger.info(
-                f"Processed {len(updates)} pending updates, added {total_added} to graph"
+                f"Processed {len(updates)} pending updates, added {total_added} to graph (group_id={self.session_id})"
             )
 
         return total_added
@@ -285,13 +289,13 @@ class ResearchOrchestrator:
         }
 
 
-def create_research_orchestrator(
+def create_builder_orchestrator(
     model: BaseChatModel,
     session_id: Optional[str] = None,
     output_base_path: str = "outputs",
-) -> ResearchOrchestrator:
+) -> BuilderOrchestrator:
     """
-    Factory function to create a Research orchestrator.
+    Factory function to create a Builder Orchestrator.
 
     Args:
         model: LangChain chat model
@@ -299,9 +303,9 @@ def create_research_orchestrator(
         output_base_path: Base path for outputs
 
     Returns:
-        Configured ResearchOrchestrator instance
+        Configured BuilderOrchestrator instance
     """
-    orchestrator = ResearchOrchestrator(
+    orchestrator = BuilderOrchestrator(
         model=model,
         session_id=session_id,
         output_base_path=output_base_path,

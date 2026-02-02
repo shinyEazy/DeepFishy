@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import time
 import asyncio
 import argparse
 from typing import Optional
@@ -13,11 +14,17 @@ from deepagents import create_deep_agent
 from core.logging import logger
 from engine.prompts.orchestrator_prompt import ORCHESTRATOR_PROMPT
 from engine.orchestrators.report_writer import create_report_writer_orchestrator
-from engine.orchestrators.research import create_research_orchestrator
+from engine.orchestrators.builder import create_builder_orchestrator
 
 from utils.load_agents import load_agents
 from utils.load_config import get_default_llm_name
 from utils.model_factory import create_llm_client
+
+from graph_rag.graphiti_service import (
+    GraphitiService,
+    get_graphiti_service,
+    reset_graphiti_service,
+)
 
 
 load_dotenv()
@@ -92,7 +99,7 @@ def _create_agent(session_id: Optional[str] = None, phase: str = "write"):
 
     Args:
         session_id: Optional session ID for workspace persistence
-        phase: 'build' for Graph RAG building (uses ResearchOrchestrator with Graphiti),
+        phase: 'build' for Graph RAG building (uses BuilderOrchestrator with Graphiti),
                'write' for Report writing
 
     Returns:
@@ -102,9 +109,9 @@ def _create_agent(session_id: Optional[str] = None, phase: str = "write"):
     custom_model = _create_model()
 
     if phase == "build":
-        # 'build' phase now uses ResearchOrchestrator with iterative Graphiti pipeline
-        logger.info("Creating Research Orchestrator (Build Phase with Graphiti)")
-        orchestrator = create_research_orchestrator(
+        # 'build' phase now uses BuilderOrchestrator with iterative Graphiti pipeline
+        logger.info("Creating Builder Orchestrator")
+        orchestrator = create_builder_orchestrator(
             model=custom_model, session_id=session_id, output_base_path=OUTPUT_BASE_PATH
         )
         # Return both agent and orchestrator for async processing
@@ -163,11 +170,9 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Determine which phases to run
     if args.phase:
         phases_to_run = [args.phase]
     else:
-        # Default: build (Graphiti) then write
         phases_to_run = ["build", "write"]
 
     # Generate session ID once for this run (shared across phases)
@@ -182,41 +187,105 @@ if __name__ == "__main__":
         # Set default input based on phase if not provided by user
         if args.input:
             user_input = args.input
-        elif current_phase == "build":
-            user_input = "Báo cáo tài chính về VNINDEX tháng 12/2025"
         else:
             user_input = "Báo cáo tài chính về VNINDEX tháng 12/2025"
+            # Note: No longer clearing graph - using group_id namespacing instead
 
-        # Log phase info
+        phase_start_time = time.time()
+
         logger.info("=" * 60)
         if current_phase == "build":
-            logger.info("PHASE 1: Build Knowledge Graph (Graphiti)")
+            logger.info(f"PHASE 1: Build Knowledge Graph (session_id={session_id})")
+            # Clear graph before building a new one
+            clear_start = time.time()
+
+            async def clear_graph_before_build():
+                service = await get_graphiti_service()
+                await service.clear_graph()
+
+            # Reset singleton before new asyncio.run() to handle event loop change
+            reset_graphiti_service()
+            asyncio.run(clear_graph_before_build())
+            logger.info(
+                f"Cleared existing graph data in {time.time() - clear_start:.2f}s"
+            )
         else:
             logger.info("PHASE 2: Write Report")
         logger.info("=" * 60)
 
-        # Create agent with phase parameter (uses the same proven creation pattern)
-        # Session ID is passed to ensure workspaces are shared/persisted
         agent, orchestrator = _create_agent(
             session_id=session_id if ENABLE_DISK_BACKEND else None, phase=current_phase
         )
 
-        # This ensures charts are saved to outputs/{session_id}/images
         if ENABLE_DISK_BACKEND and hasattr(agent, "_workspace_path"):
             os.environ["OUTPUT_DIR"] = agent._workspace_path
 
         logger.info(f"Starting agent invocation with input: {user_input}")
+        agent_start_time = time.time()
 
         try:
             result = agent.invoke(
                 {"messages": [{"role": "user", "content": user_input}]}
             )
+            agent_duration = time.time() - agent_start_time
+            logger.info(f"⏱️ Agent invocation completed in {agent_duration:.2f}s")
 
             if orchestrator is not None:
                 try:
+                    graph_update_start = time.time()
                     added = asyncio.run(orchestrator.process_pending_graph_updates())
+                    graph_update_duration = time.time() - graph_update_start
                     if added > 0:
-                        logger.info(f"Added {added} results to knowledge graph")
+                        logger.info(
+                            f"⏱️ Added {added} results to knowledge graph in {graph_update_duration:.2f}s"
+                        )
+
+                    # Build communities and get final graph stats for this session
+                    finalize_start = time.time()
+
+                    async def finalize_graph(group_id: str):
+                        service = await get_graphiti_service()
+                        community_count = await service.build_communities()
+                        stats = await service.get_graph_stats(group_id=group_id)
+                        communities = await service.get_communities(group_id=group_id)
+                        # Don't close - factory manages the singleton lifecycle
+                        return community_count, stats, communities
+
+                    # Reset singleton before new asyncio.run() to handle event loop change
+                    reset_graphiti_service()
+                    community_count, graph_stats, communities = asyncio.run(
+                        finalize_graph(session_id)
+                    )
+                    finalize_duration = time.time() - finalize_start
+                    logger.info(
+                        f"⏱️ Finalize graph (communities + stats) in {finalize_duration:.2f}s"
+                    )
+                    logger.info(f"Build phase complete - Graph stats: {graph_stats}")
+                    logger.info(f"Community count: {community_count}")
+
+                    # Log detailed information about each community
+                    for i, community in enumerate(communities, 1):
+                        logger.info(f"Community {i}: {community.get('name', 'N/A')}")
+                        logger.info(f"  - Entities: {community.get('entity_count', 0)}")
+                        if community.get("summary"):
+                            # Truncate long summaries for log readability
+                            summary = community["summary"]
+                            if len(summary) > 200:
+                                summary = summary[:200] + "..."
+                            logger.info(f"  - Summary: {summary}")
+
+                    # Log total phase time
+                    total_phase_duration = time.time() - phase_start_time
+                    logger.info(f"\n{'='*60}")
+                    logger.info(
+                        f"⏱️ TOTAL PHASE TIME: {total_phase_duration:.2f}s ({total_phase_duration/60:.1f} min)"
+                    )
+                    logger.info(f"   - Agent invocation: {agent_duration:.2f}s")
+                    logger.info(f"   - Graph updates: {graph_update_duration:.2f}s")
+                    logger.info(
+                        f"   - Finalize (communities): {finalize_duration:.2f}s"
+                    )
+                    logger.info(f"{'='*60}")
                 except Exception as e:
                     logger.warning(f"Failed to process pending graph updates: {e}")
 
@@ -235,6 +304,7 @@ if __name__ == "__main__":
             print(f"AGENT RESPONSE ({current_phase.upper()} PHASE):")
             print("=" * 80)
             print(final_response)
+            print("=" * 80)
 
             # Save outputs to the unified session directory
             if ENABLE_DISK_BACKEND and hasattr(agent, "_workspace_path"):

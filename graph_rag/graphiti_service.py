@@ -15,11 +15,13 @@ from graphiti_core.llm_client.gemini_client import GeminiClient, LLMConfig
 from graphiti_core.embedder.gemini import GeminiEmbedder, GeminiEmbedderConfig
 from graphiti_core.cross_encoder.gemini_reranker_client import GeminiRerankerClient
 from graphiti_core.search.search_config_recipes import NODE_HYBRID_SEARCH_RRF
+from graphiti_core.utils.bulk_utils import RawEpisode
 
 from core.logging import logger
 from core.config import settings
 from utils.load_config import get_llm_config
 from services.rag import SearchResult
+from graph_rag.entity_types import ENTITY_TYPES, EDGE_TYPES, EDGE_TYPE_MAP
 
 load_dotenv()
 
@@ -90,7 +92,7 @@ class GraphitiService:
 
             api_key = gemini_config["api_key"]
 
-            # Initialize Graphiti
+            # Initialize Graphiti with max_coroutines=20 for concurrent processing
             self.graphiti = Graphiti(
                 self.neo4j_uri,
                 self.neo4j_user,
@@ -106,6 +108,7 @@ class GraphitiService:
                 cross_encoder=GeminiRerankerClient(
                     config=LLMConfig(api_key=api_key, model=self.reranker_model)
                 ),
+                max_coroutines=20,  # Allow 20 concurrent operations (semaphore)
             )
 
             self._initialized = True
@@ -141,16 +144,21 @@ class GraphitiService:
         self,
         results: List[SearchResult],
         source_query: str,
+        group_id: Optional[str] = None,
     ) -> int:
         """
-        Add search results as Graphiti episodes.
+        Add search results as Graphiti episodes using bulk ingestion.
 
-        Each SearchResult becomes an episode with temporal metadata
-        preserved from the original article.
+        Uses add_episode_bulk for cross-episode entity deduplication:
+        - Extracts entities from ALL episodes together
+        - Deduplicates entities in memory BEFORE saving
+        - Uses name matching + embedding similarity for resolution
+        - Applies custom Vietnamese financial entity types
 
         Args:
             results: List of SearchResult objects from Milvus
             source_query: The query that produced these results (for context)
+            group_id: Optional namespace for session isolation
 
         Returns:
             Number of episodes successfully added
@@ -161,11 +169,14 @@ class GraphitiService:
         if not results:
             return 0
 
-        added = 0
-        for result in results:
-            try:
+        try:
+            # Build RawEpisode objects for bulk ingestion
+            raw_episodes: List[RawEpisode] = []
+
+            for result in results:
                 # Create unique episode name
                 episode_name = f"{result.url}_{result.chunk_index}"
+                # episode_name = f"{result.title} - Part {result.chunk_index}"
 
                 # Determine reference time from article timestamp
                 if result.date_ts and result.date_ts > 0:
@@ -176,30 +187,71 @@ class GraphitiService:
                     reference_time = datetime.now(timezone.utc)
 
                 # Build source description with metadata
-                source_desc = f"Query: {source_query}"
+                source_desc = ""
                 if result.category:
-                    source_desc += f", Category: {result.category}"
+                    source_desc += f"Category: {result.category}"
                 if result.tags:
                     source_desc += f", Tags: {', '.join(result.tags[:5])}"
 
-                # Add episode to graph
-                await self.graphiti.add_episode(
-                    name=episode_name,
-                    episode_body=result.content,
-                    source=EpisodeType.text,
-                    source_description=source_desc,
-                    reference_time=reference_time,
+                # print(f"Episode name: {episode_name}")
+                # print(f"Episode content: {result.content}")
+                # print(f"Episode source: {result.url}")
+                # print(f"Episode source description: {source_desc}")
+                # print(f"Episode reference time: {reference_time}")
+
+                raw_episodes.append(
+                    RawEpisode(
+                        name=episode_name,
+                        content=result.content,
+                        source=EpisodeType.text,
+                        source_description=source_desc,
+                        reference_time=reference_time,
+                    )
                 )
 
-                added += 1
-                logger.debug(f"Added episode: {episode_name}")
+            # Use add_episode_bulk for cross-episode entity deduplication
+            # This processes all episodes together, enabling better entity resolution
+            bulk_result = await self.graphiti.add_episode_bulk(
+                bulk_episodes=raw_episodes,
+                group_id=group_id,
+                entity_types=ENTITY_TYPES,
+                edge_types=EDGE_TYPES,
+                edge_type_map=EDGE_TYPE_MAP,
+                custom_extraction_instructions="""
+                You are an expert financial knowledge graph extraction agent for the Vietnamese stock market.
 
-            except Exception as e:
-                logger.warning(f"Failed to add episode for {result.url}: {e}")
-                continue
+                Your task is to extract structured entities and relationships STRICTLY following the provided ontology.
 
-        logger.info(f"Added {added}/{len(results)} episodes to knowledge graph")
-        return added
+                IMPORTANT PRINCIPLES:
+                1. Only extract entities that match the defined ENTITY TYPES.
+                2. Do NOT invent entities, relationships, or attributes.
+                3. Every extracted entity and relationship MUST be grounded in the source text.
+                4. Prefer MarketEvent as the causal anchor whenever something "happens".
+                5. Do NOT confuse:
+                - Stock Exchanges (HOSE, HNX, UPCOM) with PublicCompany
+                - MarketIndex with FinancialMetric
+                - Rumors/Announcements with confirmed events
+                6. When uncertain, lower confidence_score instead of guessing.
+
+                Think step-by-step:
+                - What happened? → MarketEvent
+                - Who is affected? → PublicCompany
+                - What number changed? → FinancialMetric
+                - Why did it happen? → Causes relationship
+                - Is this macro-driven? → MacroIndicator
+                """,
+            )
+
+            added = len(bulk_result.episodes)
+            logger.info(
+                f"Bulk added {added} episodes with {len(bulk_result.nodes)} entities, "
+                f"{len(bulk_result.edges)} edges (group_id={group_id})"
+            )
+            return added
+
+        except Exception as e:
+            logger.error(f"Failed to bulk add episodes: {e}", exc_info=True)
+            return 0
 
     async def get_all_entities(self) -> List[Dict[str, Any]]:
         """
@@ -249,6 +301,7 @@ class GraphitiService:
         query: str,
         limit: int = 10,
         center_node_uuid: Optional[str] = None,
+        group_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Search for relevant facts/relationships in the graph.
@@ -257,6 +310,7 @@ class GraphitiService:
             query: Natural language search query
             limit: Maximum number of results
             center_node_uuid: Optional center node for reranking
+            group_id: Optional namespace to search within
 
         Returns:
             List of fact dictionaries with uuid, fact, valid_at, invalid_at
@@ -269,6 +323,7 @@ class GraphitiService:
                 query,
                 center_node_uuid=center_node_uuid,
                 num_results=limit,
+                group_ids=[group_id] if group_id else None,
             )
 
             facts = []
@@ -294,6 +349,7 @@ class GraphitiService:
         self,
         query: str,
         limit: int = 10,
+        group_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Search for entity nodes in the graph.
@@ -301,6 +357,7 @@ class GraphitiService:
         Args:
             query: Natural language search query
             limit: Maximum number of results
+            group_id: Optional namespace to search within
 
         Returns:
             List of node dictionaries
@@ -316,6 +373,7 @@ class GraphitiService:
             results = await self.graphiti._search(
                 query=query,
                 config=node_search_config,
+                group_ids=[group_id] if group_id else None,
             )
 
             nodes = []
@@ -336,12 +394,49 @@ class GraphitiService:
             logger.error(f"Failed to search nodes: {e}")
             return []
 
-    async def get_graph_stats(self) -> Dict[str, int]:
+    async def build_communities(self) -> int:
         """
-        Get statistics about the current graph state.
+        Build communities using Leiden algorithm.
+
+        Communities group related entity nodes together and provide
+        high-level synthesized information about graph contents.
 
         Returns:
-            Dictionary with entity_count, edge_count, episode_count
+            Number of communities created
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            await self.graphiti.build_communities()
+
+            # Count communities after building
+            driver = self.graphiti.driver
+            async with driver.session() as session:
+                result = await session.run(
+                    "MATCH (n:Community) RETURN count(n) as count"
+                )
+                record = await result.single()
+                count = record["count"] if record else 0
+
+            logger.info(f"Built {count} communities in knowledge graph")
+            return count
+
+        except Exception as e:
+            logger.error(f"Failed to build communities: {e}")
+            return 0
+
+    async def get_communities(
+        self, group_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve detailed information about all communities.
+
+        Args:
+            group_id: Optional namespace to filter communities by
+
+        Returns:
+            List of community dictionaries with uuid, name, summary, and entity_count
         """
         if not self._initialized:
             await self.initialize()
@@ -349,33 +444,114 @@ class GraphitiService:
         try:
             driver = self.graphiti.driver
             async with driver.session() as session:
+                if group_id:
+                    query = """
+                        MATCH (c:Community)
+                        WHERE c.group_id = $group_id
+                        OPTIONAL MATCH (c)-[:HAS_MEMBER]->(e:Entity)
+                        RETURN c.uuid as uuid, 
+                               c.name as name, 
+                               c.summary as summary,
+                               c.created_at as created_at,
+                               count(e) as entity_count
+                        ORDER BY entity_count DESC
+                    """
+                    result = await session.run(query, {"group_id": group_id})
+                else:
+                    query = """
+                        MATCH (c:Community)
+                        OPTIONAL MATCH (c)-[:HAS_MEMBER]->(e:Entity)
+                        RETURN c.uuid as uuid, 
+                               c.name as name, 
+                               c.summary as summary,
+                               c.created_at as created_at,
+                               count(e) as entity_count
+                        ORDER BY entity_count DESC
+                    """
+                    result = await session.run(query)
+
+                communities = []
+                async for record in result:
+                    communities.append(
+                        {
+                            "uuid": record["uuid"],
+                            "name": record["name"],
+                            "summary": record["summary"],
+                            "created_at": record["created_at"],
+                            "entity_count": record["entity_count"],
+                        }
+                    )
+
+                return communities
+
+        except Exception as e:
+            logger.error(f"Failed to get communities: {e}")
+            return []
+
+    async def get_graph_stats(self, group_id: Optional[str] = None) -> Dict[str, int]:
+        """
+        Get statistics about the current graph state.
+
+        Args:
+            group_id: Optional namespace to filter stats by
+
+        Returns:
+            Dictionary with entity_count, edge_count, episode_count, community_count
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            driver = self.graphiti.driver
+            async with driver.session() as session:
+                # Build WHERE clause for group_id filtering
+                # Note: Graphiti uses Episodic label for episode nodes
+                if group_id:
+                    entity_query = "MATCH (n:Entity) WHERE n.group_id = $group_id RETURN count(n) as count"
+                    edge_query = "MATCH (a)-[r]->(b) WHERE a.group_id = $group_id OR b.group_id = $group_id RETURN count(r) as count"
+                    episode_query = "MATCH (n:Episodic) WHERE n.group_id = $group_id RETURN count(n) as count"
+                    community_query = "MATCH (n:Community) WHERE n.group_id = $group_id RETURN count(n) as count"
+                    params = {"group_id": group_id}
+                else:
+                    entity_query = "MATCH (n:Entity) RETURN count(n) as count"
+                    edge_query = "MATCH ()-[r]->() RETURN count(r) as count"
+                    episode_query = "MATCH (n:Episodic) RETURN count(n) as count"
+                    community_query = "MATCH (n:Community) RETURN count(n) as count"
+                    params = {}
+
                 # Count entities
-                entity_result = await session.run(
-                    "MATCH (n:Entity) RETURN count(n) as count"
-                )
+                entity_result = await session.run(entity_query, params)
                 entity_count = await entity_result.single()
 
                 # Count edges
-                edge_result = await session.run(
-                    "MATCH ()-[r]->() RETURN count(r) as count"
-                )
+                edge_result = await session.run(edge_query, params)
                 edge_count = await edge_result.single()
 
                 # Count episodes
-                episode_result = await session.run(
-                    "MATCH (n:Episode) RETURN count(n) as count"
-                )
+                episode_result = await session.run(episode_query, params)
                 episode_count = await episode_result.single()
+
+                # Count communities
+                community_result = await session.run(community_query, params)
+                community_count = await community_result.single()
 
                 return {
                     "entity_count": entity_count["count"] if entity_count else 0,
                     "edge_count": edge_count["count"] if edge_count else 0,
                     "episode_count": episode_count["count"] if episode_count else 0,
+                    "community_count": (
+                        community_count["count"] if community_count else 0
+                    ),
                 }
 
         except Exception as e:
             logger.error(f"Failed to get graph stats: {e}")
-            return {"entity_count": 0, "edge_count": 0, "episode_count": 0}
+            return {
+                "entity_count": 0,
+                "edge_count": 0,
+                "episode_count": 0,
+                "community_count": 0,
+            }
 
     async def close(self) -> None:
         """Close Graphiti connection and release resources."""

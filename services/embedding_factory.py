@@ -40,11 +40,9 @@ def get_embedding_provider(
     api_provider = config.get("api_provider", "").lower()
 
     if api_provider == "google":
-        logger.info(f"Creating GoogleEmbedding provider for model: {model_name}")
         return GoogleEmbedding(model_name=model_name)
 
     elif api_provider == "openai":
-        logger.info(f"Creating OpenAIEmbedding provider for model: {model_name}")
         return OpenAIEmbedding(model_name=model_name)
 
     else:
