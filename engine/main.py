@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import time
 import asyncio
 import argparse
 from typing import Optional
@@ -19,7 +20,11 @@ from utils.load_agents import load_agents
 from utils.load_config import get_default_llm_name
 from utils.model_factory import create_llm_client
 
-from graph_rag.graphiti_service import GraphitiService
+from graph_rag.graphiti_service import (
+    GraphitiService,
+    get_graphiti_service,
+    reset_graphiti_service,
+)
 
 
 load_dotenv()
@@ -186,9 +191,6 @@ if __name__ == "__main__":
             user_input = "Báo cáo tài chính về VNINDEX tháng 12/2025"
             # Note: No longer clearing graph - using group_id namespacing instead
 
-        # Log phase info
-        import time
-
         phase_start_time = time.time()
 
         logger.info("=" * 60)
@@ -198,11 +200,11 @@ if __name__ == "__main__":
             clear_start = time.time()
 
             async def clear_graph_before_build():
-                service = GraphitiService()
-                await service.initialize()
+                service = await get_graphiti_service()
                 await service.clear_graph()
-                # Don't close() here - it causes connection errors with pending Graphiti tasks
 
+            # Reset singleton before new asyncio.run() to handle event loop change
+            reset_graphiti_service()
             asyncio.run(clear_graph_before_build())
             logger.info(
                 f"Cleared existing graph data in {time.time() - clear_start:.2f}s"
@@ -242,14 +244,15 @@ if __name__ == "__main__":
                     finalize_start = time.time()
 
                     async def finalize_graph(group_id: str):
-                        service = GraphitiService()
-                        await service.initialize()
+                        service = await get_graphiti_service()
                         community_count = await service.build_communities()
                         stats = await service.get_graph_stats(group_id=group_id)
                         communities = await service.get_communities(group_id=group_id)
-                        await service.close()
+                        # Don't close - factory manages the singleton lifecycle
                         return community_count, stats, communities
 
+                    # Reset singleton before new asyncio.run() to handle event loop change
+                    reset_graphiti_service()
                     community_count, graph_stats, communities = asyncio.run(
                         finalize_graph(session_id)
                     )

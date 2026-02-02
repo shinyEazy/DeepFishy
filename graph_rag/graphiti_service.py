@@ -175,7 +175,7 @@ class GraphitiService:
 
             for result in results:
                 # Create unique episode name
-                episode_name = f"{result.url}"
+                episode_name = f"{result.url}_{result.chunk_index}"
                 # episode_name = f"{result.title} - Part {result.chunk_index}"
 
                 # Determine reference time from article timestamp
