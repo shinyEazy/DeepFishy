@@ -1,5 +1,3 @@
-"""Phase 2 Orchestrator: Write Reports with Knowledge Graph Context."""
-
 import os
 from typing import Optional
 
@@ -8,13 +6,13 @@ from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 
 from core.logging import logger
-from engine.prompts.write_phase_prompt import WRITE_PHASE_PROMPT
+from engine.prompts.writer_orchestrator_prompt import WRITER_ORCHESTRATOR_PROMPT
 from utils.load_agents import load_agents
 
 
-class ReportWriterOrchestrator:
+class WriterOrchestrator:
     """
-    Phase 2 Orchestrator for writing reports with knowledge graph context.
+    Orchestrator for writing reports with knowledge graph context.
 
     Workflow:
     1. Gather data from market_data, knowledge_search, financial_research
@@ -26,7 +24,7 @@ class ReportWriterOrchestrator:
     5. Fill in report content with charts
 
     Example:
-        >>> orchestrator = ReportWriterOrchestrator(model)
+        >>> orchestrator = WriterOrchestrator(model)
         >>> agent = orchestrator.create()
         >>> result = agent.invoke({"messages": [{"role": "user", "content": "..."}]})
     """
@@ -72,7 +70,7 @@ class ReportWriterOrchestrator:
         agent = create_deep_agent(
             model=self.model,
             tools=[],
-            system_prompt=WRITE_PHASE_PROMPT,
+            system_prompt=WRITER_ORCHESTRATOR_PROMPT,
             subagents=subagents,
             backend=backend,
         ).with_config(config)
@@ -92,7 +90,7 @@ class ReportWriterOrchestrator:
         return self._agent
 
 
-def create_report_writer_orchestrator(
+def create_writer_orchestrator(
     model: BaseChatModel,
     session_id: Optional[str] = None,
     output_base_path: str = "outputs",
@@ -108,7 +106,7 @@ def create_report_writer_orchestrator(
     Returns:
         Configured orchestrator agent
     """
-    orchestrator = ReportWriterOrchestrator(
+    orchestrator = WriterOrchestrator(
         model=model,
         session_id=session_id,
         output_base_path=output_base_path,
