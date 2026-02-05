@@ -1,6 +1,4 @@
 import os
-import re
-import json
 import time
 import asyncio
 import argparse
@@ -9,14 +7,11 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from deepagents import create_deep_agent
 
 from core.logging import logger
-from engine.prompts.orchestrator_prompt import ORCHESTRATOR_PROMPT
-from engine.orchestrators.report_writer import create_report_writer_orchestrator
+from engine.orchestrators.writer import create_writer_orchestrator
 from engine.orchestrators.builder import create_builder_orchestrator
 
-from utils.load_agents import load_agents
 from utils.load_config import get_default_llm_name
 from utils.model_factory import create_llm_client
 
@@ -118,42 +113,13 @@ def _create_agent(session_id: Optional[str] = None, phase: str = "write"):
     else:
         logger.info("Creating Report Writer agent (Write Phase)")
         return (
-            create_report_writer_orchestrator(
+            create_writer_orchestrator(
                 model=custom_model,
                 session_id=session_id,
                 output_base_path=OUTPUT_BASE_PATH,
             ),
             None,
         )
-
-
-# Export a factory function for LangGraph API
-# LangGraph expects a parameterless function that returns a compiled graph
-def agent():
-    """Factory function to create the agent for LangGraph API."""
-    custom_model = _create_model()
-
-    subagents = load_agents(
-        names=[
-            "market_data",
-            "knowledge_search",
-            "financial_research",
-            "report_outline",
-            "financial_report_writer",
-        ]
-    )
-
-    logger.info(f"Loaded {len(subagents)} subagent(s)")
-
-    # Create the agent without disk backend for API use
-    # Session-specific configuration will be provided via .with_config() at runtime
-    return create_deep_agent(
-        model=custom_model,
-        tools=[],
-        system_prompt=ORCHESTRATOR_PROMPT,
-        subagents=subagents,
-        backend=None,  # API doesn't use disk backend by default
-    )
 
 
 if __name__ == "__main__":
@@ -213,6 +179,9 @@ if __name__ == "__main__":
             )
         else:
             logger.info("PHASE 2: Write Report")
+            with open("engine/outline_vnindex.md", "r", encoding="utf-8") as f:
+                outline = f.read()
+            user_input = f"Viết báo cáo tài chính về VNINDEX tháng 12/2025 theo outline sau:\n\n{outline}"
         logger.info("=" * 60)
 
         agent, orchestrator = _create_agent(
@@ -224,6 +193,7 @@ if __name__ == "__main__":
 
         logger.info(f"Starting agent invocation with input: {user_input}")
         agent_start_time = time.time()
+
 
         try:
             result = agent.invoke(
@@ -284,53 +254,6 @@ if __name__ == "__main__":
             print("=" * 80)
             print(final_response)
             print("=" * 80)
-
-            # Save outputs to the unified session directory
-            if ENABLE_DISK_BACKEND and hasattr(agent, "_workspace_path"):
-                workspace_path = agent._workspace_path
-
-                # Save final response, query, and todos to the workspace
-                try:
-                    full_md_path = os.path.join(workspace_path, "full.md")
-                    user_query_path = os.path.join(workspace_path, "user_query.txt")
-                    todos_path = os.path.join(workspace_path, "todos.json")
-                    phase_path = os.path.join(workspace_path, "phase.txt")
-
-                    os.makedirs(workspace_path, exist_ok=True)
-
-                    # Normalize paths in the markdown content
-                    # Replace absolute paths like "outputs/20260113_071152/images/" with relative "images/"
-                    session_id_from_path = os.path.basename(workspace_path)
-
-                    # Pattern to match: outputs/{session_id}/images/
-                    pattern = rf"{re.escape(OUTPUT_BASE_PATH)}/{re.escape(session_id_from_path)}/images/"
-
-                    # Replace with relative path: images/
-                    normalized_response = re.sub(pattern, "images/", final_response)
-
-                    with open(full_md_path, "w", encoding="utf-8") as f:
-                        f.write(normalized_response)
-
-                    with open(user_query_path, "w", encoding="utf-8") as f:
-                        f.write(user_input)
-
-                    with open(phase_path, "w", encoding="utf-8") as f:
-                        f.write(current_phase)
-
-                    # Save todos if any exist
-                    if todos:
-                        with open(todos_path, "w", encoding="utf-8") as f:
-                            json.dump(
-                                todos,
-                                f,
-                                indent=2,
-                                ensure_ascii=False,
-                            )
-
-                    logger.info(f"Outputs saved to: {workspace_path}")
-
-                except Exception as e:
-                    logger.warning(f"Could not save agent response: {e}")
 
         except Exception as e:
             logger.error(f"Error during execution of phase {current_phase}: {e}")

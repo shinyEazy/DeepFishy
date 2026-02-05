@@ -47,7 +47,7 @@ class BuilderOrchestrator:
     - Iterates until coverage is sufficient or max iterations reached
 
     After research is complete, it creates a report outline and can
-    hand off to the ReportWriterOrchestrator.
+    hand off to the WriterOrchestrator.
 
     Example:
         >>> orchestrator = BuilderOrchestrator(model)

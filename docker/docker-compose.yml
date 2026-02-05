@@ -1,7 +1,6 @@
 name: deepfishy
 
 services:
-  # PostgreSQL - Primary database for chat conversations and metadata
   postgres:
     image: postgres:15-alpine
     container_name: postgres
@@ -23,7 +22,6 @@ services:
       - deepfishy
     restart: unless-stopped
 
-  # Redis - message broker and result backend
   redis:
     image: redis:7-alpine
     container_name: redis
@@ -39,7 +37,6 @@ services:
     networks:
       - deepfishy
 
-  # Celery Worker - executes tasks
   celery_worker:
     build:
       context: ..
@@ -77,7 +74,6 @@ services:
     networks:
       - deepfishy
 
-  # Celery Beat - scheduler that triggers periodic tasks
   celery_beat:
     build:
       context: ..
@@ -113,7 +109,6 @@ services:
     networks:
       - deepfishy
 
-  # FastAPI - main application
   server:
     build:
       context: ..
@@ -155,7 +150,6 @@ services:
     networks:
       - deepfishy
 
-  # MinIO - S3-compatible object storage
   minio:
     image: minio/minio:latest
     container_name: minio
@@ -176,7 +170,6 @@ services:
     networks:
       - deepfishy
 
-  # Etcd - required by Milvus for metadata storage
   etcd:
     image: quay.io/coreos/etcd:v3.5.5
     container_name: etcd
@@ -199,7 +192,6 @@ services:
     networks:
       - deepfishy
 
-  # Milvus - Vector Database
   milvus:
     image: milvusdb/milvus:latest
     container_name: milvus
@@ -224,7 +216,6 @@ services:
     networks:
       - deepfishy
 
-  # Milvus Web UI (Attu)
   milvus_webui:
     image: zilliz/attu:latest
     container_name: milvus_webui
@@ -238,7 +229,6 @@ services:
     networks:
       - deepfishy
 
-  # Neo4j - Graph Database for Knowledge Graph
   neo4j:
     image: neo4j:5-community
     container_name: neo4j
@@ -272,46 +262,45 @@ services:
       - deepfishy
     restart: unless-stopped
 
-  # LangGraph Studio
-  langgraph_studio:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    container_name: langgraph_studio
-    working_dir: /app/engine
-    command: langgraph dev --host 0.0.0.0 --port 2024 --allow-blocking --no-browser
-    environment:
-      - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app
-    env_file:
-      - .env
-    ports:
-      - "2024:2024"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-      milvus:
-        condition: service_healthy
-    volumes:
-      - ../api:/app/api
-      - ../core:/app/core
-      - ../db:/app/db
-      - ../engine:/app/engine
-      - ../ingestion:/app/ingestion
-      - ../services:/app/services
-      - ../utils:/app/utils
-      - ../worker:/app/worker
-      - ../configs:/app/configs
-      - ../main.py:/app/main.py
-      - ../celery_app.py:/app/celery_app.py
-      - ../data:/app/data
-      - ../outputs:/app/outputs
-    networks:
-      - deepfishy
+  # langgraph_studio:
+  #   build:
+  #     context: ..
+  #     dockerfile: docker/Dockerfile
+  #   container_name: langgraph_studio
+  #   working_dir: /app/engine
+  #   command: langgraph dev --host 0.0.0.0 --port 2024 --allow-blocking --no-browser
+  #   environment:
+  #     - PYTHONUNBUFFERED=1
+  #     - PYTHONPATH=/app
+  #   env_file:
+  #     - .env
+  #   ports:
+  #     - "2024:2024"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     minio:
+  #       condition: service_healthy
+  #     milvus:
+  #       condition: service_healthy
+  #   volumes:
+  #     - ../api:/app/api
+  #     - ../core:/app/core
+  #     - ../db:/app/db
+  #     - ../engine:/app/engine
+  #     - ../ingestion:/app/ingestion
+  #     - ../services:/app/services
+  #     - ../utils:/app/utils
+  #     - ../worker:/app/worker
+  #     - ../configs:/app/configs
+  #     - ../main.py:/app/main.py
+  #     - ../celery_app.py:/app/celery_app.py
+  #     - ../data:/app/data
+  #     - ../outputs:/app/outputs
+  #   networks:
+  #     - deepfishy
 
 volumes:
   postgres_data:
