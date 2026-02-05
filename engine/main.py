@@ -21,7 +21,6 @@ from utils.load_config import get_default_llm_name
 from utils.model_factory import create_llm_client
 
 from graph_rag.graphiti_service import (
-    GraphitiService,
     get_graphiti_service,
     reset_graphiti_service,
 )
@@ -202,6 +201,9 @@ if __name__ == "__main__":
             async def clear_graph_before_build():
                 service = await get_graphiti_service()
                 await service.clear_graph()
+                # Note: Don't call service.close() here - Graphiti runs background tasks
+                # (like build_indices_and_constraints) that need the connection open.
+                # The "coroutine was never awaited" warning is benign.
 
             # Reset singleton before new asyncio.run() to handle event loop change
             reset_graphiti_service()
@@ -232,62 +234,39 @@ if __name__ == "__main__":
 
             if orchestrator is not None:
                 try:
-                    graph_update_start = time.time()
-                    added = asyncio.run(orchestrator.process_pending_graph_updates())
-                    graph_update_duration = time.time() - graph_update_start
-                    if added > 0:
-                        logger.info(
-                            f"⏱️ Added {added} results to knowledge graph in {graph_update_duration:.2f}s"
-                        )
-
-                    # Build communities and get final graph stats for this session
+                    # Graph is now built synchronously in the tool
+                    # Just log final stats and communities
                     finalize_start = time.time()
 
-                    async def finalize_graph(group_id: str):
+                    async def get_final_stats(group_id: str):
                         service = await get_graphiti_service()
-                        community_count = await service.build_communities()
                         stats = await service.get_graph_stats(group_id=group_id)
                         communities = await service.get_communities(group_id=group_id)
-                        # Don't close - factory manages the singleton lifecycle
-                        return community_count, stats, communities
+                        return stats, communities
 
-                    # Reset singleton before new asyncio.run() to handle event loop change
                     reset_graphiti_service()
-                    community_count, graph_stats, communities = asyncio.run(
-                        finalize_graph(session_id)
-                    )
+                    graph_stats, communities = asyncio.run(get_final_stats(session_id))
                     finalize_duration = time.time() - finalize_start
-                    logger.info(
-                        f"⏱️ Finalize graph (communities + stats) in {finalize_duration:.2f}s"
-                    )
+
                     logger.info(f"Build phase complete - Graph stats: {graph_stats}")
-                    logger.info(f"Community count: {community_count}")
+                    logger.info(f"Communities: {len(communities)}")
 
                     # Log detailed information about each community
                     for i, community in enumerate(communities, 1):
                         logger.info(f"Community {i}: {community.get('name', 'N/A')}")
                         logger.info(f"  - Entities: {community.get('entity_count', 0)}")
-                        if community.get("summary"):
-                            # Truncate long summaries for log readability
-                            summary = community["summary"]
-                            if len(summary) > 200:
-                                summary = summary[:200] + "..."
-                            logger.info(f"  - Summary: {summary}")
 
                     # Log total phase time
                     total_phase_duration = time.time() - phase_start_time
                     logger.info(f"\n{'='*60}")
                     logger.info(
-                        f"⏱️ TOTAL PHASE TIME: {total_phase_duration:.2f}s ({total_phase_duration/60:.1f} min)"
+                        f"⏱️ TOTAL BUILD PHASE: {total_phase_duration:.2f}s ({total_phase_duration/60:.1f} min)"
                     )
                     logger.info(f"   - Agent invocation: {agent_duration:.2f}s")
-                    logger.info(f"   - Graph updates: {graph_update_duration:.2f}s")
-                    logger.info(
-                        f"   - Finalize (communities): {finalize_duration:.2f}s"
-                    )
+                    logger.info(f"   - Final stats: {finalize_duration:.2f}s")
                     logger.info(f"{'='*60}")
                 except Exception as e:
-                    logger.warning(f"Failed to process pending graph updates: {e}")
+                    logger.warning(f"Failed to get final graph stats: {e}")
 
             if not result.get("messages"):
                 logger.error("No messages found in result!")

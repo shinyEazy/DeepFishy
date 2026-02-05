@@ -19,7 +19,6 @@ DESIGN NOTES:
 
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from datetime import datetime
 from enum import Enum
 
 
@@ -199,7 +198,9 @@ class MarketEvent(BaseModel):
         None,
         description="MARKET (toàn thị trường) / SECTOR (ngành) / COMPANY (công ty)",
     )
-    event_date: Optional[datetime] = Field(None, description="Date of the event")
+    event_date: Optional[str] = Field(
+        None, description="Date of the event (ISO format)"
+    )
     # Crucial for Bull/Bear agents to debate
     sentiment: Optional[Sentiment] = Field(
         None, description="POSITIVE/NEGATIVE/NEUTRAL"
@@ -266,8 +267,8 @@ class Owns(BaseModel):
         None, description="Ownership percentage 0-100"
     )
     ownership_type: Optional[str] = Field(None, description="Direct or Indirect")
-    acquisition_date: Optional[datetime] = Field(
-        None, description="Date of acquisition"
+    acquisition_date: Optional[str] = Field(
+        None, description="Date of acquisition (ISO format)"
     )
 
 
@@ -275,7 +276,9 @@ class Manages(BaseModel):
     """Person manages company relationship."""
 
     position: Optional[str] = Field(None, description="Role/position in the company")
-    start_date: Optional[datetime] = Field(None, description="When they started")
+    start_date: Optional[str] = Field(
+        None, description="When they started (ISO format)"
+    )
     is_current: Optional[bool] = Field(
         None, description="Whether currently in this role"
     )
