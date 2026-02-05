@@ -1,22 +1,12 @@
-"""Knowledge search tool with Graphiti auto-ingestion.
-
-This tool searches the local knowledge base AND automatically adds
-the results to the Graphiti knowledge graph.
-
-IMPORTANT: Due to async client limitations, graph building only works
-in the async version (search_and_build_graph_async). The sync version
-only performs search operations.
-"""
-
 import asyncio
 from typing import Optional, Dict, Any, List
 from langchain_core.tools import tool
 
 from core.logging import logger
 
-# Thread-local storage for pending graph updates
-# These will be processed by the async orchestrator
 _pending_graph_updates: List[Dict[str, Any]] = []
+
+_current_session_id: Optional[str] = None
 
 
 def _get_rag_service():
@@ -42,7 +32,11 @@ async def _add_to_graph_async(results, query):
     """
     try:
         graphiti_service = await _get_graphiti_service()
-        added = await graphiti_service.add_search_results(results, query)
+        # Use session_id as group_id for proper namespacing
+        group_id = _current_session_id
+        added = await graphiti_service.add_search_results(
+            results, query, group_id=group_id
+        )
         return added
     except Exception as e:
         logger.warning(f"Failed to add results to graph: {e}")
@@ -61,6 +55,25 @@ def clear_pending_graph_updates():
     """Clear any pending graph updates."""
     global _pending_graph_updates
     _pending_graph_updates.clear()
+
+
+def set_current_session_id(session_id: Optional[str]):
+    """Set the current session ID for graph namespacing.
+
+    This should be called by the orchestrator before agent invocation
+    to ensure graph data is properly namespaced.
+
+    Args:
+        session_id: The session ID to use as group_id for graph operations
+    """
+    global _current_session_id
+    _current_session_id = session_id
+    logger.debug(f"Set current session_id for graph: {session_id}")
+
+
+def get_current_session_id() -> Optional[str]:
+    """Get the current session ID for graph namespacing."""
+    return _current_session_id
 
 
 @tool
@@ -130,13 +143,16 @@ def search_and_build_graph(
             async def _build_graph_now():
                 """Build graph synchronously within this tool call."""
                 service = await get_graphiti_service()
+                # Use session_id as group_id for proper namespacing
+                group_id = _current_session_id
                 added = await service.add_search_results(
                     results=results,
                     source_query=query,
-                    group_id=None,  # Will use default or session-based
+                    group_id=group_id,
                 )
                 # Also build communities so they're ready for list_kg_communities
                 await service.build_communities()
+                logger.debug(f"Graph built with group_id={group_id}")
                 return added
 
             # Reset service before new event loop to avoid conflicts

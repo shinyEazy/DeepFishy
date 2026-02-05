@@ -30,6 +30,7 @@ from engine.tools.search_and_build_graph import (
     search_and_build_graph,
     get_pending_graph_updates,
     clear_pending_graph_updates,
+    set_current_session_id,
 )
 from engine.tools.list_kg_communities import list_kg_communities
 
@@ -122,6 +123,8 @@ class BuilderOrchestrator:
             backend = FilesystemBackend(root_dir=workspace_path, virtual_mode=True)
             config["configurable"] = {"thread_id": self.session_id}
             logger.info(f"Builder workspace: {workspace_path}")
+
+        set_current_session_id(self.session_id)
 
         tools = [
             search_and_build_graph,

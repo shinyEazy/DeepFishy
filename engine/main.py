@@ -253,9 +253,7 @@ if __name__ == "__main__":
 
                     # Log detailed information about each community
                     for i, community in enumerate(communities, 1):
-                        logger.info(
-                            f"Community {i}: {community.get('name', 'N/A')[:60]}"
-                        )
+                        logger.info(f"Community {i}: {community.get('name', 'N/A')}")
                         logger.info(f"  - Entities: {community.get('entity_count', 0)}")
 
                     # Log total phase time
