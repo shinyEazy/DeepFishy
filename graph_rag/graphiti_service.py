@@ -4,7 +4,6 @@ This service wraps the Graphiti framework to provide session-based
 knowledge graph operations for the iterative research pipeline.
 """
 
-import os
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
@@ -92,7 +91,6 @@ class GraphitiService:
 
             api_key = gemini_config["api_key"]
 
-            # Initialize Graphiti with max_coroutines=20 for concurrent processing
             self.graphiti = Graphiti(
                 self.neo4j_uri,
                 self.neo4j_user,
@@ -108,7 +106,7 @@ class GraphitiService:
                 cross_encoder=GeminiRerankerClient(
                     config=LLMConfig(api_key=api_key, model=self.reranker_model)
                 ),
-                max_coroutines=20,  # Allow 20 concurrent operations (semaphore)
+                max_coroutines=10,
             )
 
             self._initialized = True

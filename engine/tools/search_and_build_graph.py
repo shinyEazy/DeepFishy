@@ -118,16 +118,37 @@ def search_and_build_graph(
                 "added_to_graph": 0,
             }
 
-        # Queue results for graph building by the async orchestrator
-        # This avoids the "Future attached to different loop" error
-        _pending_graph_updates.append(
-            {
-                "results": results,
-                "query": query,
-                "group_id": None,  # Will be set by orchestrator with session_id
-            }
-        )
-        logger.debug(f"Queued {len(results)} results for deferred graph building")
+        # Build graph SYNCHRONOUSLY so agent can query communities immediately
+        # This blocks until graph is built, solving the timing issue
+        added_count = 0
+        try:
+            from graph_rag.graphiti_service import (
+                get_graphiti_service,
+                reset_graphiti_service,
+            )
+
+            async def _build_graph_now():
+                """Build graph synchronously within this tool call."""
+                service = await get_graphiti_service()
+                added = await service.add_search_results(
+                    results=results,
+                    source_query=query,
+                    group_id=None,  # Will use default or session-based
+                )
+                # Also build communities so they're ready for list_kg_communities
+                await service.build_communities()
+                return added
+
+            # Reset service before new event loop to avoid conflicts
+            reset_graphiti_service()
+            added_count = asyncio.run(_build_graph_now())
+            logger.info(f"Built graph with {added_count} episodes, communities updated")
+
+        except Exception as e:
+            logger.warning(
+                f"Graph building failed (search results still returned): {e}"
+            )
+            # Continue - we still return search results even if graph fails
 
         # Format results for agent
         context_parts = []
@@ -154,8 +175,9 @@ def search_and_build_graph(
             "sources": sources,
             "query": query,
             "num_results": len(results),
-            "graph_updates_queued": True,
-            "message": "Search complete. Graph updates queued for async processing.",
+            "added_to_graph": added_count,
+            "graph_built": added_count > 0,
+            "message": f"Search complete. Added {added_count} episodes to graph.",
         }
 
     except Exception as e:

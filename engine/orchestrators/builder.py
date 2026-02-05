@@ -11,8 +11,6 @@ This orchestrator implements the iterative research loop:
 """
 
 import os
-import json
-import asyncio
 from typing import Optional, List, Dict, Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -20,24 +18,20 @@ from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 
 from core.logging import logger
-from engine.prompts.builder_orchestrator_prompt import BUILDER_ORCHESTRATOR_PROMPT
+from engine.prompts.builder_orchestrator_prompt import (
+    BUILDER_ORCHESTRATOR_PROMPT,
+)
 from utils.load_agents import load_agents
 from graph_rag.graphiti_service import GraphitiService, get_graphiti_service
 from graph_rag.chunk_tracker import ChunkTracker
 from services.rag import RAGService, get_rag_service
 
-
-from engine.tools.topic_clustering import (
-    cluster_topics_from_graph,
-    get_graph_summary,
-    search_graph_for_facts,
-)
-from engine.tools.search_local_knowledge import search_local_knowledge
 from engine.tools.search_and_build_graph import (
     search_and_build_graph,
     get_pending_graph_updates,
     clear_pending_graph_updates,
 )
+from engine.tools.list_kg_communities import list_kg_communities
 
 
 class BuilderOrchestrator:
@@ -130,11 +124,8 @@ class BuilderOrchestrator:
             logger.info(f"Builder workspace: {workspace_path}")
 
         tools = [
-            # cluster_topics_from_graph,
-            # get_graph_summary,
-            # search_graph_for_facts,
-            # search_local_knowledge,
-            search_and_build_graph
+            search_and_build_graph,
+            list_kg_communities,
         ]
 
         agent = create_deep_agent(
