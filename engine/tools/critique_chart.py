@@ -7,7 +7,7 @@ from langchain_core.messages import HumanMessage
 
 from utils.model_factory import create_vlm_client
 from utils.load_config import get_default_vlm_name
-from engine.prompts.critique_chart_prompt import (
+from engine.tools.prompts.critique_chart_prompt import (
     CRITIQUE_CHART_SYSTEM_PROMPT,
 )
 
