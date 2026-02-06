@@ -119,7 +119,9 @@ class SynthesizerOrchestrator:
             CompiledSubAgent that can be passed to another orchestrator's subagents list.
         """
         subagents = load_agents(names=self.SUBAGENT_NAMES)
-        logger.info(f"Synthesizer: Loaded {len(subagents)} subagent(s): {[s['name'] for s in subagents]}")
+        logger.info(
+            f"Synthesizer: Loaded {len(subagents)} subagent(s): {[s['name'] for s in subagents]}"
+        )
 
         config = {"recursion_limit": 100}
         backend = None

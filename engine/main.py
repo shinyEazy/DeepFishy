@@ -194,7 +194,6 @@ if __name__ == "__main__":
         logger.info(f"Starting agent invocation with input: {user_input}")
         agent_start_time = time.time()
 
-
         try:
             result = agent.invoke(
                 {"messages": [{"role": "user", "content": user_input}]}

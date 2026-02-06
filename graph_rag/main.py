@@ -66,7 +66,7 @@ async def main():
         ),
         embedder=GeminiEmbedder(
             config=GeminiEmbedderConfig(
-                api_key=api_key, embedding_model="gemeni-embedding-001"
+                api_key=api_key, embedding_model="gemini-embedding-001"
             )
         ),
         cross_encoder=GeminiRerankerClient(
