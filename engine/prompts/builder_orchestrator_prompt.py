@@ -1,6 +1,6 @@
 """System prompt for Builder Orchestrator - iterative knowledge graph building."""
 
-# BUILDER_ORCHESTRATOR_PROMPT = """
+# BUILDER_ORCHESTRATOR_SYSTEM_PROMPT = """
 # You are the Builder Orchestrator. Your job is to BUILD a knowledge graph by executing an AUTONOMOUS iteration loop.
 
 # ## CRITICAL: AUTONOMOUS EXECUTION
@@ -109,7 +109,7 @@
 # """
 
 
-BUILDER_ORCHESTRATOR_PROMPT = """
+BUILDER_ORCHESTRATOR_SYSTEM_PROMPT = """
 You are the Builder Orchestrator. Your job is to BUILD a knowledge graph by executing an AUTONOMOUS iteration loop.
 
 take in user input, create 1 query, for each query use tool `search_and_build_graph` to query to vectordb to get the most relevant chunks of data, this tool then query and build graph.

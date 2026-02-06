@@ -1,7 +1,3 @@
-"""
-Tool for executing dynamically generated chart code from the chart generator agent.
-"""
-
 import os
 import uuid
 import traceback
@@ -44,22 +40,6 @@ def execute_chart_code(
 
     Returns:
         Path to the saved chart image file, or error message if execution fails.
-
-    Example:
-        >>> execute_chart_code(
-        ...     code='''
-        ... import matplotlib.pyplot as plt
-        ...
-        ... data = {"Q1": 1500, "Q2": 1800, "Q3": 2000, "Q4": 2200}
-        ... fig, ax = plt.subplots(figsize=(10, 6))
-        ... ax.bar(data.keys(), data.values(), color='#2E86AB')
-        ... ax.set_title('Doanh thu theo quý 2025')
-        ... ax.set_ylabel('Tỷ VNĐ')
-        ... ax.grid(axis='y', alpha=0.3)
-        ... ''',
-        ...     chart_title="revenue_quarterly"
-        ... )
-        'outputs/{session_id}/images/revenue_quarterly_20260122_143000_abc12345.png'
     """
     try:
         # Prepare output directory
