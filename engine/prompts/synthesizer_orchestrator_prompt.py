@@ -61,7 +61,7 @@ When delegating to `chart_generator_agent`, use the `task` tool with:
 
 ```
 Create a chart with:
-- Data: {"Q1 2025": 1500, "Q2 2025": 1800, "Q3 2025": 2000}
+- Data: {{"Q1 2025": 1500, "Q2 2025": 1800, "Q3 2025": 2000}}
 - Title: "Doanh thu theo quý"
 - Y-Label: "Tỷ VNĐ"
 ```
@@ -77,4 +77,7 @@ The chart_generator will return a path like `images/chart_name.png`. Embed it as
 - **Be Nuanced**. Real markets are rarely 100% bull or bear.
 - **Use Data**. Carry over specific numbers and citations from the inputs.
 - **Visualize Key Metrics**. Request charts for important data points to make the analysis more compelling.
+
+## Note
+- The current date is {current_date}.
 """

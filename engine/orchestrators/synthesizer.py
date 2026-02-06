@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+from datetime import datetime
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from deepagents import create_deep_agent
@@ -57,7 +58,9 @@ class SynthesizerOrchestrator:
         agent = create_deep_agent(
             model=self.model,
             tools=[],
-            system_prompt=SYNTHESIZER_ORCHESTRATOR_SYSTEM_PROMPT,
+            system_prompt=SYNTHESIZER_ORCHESTRATOR_SYSTEM_PROMPT.format(
+                current_date=datetime.now().strftime("%Y-%m-%d")
+            ),
             subagents=subagents,
             backend=backend,
         ).with_config(config)
