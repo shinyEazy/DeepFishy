@@ -1,7 +1,27 @@
 name: deepfishy
 
 services:
-  # Redis - message broker and result backend
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    ports:
+      - "2345:5432"
+    environment:
+      - POSTGRES_DB=deepfishy
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d deepfishy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - deepfishy
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     container_name: redis
@@ -17,19 +37,20 @@ services:
     networks:
       - deepfishy
 
-  # Celery Worker - executes tasks
   celery_worker:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: celery_worker
-    command: celery -A src.app.celery_app worker --loglevel=info --concurrency=2 -Q crawler,ingestion,celery
+    command: celery -A celery_app worker --loglevel=info --concurrency=2 -Q crawler,ingestion,celery
     environment:
       - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app/src
+      - PYTHONPATH=/app
     env_file:
-      - ../.env
+      - .env
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       minio:
@@ -37,24 +58,36 @@ services:
       milvus:
         condition: service_healthy
     volumes:
-      - ../src:/app/src
+      - ../api:/app/api
+      - ../core:/app/core
+      - ../db:/app/db
+      - ../engine:/app/engine
+      - ../ingestion:/app/ingestion
+      - ../services:/app/services
+      - ../utils:/app/utils
+      - ../worker:/app/worker
+      - ../configs:/app/configs
+      - ../main.py:/app/main.py
+      - ../celery_app.py:/app/celery_app.py
       - ../data:/app/data
+      - ../outputs:/app/outputs
     networks:
       - deepfishy
 
-  # Celery Beat - scheduler that triggers periodic tasks
   celery_beat:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: celery_beat
-    command: celery -A src.app.celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
+    command: celery -A celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
     environment:
       - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app/src
+      - PYTHONPATH=/app
     env_file:
-      - ../.env
+      - .env
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       minio:
@@ -62,22 +95,36 @@ services:
       milvus:
         condition: service_healthy
     volumes:
-      - ../src:/app/src
+      - ../api:/app/api
+      - ../core:/app/core
+      - ../db:/app/db
+      - ../engine:/app/engine
+      - ../ingestion:/app/ingestion
+      - ../services:/app/services
+      - ../utils:/app/utils
+      - ../worker:/app/worker
+      - ../configs:/app/configs
+      - ../main.py:/app/main.py
+      - ../celery_app.py:/app/celery_app.py
     networks:
       - deepfishy
 
-  # FastAPI - main application
   server:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: server
-    command: python -m uvicorn src.app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
     env_file:
-      - ../.env
+      - .env
     ports:
       - "8000:8000"
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       minio:
@@ -85,12 +132,24 @@ services:
       milvus:
         condition: service_healthy
     volumes:
-      - ../src:/app/src
+      - ../api:/app/api
+      - ../core:/app/core
+      - ../db:/app/db
+      - ../engine:/app/engine
+      - ../ingestion:/app/ingestion
+      - ../services:/app/services
+      - ../utils:/app/utils
+      - ../worker:/app/worker
+      - ../configs:/app/configs
+      - ../main.py:/app/main.py
+      - ../celery_app.py:/app/celery_app.py
       - ../data:/app/data
+      - ../graph_rag:/app/graph_rag
+      - ../embedding:/app/embedding
+      - ../outputs:/app/outputs
     networks:
       - deepfishy
 
-  # MinIO - S3-compatible object storage
   minio:
     image: minio/minio:latest
     container_name: minio
@@ -111,7 +170,6 @@ services:
     networks:
       - deepfishy
 
-  # Etcd - required by Milvus for metadata storage
   etcd:
     image: quay.io/coreos/etcd:v3.5.5
     container_name: etcd
@@ -126,7 +184,7 @@ services:
       - etcd_data:/etcd
     command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
     healthcheck:
-      test: 
+      test:
         ["CMD", "etcdctl", "--endpoints=localhost:2379", "endpoint", "health"]
       interval: 10s
       timeout: 5s
@@ -134,7 +192,6 @@ services:
     networks:
       - deepfishy
 
-  # Milvus - Vector Database
   milvus:
     image: milvusdb/milvus:latest
     container_name: milvus
@@ -159,7 +216,6 @@ services:
     networks:
       - deepfishy
 
-  # Milvus Web UI (Attu)
   milvus_webui:
     image: zilliz/attu:latest
     container_name: milvus_webui
@@ -173,39 +229,88 @@ services:
     networks:
       - deepfishy
 
-  # LangGraph Studio
-  langgraph_studio:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    container_name: langgraph_studio
-    working_dir: /app/src/app/engine
-    command: langgraph dev --host 0.0.0.0 --port 2024 --allow-blocking --no-browser
-    environment:
-      - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app/src
-    env_file:
-      - ../.env
+  neo4j:
+    image: neo4j:5-community
+    container_name: neo4j
     ports:
-      - "2024:2024"
-    depends_on:
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-      milvus:
-        condition: service_healthy
+      - "7474:7474" # HTTP Browser
+      - "7687:7687" # Bolt Protocol
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-password}
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+      # Memory settings
+      - NEO4J_server_memory_heap_initial__size=512m
+      - NEO4J_server_memory_heap_max__size=1G
     volumes:
-      - ../src:/app/src
-      - ../data:/app/data
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_import:/var/lib/neo4j/import
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     networks:
       - deepfishy
+    restart: unless-stopped
+
+  # langgraph_studio:
+  #   build:
+  #     context: ..
+  #     dockerfile: docker/Dockerfile
+  #   container_name: langgraph_studio
+  #   working_dir: /app/engine
+  #   command: langgraph dev --host 0.0.0.0 --port 2024 --allow-blocking --no-browser
+  #   environment:
+  #     - PYTHONUNBUFFERED=1
+  #     - PYTHONPATH=/app
+  #   env_file:
+  #     - .env
+  #   ports:
+  #     - "2024:2024"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     minio:
+  #       condition: service_healthy
+  #     milvus:
+  #       condition: service_healthy
+  #   volumes:
+  #     - ../api:/app/api
+  #     - ../core:/app/core
+  #     - ../db:/app/db
+  #     - ../engine:/app/engine
+  #     - ../ingestion:/app/ingestion
+  #     - ../services:/app/services
+  #     - ../utils:/app/utils
+  #     - ../worker:/app/worker
+  #     - ../configs:/app/configs
+  #     - ../main.py:/app/main.py
+  #     - ../celery_app.py:/app/celery_app.py
+  #     - ../data:/app/data
+  #     - ../outputs:/app/outputs
+  #   networks:
+  #     - deepfishy
 
 volumes:
+  postgres_data:
   redis_data:
   minio_data:
   milvus_data:
   etcd_data:
+  neo4j_data:
+  neo4j_logs:
+  neo4j_import:
 
 networks:
   deepfishy:

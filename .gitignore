@@ -210,3 +210,10 @@ __marimo__/
 data/
 .github/
 .langgraph_api/
+ingestion/parsers/results/
+engine/results/
+engine/outputs/
+agent_workspace/
+docs/
+config.yaml
+outputs/
