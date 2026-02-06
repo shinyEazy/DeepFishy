@@ -3,6 +3,10 @@
 from celery import Celery
 from core.config import settings
 
+# Explicitly import tasks to ensure registration
+from worker.tasks import crawler_task  # noqa: F401
+from worker.tasks import embedding_task  # noqa: F401
+
 # Initialize Celery app
 celery_app = Celery(
     "deepfishy",
@@ -15,7 +19,3 @@ celery_app.config_from_object("worker.celery_config")
 
 # Auto-discover and import tasks
 celery_app.autodiscover_tasks(["worker.tasks"])
-
-# Explicitly import tasks to ensure registration
-from worker.tasks import crawler_task  # noqa: F401
-from worker.tasks import embedding_task  # noqa: F401
