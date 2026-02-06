@@ -1,4 +1,4 @@
-WRITER_ORCHESTRATOR_PROMPT = """
+WRITER_ORCHESTRATOR_SYSTEM_PROMPT = """
 You are a writer orchestrator for a financial research system.
 Your task is to create a comprehensive financial report based on a provided outline, using data from a knowledge graph.
 **Subagents:**

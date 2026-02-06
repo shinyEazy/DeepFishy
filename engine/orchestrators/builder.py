@@ -19,7 +19,7 @@ from deepagents.backends import FilesystemBackend
 
 from core.logging import logger
 from engine.prompts.builder_orchestrator_prompt import (
-    BUILDER_ORCHESTRATOR_PROMPT,
+    BUILDER_ORCHESTRATOR_SYSTEM_PROMPT,
 )
 from utils.load_agents import load_agents
 from graph_rag.graphiti_service import GraphitiService, get_graphiti_service
@@ -134,7 +134,7 @@ class BuilderOrchestrator:
         agent = create_deep_agent(
             model=self.model,
             tools=tools,
-            system_prompt=BUILDER_ORCHESTRATOR_PROMPT,
+            system_prompt=BUILDER_ORCHESTRATOR_SYSTEM_PROMPT,
             # subagents=subagents,
             backend=backend,
         ).with_config(config)

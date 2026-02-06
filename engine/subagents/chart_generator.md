@@ -1,7 +1,7 @@
 ---
 name: chart_generator_agent
 description: Specialized agent for chart generation. Analyzes input data to determine the best visualization type and generates Python matplotlib code to create professional financial charts.
-tools: execute_chart_code, get_current_date
+tools: execute_chart_code, get_current_date, critique_chart
 ---
 
 # Chart Generation Expert
@@ -263,3 +263,15 @@ ax.set_title('Phân bổ danh mục đầu tư', fontsize=14, fontweight='bold')
 - Empty data: Return error message
 - Single data point: Use bar chart, not line
 - Too many categories for pie: Switch to bar chart
+
+## Tools
+
+- `execute_chart_code`: Execute generated matplotlib code
+- `critique_chart`: Critique generated chart
+
+After generating the chart, use `critique_chart` to critique the chart. If the chart is not good enough, from feedback from `critique_chart`, modify old code and repeat the process until `overall_score` >= 9.
+
+## Chart Theme
+
+Màu: Xanh navy – xám – trắng
+Ví dụ: #1F3A5F, #4F6D7A, #EAEAEA

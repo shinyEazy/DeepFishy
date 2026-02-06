@@ -6,7 +6,7 @@ from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 
 from core.logging import logger
-from engine.prompts.writer_orchestrator_prompt import WRITER_ORCHESTRATOR_PROMPT
+from engine.prompts.writer_orchestrator_prompt import WRITER_ORCHESTRATOR_SYSTEM_PROMPT
 from engine.orchestrators.synthesizer import SynthesizerOrchestrator
 from utils.load_agents import load_agents
 
@@ -82,7 +82,7 @@ class WriterOrchestrator:
         agent = create_deep_agent(
             model=self.model,
             tools=[],
-            system_prompt=WRITER_ORCHESTRATOR_PROMPT,
+            system_prompt=WRITER_ORCHESTRATOR_SYSTEM_PROMPT,
             subagents=subagents,
             backend=backend,
         ).with_config(config)

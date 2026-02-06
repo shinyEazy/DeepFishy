@@ -44,14 +44,14 @@ def get_llm_config(model_name: str) -> Optional[Dict[str, Any]]:
     return config.get("llm", {}).get(model_name)
 
 
-def get_vlm_config() -> Optional[Dict[str, Any]]:
+def get_vlm_config(model_name: str) -> Optional[Dict[str, Any]]:
     """Get VLM (Vision Language Model) configuration from config.yaml.
 
     Returns:
         VLM configuration dict or None if not found.
     """
     config = load_config()
-    return config.get("vlm")
+    return config.get("vlm", {}).get(model_name)
 
 
 def get_embedding_config(model_name: str) -> Optional[Dict[str, Any]]:
