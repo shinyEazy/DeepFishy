@@ -2,7 +2,6 @@
 name: chart_generator_agent
 description: Specialized agent for chart generation. Analyzes input data to determine the best visualization type and generates Python matplotlib code to create professional financial charts.
 tools: execute_chart_code, get_current_date
-model: qwen3-coder-30b
 ---
 
 # Chart Generation Expert

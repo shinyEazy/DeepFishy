@@ -7,6 +7,7 @@ from deepagents.backends import FilesystemBackend
 
 from core.logging import logger
 from engine.prompts.writer_orchestrator_prompt import WRITER_ORCHESTRATOR_PROMPT
+from engine.orchestrators.synthesizer import SynthesizerOrchestrator
 from utils.load_agents import load_agents
 
 
@@ -29,12 +30,12 @@ class WriterOrchestrator:
         >>> result = agent.invoke({"messages": [{"role": "user", "content": "..."}]})
     """
 
-    # Subagents for Phase 2
+    # Subagents for Phase 2 (synthesizer is now a nested orchestrator)
     SUBAGENT_NAMES = [
         "bull_agent",
         "bear_agent",
-        "synthesizer_agent",
-        # "critique",
+        # synthesizer_agent is now SynthesizerOrchestrator (CompiledSubAgent)
+        # chart_generator is now a subagent of SynthesizerOrchestrator
     ]
 
     def __init__(
@@ -50,8 +51,19 @@ class WriterOrchestrator:
 
     def create(self):
         """Create and return the orchestrator agent."""
+        # Load markdown-based subagents
         subagents = load_agents(names=self.SUBAGENT_NAMES)
-        logger.info(f"Report Writer: Loaded {len(subagents)} subagent(s)")
+        logger.info(f"Report Writer: Loaded {len(subagents)} markdown subagent(s)")
+
+        # Add SynthesizerOrchestrator as a CompiledSubAgent
+        synth_orchestrator = SynthesizerOrchestrator(
+            model=self.model,
+            session_id=self.session_id,
+            output_base_path=self.output_base_path,
+        )
+        synthesizer_subagent = synth_orchestrator.create()
+        subagents.append(synthesizer_subagent)
+        logger.info("Report Writer: Added SynthesizerOrchestrator as nested subagent")
 
         config = {"recursion_limit": 250}
         backend = None
