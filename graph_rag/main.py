@@ -1,39 +1,19 @@
-"""
-Copyright 2025, Zep Software, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
-
-import asyncio
-import json
-import logging
 import os
-from datetime import datetime, timezone
+import json
+import asyncio
+import logging
 from logging import INFO
-
 from dotenv import load_dotenv
-
-from utils.model_factory import create_llm_client
-from utils.load_config import get_llm_config
+from datetime import datetime, timezone
 
 from graphiti_core import Graphiti
 from graphiti_core.nodes import EpisodeType
 from graphiti_core.search.search_config_recipes import NODE_HYBRID_SEARCH_RRF
-
-from graphiti_core import Graphiti
 from graphiti_core.llm_client.gemini_client import GeminiClient, LLMConfig
 from graphiti_core.embedder.gemini import GeminiEmbedder, GeminiEmbedderConfig
 from graphiti_core.cross_encoder.gemini_reranker_client import GeminiRerankerClient
+
+from utils.load_config import get_llm_config
 
 #################################################
 # CONFIGURATION
@@ -86,7 +66,7 @@ async def main():
         ),
         embedder=GeminiEmbedder(
             config=GeminiEmbedderConfig(
-                api_key=api_key, embedding_model="embedding-001"
+                api_key=api_key, embedding_model="gemeni-embedding-001"
             )
         ),
         cross_encoder=GeminiRerankerClient(

@@ -44,7 +44,7 @@ class GraphitiService:
 
     # Default configuration
     DEFAULT_LLM_MODEL = "gemini-2.0-flash"
-    DEFAULT_EMBEDDING_MODEL = "embedding-001"
+    DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
     DEFAULT_RERANKER_MODEL = "gemini-2.5-flash-lite"
 
     def __init__(
@@ -100,7 +100,9 @@ class GraphitiService:
                 ),
                 embedder=GeminiEmbedder(
                     config=GeminiEmbedderConfig(
-                        api_key=api_key, embedding_model=self.embedding_model
+                        api_key=api_key,
+                        embedding_model=self.embedding_model,
+                        embedding_dim=1536,
                     )
                 ),
                 cross_encoder=GeminiRerankerClient(
