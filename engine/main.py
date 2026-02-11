@@ -68,7 +68,7 @@ def _concatenate_drafts_to_final(workspace_path: str) -> str:
                 content = f.read().strip()
                 if content:
                     combined_content.append(content)
-        except Exception as e:
+        except (IOError, FileNotFoundError) as e:
             logger.warning(f"Failed to read {draft_path}: {e}")
 
     # Write final.md
@@ -271,7 +271,7 @@ if __name__ == "__main__":
                     final_path = _concatenate_drafts_to_final(agent._workspace_path)
                     if final_path:
                         logger.info(f"✅ Created final report: {final_path}")
-                except Exception as e:
+                except IOError as e:
                     logger.warning(f"Failed to concatenate drafts: {e}")
 
             if orchestrator is not None:
