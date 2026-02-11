@@ -150,15 +150,13 @@ def search_and_build_graph(
                     source_query=query,
                     group_id=group_id,
                 )
-                # Also build communities so they're ready for list_kg_communities
-                await service.build_communities()
                 logger.debug(f"Graph built with group_id={group_id}")
                 return added
 
             # Reset service before new event loop to avoid conflicts
             reset_graphiti_service()
             added_count = asyncio.run(_build_graph_now())
-            logger.info(f"Built graph with {added_count} episodes, communities updated")
+            logger.info(f"Built graph with {added_count} episodes")
 
         except Exception as e:
             logger.warning(

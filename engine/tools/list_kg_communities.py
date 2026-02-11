@@ -36,6 +36,7 @@ def list_kg_communities(group_id: Optional[str] = None) -> str:
 
     async def _get_communities():
         service = await get_graphiti_service()
+        await service.build_communities(group_id=effective_group_id)
         return await service.get_communities(group_id=effective_group_id)
 
     def _format_communities(raw_communities: List[Dict]) -> str:

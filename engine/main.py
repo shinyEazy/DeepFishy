@@ -200,6 +200,7 @@ if __name__ == "__main__":
 
     # Generate session ID once for this run (shared across phases)
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    build_outline = None
 
     for current_phase in phases_to_run:
         # Validate phase
@@ -237,8 +238,13 @@ if __name__ == "__main__":
             )
         else:
             logger.info("PHASE 2: Write Report")
-            with open("engine/outline_vnindex.md", "r", encoding="utf-8") as f:
-                outline = f.read()
+            if build_outline:
+                outline = build_outline
+                logger.info("Using outline generated from build phase")
+            else:
+                logger.warning("No build outline available, falling back to engine/outline_vnindex.md")
+                with open("engine/outline_vnindex.md", "r", encoding="utf-8") as f:
+                    outline = f.read()
             user_input = f"Viết báo cáo tài chính về VNINDEX tháng 12/2025 theo outline sau:\n\n{outline}"
         logger.info("=" * 60)
 
@@ -312,6 +318,11 @@ if __name__ == "__main__":
 
             final_response_raw = result["messages"][-1].content
             final_response = _extract_text_from_content(final_response_raw)
+
+            # Capture the outline from the build phase for the write phase
+            if current_phase == "build":
+                build_outline = final_response
+                logger.info(f"Captured build phase outline ({len(final_response)} chars)")
 
             todos = result.get("todos", [])
 

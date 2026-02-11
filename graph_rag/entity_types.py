@@ -6,7 +6,7 @@ This module defines the ontology for the Deep Research workflow:
 - 8 Edge Types (Relationships) for Causal Graph analysis
 
 All types are designed for:
-1. Traceability (source_url, extraction_date, confidence_score)
+1. Traceability (source_url, extraction_date)
 2. Causal Analysis (MarketEvent -> MarketEvent)
 3. Cross-ownership detection (PublicCompany -> PublicCompany)
 4. Impact analysis (MacroIndicator -> PublicCompany)
@@ -120,9 +120,6 @@ class PublicCompany(BaseModel):
     # Traceability fields
     source_url: Optional[str] = Field(None, description="URL of the source article")
     extraction_date: Optional[str] = Field(None, description="ISO date when extracted")
-    confidence_score: Optional[float] = Field(
-        None, description="LLM confidence 0.0-1.0"
-    )
 
 
 class FinancialMetric(BaseModel):
@@ -149,9 +146,6 @@ class FinancialMetric(BaseModel):
     # Traceability
     source_url: Optional[str] = Field(None, description="URL of the source article")
     extraction_date: Optional[str] = Field(None, description="ISO date when extracted")
-    confidence_score: Optional[float] = Field(
-        None, description="LLM confidence 0.0-1.0"
-    )
 
 
 class KeyPerson(BaseModel):
@@ -172,9 +166,6 @@ class KeyPerson(BaseModel):
     # Traceability
     source_url: Optional[str] = Field(None, description="URL of the source article")
     extraction_date: Optional[str] = Field(None, description="ISO date when extracted")
-    confidence_score: Optional[float] = Field(
-        None, description="LLM confidence 0.0-1.0"
-    )
 
 
 class MarketEvent(BaseModel):
@@ -209,9 +200,6 @@ class MarketEvent(BaseModel):
     # Traceability
     source_url: Optional[str] = Field(None, description="URL of the source article")
     extraction_date: Optional[str] = Field(None, description="ISO date when extracted")
-    confidence_score: Optional[float] = Field(
-        None, description="LLM confidence 0.0-1.0"
-    )
 
 
 class MacroIndicator(BaseModel):
@@ -234,9 +222,6 @@ class MacroIndicator(BaseModel):
     # Traceability
     source_url: Optional[str] = Field(None, description="URL of the source article")
     extraction_date: Optional[str] = Field(None, description="ISO date when extracted")
-    confidence_score: Optional[float] = Field(
-        None, description="LLM confidence 0.0-1.0"
-    )
 
 
 # =============================================================================
