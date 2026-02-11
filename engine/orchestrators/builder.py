@@ -1,15 +1,3 @@
-"""Builder Orchestrator: Iterative knowledge graph building pipeline.
-
-This orchestrator implements the iterative research loop:
-1. Generate search queries for user topic
-2. Search Milvus → get chunks (deduplicated)
-3. Add chunks to Graphiti graph
-4. Cluster topics via LLM
-5. Evaluate coverage via gap_analyzer
-6. If insufficient, repeat from step 1
-7. When sufficient, hand off to report_outline
-"""
-
 import os
 from typing import Optional, List, Dict, Any
 
@@ -48,13 +36,6 @@ class BuilderOrchestrator:
 
     After research is complete, it creates a report outline and can
     hand off to the WriterOrchestrator.
-
-    Example:
-        >>> orchestrator = BuilderOrchestrator(model)
-        >>> agent = orchestrator.create()
-        >>> result = agent.invoke({
-        ...     "messages": [{"role": "user", "content": "Phân tích tác động thuế quan Trump"}]
-        ... })
     """
 
     # Pipeline configuration
@@ -63,12 +44,7 @@ class BuilderOrchestrator:
     COVERAGE_THRESHOLD = 0.8
 
     # Subagents for research phase
-    SUBAGENT_NAMES = [
-        "query_generator",  # Generates search queries
-        "gap_analyzer",  # Evaluates coverage
-        "report_outline",  # Creates outline when ready
-        "knowledge_search",  # Searches Milvus (existing)
-    ]
+    SUBAGENT_NAMES = []
 
     def __init__(
         self,

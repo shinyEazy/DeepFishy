@@ -43,7 +43,7 @@ class GraphitiService:
     """
 
     # Default configuration
-    DEFAULT_LLM_MODEL = "gemini-2.0-flash"
+    DEFAULT_LLM_MODEL = "gemini-2.5-flash-lite"
     DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
     DEFAULT_RERANKER_MODEL = "gemini-2.5-flash-lite"
 
@@ -231,7 +231,6 @@ class GraphitiService:
                 - Stock Exchanges (HOSE, HNX, UPCOM) with PublicCompany
                 - MarketIndex with FinancialMetric
                 - Rumors/Announcements with confirmed events
-                6. When uncertain, lower confidence_score instead of guessing.
 
                 Think step-by-step:
                 - What happened? → MarketEvent
@@ -394,12 +393,17 @@ class GraphitiService:
             logger.error(f"Failed to search nodes: {e}")
             return []
 
-    async def build_communities(self) -> int:
+    async def build_communities(self, group_id: Optional[str] = None) -> int:
         """
         Build communities using Leiden algorithm.
 
         Communities group related entity nodes together and provide
         high-level synthesized information about graph contents.
+
+        Args:
+            group_id: Optional namespace to scope community building.
+                      If provided, only builds communities for this group.
+                      Without this, Graphiti processes the ENTIRE graph.
 
         Returns:
             Number of communities created
@@ -408,18 +412,27 @@ class GraphitiService:
             await self.initialize()
 
         try:
-            await self.graphiti.build_communities()
+            group_ids = [group_id] if group_id else None
+            await self.graphiti.build_communities(group_ids=group_ids)
 
             # Count communities after building
             driver = self.graphiti.driver
             async with driver.session() as session:
-                result = await session.run(
-                    "MATCH (n:Community) RETURN count(n) as count"
-                )
+                if group_id:
+                    result = await session.run(
+                        "MATCH (n:Community) WHERE n.group_id = $group_id RETURN count(n) as count",
+                        {"group_id": group_id},
+                    )
+                else:
+                    result = await session.run(
+                        "MATCH (n:Community) RETURN count(n) as count"
+                    )
                 record = await result.single()
                 count = record["count"] if record else 0
 
-            logger.info(f"Built {count} communities in knowledge graph")
+            logger.info(
+                f"Built {count} communities in knowledge graph (group_id={group_id})"
+            )
             return count
 
         except Exception as e:

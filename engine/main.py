@@ -27,6 +27,64 @@ ENABLE_DISK_BACKEND = "true"
 OUTPUT_BASE_PATH = "outputs"
 
 
+def _concatenate_drafts_to_final(workspace_path: str) -> str:
+    """
+    Concatenate all section drafts into a single final.md file.
+
+    Scans for outputs/{timestamp}/section_*/draft.md files, sorts them by section number,
+    and concatenates them into outputs/{timestamp}/final.md.
+
+    Args:
+        workspace_path: Path to the workspace directory (e.g., outputs/20260206_081222)
+
+    Returns:
+        Path to the created final.md file
+    """
+    import glob
+    import re
+
+    # Find all section draft files
+    pattern = os.path.join(workspace_path, "section_*", "draft.md")
+    draft_files = glob.glob(pattern)
+
+    if not draft_files:
+        logger.warning(f"No draft files found matching pattern: {pattern}")
+        return ""
+
+    # Sort by section number (extract number from section_N)
+    def extract_section_num(path: str) -> int:
+        match = re.search(r"section_(\d+)", path)
+        return int(match.group(1)) if match else 0
+
+    draft_files.sort(key=extract_section_num)
+
+    # Concatenate all drafts
+    combined_content = []
+    for draft_path in draft_files:
+        section_name = os.path.basename(os.path.dirname(draft_path))
+        logger.info(f"Reading draft from {section_name}")
+        try:
+            with open(draft_path, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if content:
+                    combined_content.append(content)
+        except (IOError, FileNotFoundError) as e:
+            logger.warning(f"Failed to read {draft_path}: {e}")
+
+    # Write final.md
+    final_path = os.path.join(workspace_path, "final.md")
+    final_content = "\n\n---\n\n".join(combined_content)
+
+    image_path_pattern = re.compile(r"outputs/\d{8}_\d{6}/images/")
+    final_content = image_path_pattern.sub("./images/", final_content)
+
+    with open(final_path, "w", encoding="utf-8") as f:
+        f.write(final_content)
+
+    logger.info(f"Created final.md with {len(draft_files)} sections at {final_path}")
+    return final_path
+
+
 def _extract_text_from_content(content) -> str:
     """
     Extract text from message content (handles both string and list formats).
@@ -142,6 +200,7 @@ if __name__ == "__main__":
 
     # Generate session ID once for this run (shared across phases)
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    build_outline = None
 
     for current_phase in phases_to_run:
         # Validate phase
@@ -179,8 +238,13 @@ if __name__ == "__main__":
             )
         else:
             logger.info("PHASE 2: Write Report")
-            with open("engine/outline_vnindex.md", "r", encoding="utf-8") as f:
-                outline = f.read()
+            if build_outline:
+                outline = build_outline
+                logger.info("Using outline generated from build phase")
+            else:
+                logger.warning("No build outline available, falling back to engine/outline_vnindex.md")
+                with open("engine/outline_vnindex.md", "r", encoding="utf-8") as f:
+                    outline = f.read()
             user_input = f"Viết báo cáo tài chính về VNINDEX tháng 12/2025 theo outline sau:\n\n{outline}"
         logger.info("=" * 60)
 
@@ -200,6 +264,15 @@ if __name__ == "__main__":
             )
             agent_duration = time.time() - agent_start_time
             logger.info(f"⏱️ Agent invocation completed in {agent_duration:.2f}s")
+
+            # After write phase, concatenate section drafts into final.md
+            if current_phase == "write" and hasattr(agent, "_workspace_path"):
+                try:
+                    final_path = _concatenate_drafts_to_final(agent._workspace_path)
+                    if final_path:
+                        logger.info(f"✅ Created final report: {final_path}")
+                except IOError as e:
+                    logger.warning(f"Failed to concatenate drafts: {e}")
 
             if orchestrator is not None:
                 try:
@@ -245,6 +318,11 @@ if __name__ == "__main__":
 
             final_response_raw = result["messages"][-1].content
             final_response = _extract_text_from_content(final_response_raw)
+
+            # Capture the outline from the build phase for the write phase
+            if current_phase == "build":
+                build_outline = final_response
+                logger.info(f"Captured build phase outline ({len(final_response)} chars)")
 
             todos = result.get("todos", [])
 

@@ -1,7 +1,7 @@
 ---
 name: critique_agent
 description: Evaluates report drafts with per-section scoring. Returns structured feedback identifying weak sections for targeted revision in the self-critic optimization loop.
-tools: critique_chart
+tools:
 ---
 
 # Report Critique Expert
