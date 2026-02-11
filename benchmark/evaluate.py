@@ -104,8 +104,7 @@ def run_benchmark(config: dict, dataset_path: str):
         # --- Step A: Generate report via engine ---
         from engine.main import run_engine
 
-        # session_id = f"{run_timestamp}/rq{row_id}"
-        session_id = f"{run_timestamp}"
+        session_id = f"{run_timestamp}/rq{row_id}"
         logger.info(f"Running engine with session_id={session_id}")
 
         final_md_path = run_engine(

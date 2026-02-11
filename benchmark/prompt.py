@@ -14,7 +14,7 @@ report based on how effectively it addresses the central **Research Question**, 
 Standard Report** as a quality benchmark.
 
 # [INPUTS]
-* **Research Question:** {RESEARCH_QUESTION}
+* **Research Question:** {research_question}
 * **Golden Standard Report:** The first PDF attached below (labeled "GOLDEN STANDARD REPORT").
 * **Reports to Evaluate:** The subsequent PDFs attached below, each labeled with their report ID.
 

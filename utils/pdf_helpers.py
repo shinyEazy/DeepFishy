@@ -51,8 +51,8 @@ def _compress_images_to_tmpdir(
             dest.parent.mkdir(parents=True, exist_ok=True)
             img.save(dest, "JPEG", quality=quality, optimize=True)
             return f"![{alt}]({rel_path.with_suffix('.jpg')})"
-        except Exception:
-            return match.group(0)
+        except Exception as e:
+            logger.warning(f"Failed to process image {src}: {e}")
 
     modified_md = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", _process_image, md_content)
     return modified_md, tmp_dir
