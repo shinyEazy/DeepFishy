@@ -217,3 +217,5 @@ agent_workspace/
 docs/
 config.yaml
 outputs/
+benchmark/results/
+benchmark/golden_reports/

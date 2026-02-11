@@ -50,6 +50,7 @@ class BuilderOrchestrator:
         self,
         model: BaseChatModel,
         session_id: Optional[str] = None,
+        group_id: Optional[str] = None,
         output_base_path: str = "outputs",
         rag_service: Optional[RAGService] = None,
         graphiti_service: Optional[GraphitiService] = None,
@@ -59,13 +60,16 @@ class BuilderOrchestrator:
 
         Args:
             model: LangChain chat model for the orchestrator
-            session_id: Optional session ID for workspace persistence
+            session_id: Session ID for workspace path (may contain '/')
+            group_id: Graphiti namespace ID (alphanumeric, no '/').
+                      Falls back to session_id if not provided.
             output_base_path: Base path for output files
-            rag_service: Optional RAGService instance (created if not provided)
-            graphiti_service: Optional GraphitiService instance (created if not provided)
+            rag_service: Optional RAGService instance
+            graphiti_service: Optional GraphitiService instance
         """
         self.model = model
         self.session_id = session_id
+        self.group_id = group_id or session_id
         self.output_base_path = output_base_path
         self._rag_service = rag_service
         self._graphiti_service = graphiti_service
@@ -100,7 +104,7 @@ class BuilderOrchestrator:
             config["configurable"] = {"thread_id": self.session_id}
             logger.info(f"Builder workspace: {workspace_path}")
 
-        set_current_session_id(self.session_id)
+        set_current_session_id(self.group_id)
 
         tools = [
             search_and_build_graph,
@@ -145,9 +149,7 @@ class BuilderOrchestrator:
         # Clear any pending graph updates from previous session
         clear_pending_graph_updates()
 
-        logger.info(
-            f"Research session reset for new query (group_id={self.session_id})"
-        )
+        logger.info(f"Research session reset for new query (group_id={self.group_id})")
 
     async def process_pending_graph_updates(self) -> int:
         """
@@ -177,13 +179,13 @@ class BuilderOrchestrator:
                 added = await self._graphiti_service.add_search_results(
                     results=new_results,
                     source_query=query,
-                    group_id=self.session_id,  # Use session_id as namespace
+                    group_id=self.group_id,  # Use group_id as namespace
                 )
                 total_added += added
 
         if total_added > 0:
             logger.info(
-                f"Processed {len(updates)} pending updates, added {total_added} to graph (group_id={self.session_id})"
+                f"Processed {len(updates)} pending updates, added {total_added} to graph (group_id={self.group_id})"
             )
 
         return total_added
@@ -262,22 +264,14 @@ class BuilderOrchestrator:
 def create_builder_orchestrator(
     model: BaseChatModel,
     session_id: Optional[str] = None,
+    group_id: Optional[str] = None,
     output_base_path: str = "outputs",
 ) -> BuilderOrchestrator:
-    """
-    Factory function to create a Builder Orchestrator.
-
-    Args:
-        model: LangChain chat model
-        session_id: Optional session ID for workspace
-        output_base_path: Base path for outputs
-
-    Returns:
-        Configured BuilderOrchestrator instance
-    """
+    """Factory function to create a Builder Orchestrator."""
     orchestrator = BuilderOrchestrator(
         model=model,
         session_id=session_id,
+        group_id=group_id,
         output_base_path=output_base_path,
     )
     return orchestrator

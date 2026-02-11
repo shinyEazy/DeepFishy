@@ -1,0 +1,5 @@
+golden_reports_dir: "benchmark/golden_reports"
+
+reports_dir: "outputs"
+
+results_dir: "benchmark/results"

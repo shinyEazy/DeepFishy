@@ -146,27 +146,29 @@ def _create_model() -> Optional[BaseChatModel]:
     return model
 
 
-def _create_agent(session_id: Optional[str] = None, phase: str = "write"):
+def _create_agent(
+    session_id: Optional[str] = None,
+    group_id: Optional[str] = None,
+    phase: str = "write",
+):
     """Factory function to create the agent with lazy initialization.
 
     Args:
-        session_id: Optional session ID for workspace persistence
-        phase: 'build' for Graph RAG building (uses BuilderOrchestrator with Graphiti),
-               'write' for Report writing
-
-    Returns:
-        For 'build' phase: tuple of (agent, orchestrator) for async graph processing
-        For 'write' phase: agent only
+        session_id: Session ID for workspace path (may contain '/').
+        group_id: Graphiti namespace ID (alphanumeric only, no '/').
+                  If None, falls back to session_id.
+        phase: 'build' or 'write'.
     """
     custom_model = _create_model()
 
     if phase == "build":
-        # 'build' phase now uses BuilderOrchestrator with iterative Graphiti pipeline
         logger.info("Creating Builder Orchestrator")
         orchestrator = create_builder_orchestrator(
-            model=custom_model, session_id=session_id, output_base_path=OUTPUT_BASE_PATH
+            model=custom_model,
+            session_id=session_id,
+            group_id=group_id,
+            output_base_path=OUTPUT_BASE_PATH,
         )
-        # Return both agent and orchestrator for async processing
         return orchestrator.create(), orchestrator
     else:
         logger.info("Creating Report Writer agent (Write Phase)")
@@ -180,57 +182,49 @@ def _create_agent(session_id: Optional[str] = None, phase: str = "write"):
         )
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--phase",
-        type=str,
-        default=None,
-        help="Phase to run: 'build' for Graph RAG building with Graphiti, 'write' for Report writing. If not specified, runs both in sequence.",
-    )
-    parser.add_argument(
-        "--input", type=str, default=None, help="User input/query for the agent"
-    )
-    args = parser.parse_args()
+def run_engine(
+    user_input: str,
+    session_id: Optional[str] = None,
+    phases: list[str] = None,
+) -> str:
+    """Run the engine pipeline (build + write) and return path to final.md.
 
-    if args.phase:
-        phases_to_run = [args.phase]
-    else:
-        phases_to_run = ["build", "write"]
+    Args:
+        user_input: Research question / user query for the agent.
+        session_id: Session ID that determines output directory
+                    (outputs/{session_id}/). Auto-generated if None.
+        phases: List of phases to run. Defaults to ["build", "write"].
 
-    # Generate session ID once for this run (shared across phases)
-    session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    Returns:
+        Path to the generated final.md file, or empty string on failure.
+    """
+    if phases is None:
+        phases = ["build", "write"]
+    if session_id is None:
+        session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Graphiti group_id must be alphanumeric (no '/'), derive from session_id
+    group_id = session_id.replace("/", "_")
+
     build_outline = None
+    final_path = ""
 
-    for current_phase in phases_to_run:
-        # Validate phase
+    for current_phase in phases:
         if current_phase not in ["build", "write"]:
             logger.error(f"Invalid phase: {current_phase}. Must be 'build' or 'write'.")
             continue
-
-        # Set default input based on phase if not provided by user
-        if args.input:
-            user_input = args.input
-        else:
-            user_input = "Báo cáo tài chính về VNINDEX tháng 12/2025"
-            # Note: No longer clearing graph - using group_id namespacing instead
 
         phase_start_time = time.time()
 
         logger.info("=" * 60)
         if current_phase == "build":
             logger.info(f"PHASE 1: Build Knowledge Graph (session_id={session_id})")
-            # Clear graph before building a new one
             clear_start = time.time()
 
             async def clear_graph_before_build():
                 service = await get_graphiti_service()
                 await service.clear_graph()
-                # Note: Don't call service.close() here - Graphiti runs background tasks
-                # (like build_indices_and_constraints) that need the connection open.
-                # The "coroutine was never awaited" warning is benign.
 
-            # Reset singleton before new asyncio.run() to handle event loop change
             reset_graphiti_service()
             asyncio.run(clear_graph_before_build())
             logger.info(
@@ -242,14 +236,18 @@ if __name__ == "__main__":
                 outline = build_outline
                 logger.info("Using outline generated from build phase")
             else:
-                logger.warning("No build outline available, falling back to engine/outline_vnindex.md")
+                logger.warning(
+                    "No build outline available, falling back to engine/outline_vnindex.md"
+                )
                 with open("engine/outline_vnindex.md", "r", encoding="utf-8") as f:
                     outline = f.read()
-            user_input = f"Viết báo cáo tài chính về VNINDEX tháng 12/2025 theo outline sau:\n\n{outline}"
+            user_input = f"Viết báo cáo tài chính theo outline sau:\n\n{outline}"
         logger.info("=" * 60)
 
         agent, orchestrator = _create_agent(
-            session_id=session_id if ENABLE_DISK_BACKEND else None, phase=current_phase
+            session_id=session_id if ENABLE_DISK_BACKEND else None,
+            group_id=group_id,
+            phase=current_phase,
         )
 
         if ENABLE_DISK_BACKEND and hasattr(agent, "_workspace_path"):
@@ -276,29 +274,25 @@ if __name__ == "__main__":
 
             if orchestrator is not None:
                 try:
-                    # Graph is now built synchronously in the tool
-                    # Just log final stats and communities
                     finalize_start = time.time()
 
-                    async def get_final_stats(group_id: str):
+                    async def get_final_stats(gid: str):
                         service = await get_graphiti_service()
-                        stats = await service.get_graph_stats(group_id=group_id)
-                        communities = await service.get_communities(group_id=group_id)
+                        stats = await service.get_graph_stats(group_id=gid)
+                        communities = await service.get_communities(group_id=gid)
                         return stats, communities
 
                     reset_graphiti_service()
-                    graph_stats, communities = asyncio.run(get_final_stats(session_id))
+                    graph_stats, communities = asyncio.run(get_final_stats(group_id))
                     finalize_duration = time.time() - finalize_start
 
                     logger.info(f"Build phase complete - Graph stats: {graph_stats}")
                     logger.info(f"Communities: {len(communities)}")
 
-                    # Log detailed information about each community
                     for i, community in enumerate(communities, 1):
                         logger.info(f"Community {i}: {community.get('name', 'N/A')}")
                         logger.info(f"  - Entities: {community.get('entity_count', 0)}")
 
-                    # Log total phase time
                     total_phase_duration = time.time() - phase_start_time
                     logger.info(f"\n{'='*60}")
                     logger.info(
@@ -319,12 +313,11 @@ if __name__ == "__main__":
             final_response_raw = result["messages"][-1].content
             final_response = _extract_text_from_content(final_response_raw)
 
-            # Capture the outline from the build phase for the write phase
             if current_phase == "build":
                 build_outline = final_response
-                logger.info(f"Captured build phase outline ({len(final_response)} chars)")
-
-            todos = result.get("todos", [])
+                logger.info(
+                    f"Captured build phase outline ({len(final_response)} chars)"
+                )
 
             print("\n" + "=" * 80)
             print(f"AGENT RESPONSE ({current_phase.upper()} PHASE):")
@@ -337,3 +330,24 @@ if __name__ == "__main__":
             import traceback
 
             traceback.print_exc()
+
+    return final_path
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--phase",
+        type=str,
+        default=None,
+        help="Phase to run: 'build' for Graph RAG building with Graphiti, 'write' for Report writing. If not specified, runs both in sequence.",
+    )
+    parser.add_argument(
+        "--input", type=str, default=None, help="User input/query for the agent"
+    )
+    args = parser.parse_args()
+
+    phases = [args.phase] if args.phase else None
+    user_input = args.input or "Báo cáo tài chính về VNINDEX tháng 12/2025"
+
+    run_engine(user_input=user_input, phases=phases)

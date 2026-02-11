@@ -147,6 +147,7 @@ services:
       - ../graph_rag:/app/graph_rag
       - ../embedding:/app/embedding
       - ../outputs:/app/outputs
+      - ../benchmark:/app/benchmark
     networks:
       - deepfishy
 
