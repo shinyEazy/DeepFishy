@@ -107,8 +107,8 @@ def evaluate_generated_report(
     # Create LLM client
     llm = create_llm_client(model_name)
     if llm is None:
-        logger.error(f"Failed to create LLM client: {model_name}")
-        sys.exit(1)
+        logger.error(f"Row {row_id}: Failed to create LLM client: {model_name}")
+        return None
 
     # Build prompt & call LLM judge
     report_pdfs = [{"filename": report_path, "pdf_bytes": generated_pdf}]
@@ -306,8 +306,11 @@ def main():
     # Check which mode to run
     if args.topic and args.report and args.golden:
         run_direct_benchmark(config, args.topic, args.report, args.golden)
+    elif args.topic or args.report or args.golden:
+        parser.error(
+            "For direct evaluation, --topic, --report, and --golden must all be provided."
+        )
     else:
-        # Fallback to dataset mode
         run_dataset_benchmark(config, args.dataset)
 
 
