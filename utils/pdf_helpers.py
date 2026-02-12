@@ -15,6 +15,42 @@ from core.logging import logger
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+def _normalize_image_paths(md_content: str, report_dir: str) -> str:
+    """Rewrite image paths in markdown to be relative to report_dir.
+
+    The engine may emit paths relative to the project root
+    (e.g. ``outputs/20260212/rq1/images/foo.png``) while the PDF
+    converter expects them relative to the report directory
+    (e.g. ``./images/foo.png``).  This helper detects such cases and
+    rewrites them so that ``_compress_images_to_tmpdir`` can locate
+    the files correctly.
+    """
+    report_dir_path = Path(report_dir).resolve()
+
+    def _rewrite(match):
+        alt = match.group(1)
+        img_path = match.group(2)
+        p = Path(img_path)
+
+        # Already absolute or already starts with "./" → leave as-is
+        if p.is_absolute() or img_path.startswith("./") or img_path.startswith("../"):
+            return match.group(0)
+
+        # Try resolving from the project root
+        abs_from_root = (PROJECT_ROOT / p).resolve()
+        if abs_from_root.exists():
+            try:
+                rel = abs_from_root.relative_to(report_dir_path)
+                return f"![{alt}](./{rel.as_posix()})"
+            except ValueError:
+                # Not under report_dir – use absolute path
+                return f"![{alt}]({abs_from_root.as_posix()})"
+
+        return match.group(0)
+
+    return re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", _rewrite, md_content)
+
+
 def _compress_images_to_tmpdir(
     md_content: str, report_dir: str, max_width: int = 1200, quality: int = 70
 ) -> tuple[str, str]:
@@ -24,6 +60,9 @@ def _compress_images_to_tmpdir(
         Tuple of (modified markdown content, temp directory path).
     """
     from PIL import Image
+
+    # Normalize paths first so they are relative to report_dir
+    md_content = _normalize_image_paths(md_content, report_dir)
 
     tmp_dir = tempfile.mkdtemp(prefix="md2pdf_")
 
