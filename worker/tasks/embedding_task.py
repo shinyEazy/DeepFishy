@@ -1,18 +1,12 @@
-"""Celery task for embedding generation and Milvus insertion."""
-
-import asyncio
-import json
 from typing import List, Dict, Any
-import requests
 
-from celery_app import celery_app
+from celery import shared_task
 from services.embedding_factory import get_embedding_provider, get_embedding_dim
 from services.milvus import MilvusService
 from services.minio import MinioService
 from ingestion.embedding_pipeline import EmbeddingPipeline
 from core.logging import logger
 from core.config import settings
-from worker.utils import check_embedding_server_health
 
 
 def _get_embedding_provider(model_name: str = None):
@@ -27,7 +21,7 @@ def _get_embedding_provider(model_name: str = None):
     return get_embedding_provider(model_name)
 
 
-@celery_app.task(
+@shared_task(
     bind=True,
     name="ingestion.embed_and_insert_articles",
     queue="ingestion",
@@ -229,7 +223,7 @@ def _load_articles_from_minio(
     return articles
 
 
-@celery_app.task(
+@shared_task(
     bind=True,
     name="ingestion.embed_single_article",
     queue="ingestion",

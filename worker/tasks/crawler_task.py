@@ -1,16 +1,11 @@
 """Celery tasks for crawler operations with MinIO storage."""
 
 import asyncio
-import json
-import re
 from typing import List
 from datetime import datetime
-import requests
 
-from celery import chain, group
-from celery_app import celery_app
+from celery import chain, shared_task
 from ingestion.crawler.spiders import ArticleURLSpider, ArticleContentSpider
-from ingestion.crawler.pipeline import CrawlerPipeline
 from services.minio import MinioService
 from core.logging import logger
 from core.constants import (
@@ -19,10 +14,9 @@ from core.constants import (
     CRAWLER_MAX_PAGES,
     CRAWLER_MAX_WORKERS,
 )
-from core.config import settings
 
 
-@celery_app.task(bind=True, name="crawler.crawl_article_urls", queue="crawler")
+@shared_task(bind=True, name="crawler.crawl_article_urls", queue="crawler")
 def crawl_article_urls_task(
     self,
     paths: List[str] = None,
@@ -153,7 +147,7 @@ def crawl_article_urls_task(
         }
 
 
-@celery_app.task(bind=True, name="crawler.crawl_article_content", queue="crawler")
+@shared_task(bind=True, name="crawler.crawl_article_content", queue="crawler")
 def crawl_article_content_task(self, previous_task_result: dict) -> dict:
     """
     Celery task to crawl article content from URLs.
@@ -188,7 +182,7 @@ def crawl_article_content_task(self, previous_task_result: dict) -> dict:
         spider.close()
 
         logger.info(f"✅ Content crawl: {successful} successful, {failed} failed")
-        logger.info(f"💾 Articles uploaded to MinIO during crawl")
+        logger.info("💾 Articles uploaded to MinIO during crawl")
 
         # Chain to embedding task for vector embedding and Milvus insertion
         if successful > 0:
@@ -228,7 +222,7 @@ def crawl_article_content_task(self, previous_task_result: dict) -> dict:
         }
 
 
-@celery_app.task(bind=True, name="crawler.crawl_full_pipeline", queue="crawler")
+@shared_task(bind=True, name="crawler.crawl_full_pipeline", queue="crawler")
 def crawl_full_pipeline_task(self) -> dict:
     """
     Celery task to run the full crawling pipeline SEQUENTIALLY.

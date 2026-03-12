@@ -1,7 +1,6 @@
 import base64
 from langchain_core.messages import SystemMessage, HumanMessage
 
-
 TOPIC = "CTCP Tập đoàn Hòa Phát (HPG) trong quý 3 năm 2025"
 
 RESEARCH_QUESTION = "Vui lòng giúp tôi viết một báo cáo nghiên cứu chi tiết về tài chính doanh nghiệp của {TOPIC}, trong đó nội dung cần phong phú cả về phần văn bản lẫn các biểu đồ. Hãy cung cấp danh mục trích dẫn theo chuẩn ở cuối báo cáo (bao gồm số thứ tự và các tài liệu tham khảo tương ứng)."

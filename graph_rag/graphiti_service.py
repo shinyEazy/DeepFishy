@@ -265,8 +265,7 @@ class GraphitiService:
         try:
             driver = self.graphiti.driver
             async with driver.session() as session:
-                result = await session.run(
-                    """
+                result = await session.run("""
                     MATCH (n:Entity)
                     RETURN n.uuid as uuid, 
                            n.name as name, 
@@ -274,8 +273,7 @@ class GraphitiService:
                            labels(n) as labels,
                            n.created_at as created_at
                     ORDER BY n.created_at DESC
-                """
-                )
+                """)
 
                 entities = []
                 async for record in result:

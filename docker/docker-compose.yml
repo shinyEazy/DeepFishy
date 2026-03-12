@@ -5,7 +5,7 @@ services:
     image: postgres:15-alpine
     container_name: postgres
     ports:
-      - "2345:5432"
+      - "1212:5432"
     environment:
       - POSTGRES_DB=deepfishy
       - POSTGRES_USER=${POSTGRES_USER}
@@ -26,7 +26,7 @@ services:
     image: redis:7-alpine
     container_name: redis
     ports:
-      - "6379:6379"
+      - "1213:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -37,77 +37,77 @@ services:
     networks:
       - deepfishy
 
-  # celery_worker:
-  #   build:
-  #     context: ..
-  #     dockerfile: docker/Dockerfile
-  #   container_name: celery_worker
-  #   command: celery -A celery_app worker --loglevel=info --concurrency=2 -Q crawler,ingestion,celery
-  #   environment:
-  #     - PYTHONUNBUFFERED=1
-  #     - PYTHONPATH=/app
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     minio:
-  #       condition: service_healthy
-  #     milvus:
-  #       condition: service_healthy
-  #   volumes:
-  #     - ../api:/app/api
-  #     - ../core:/app/core
-  #     - ../db:/app/db
-  #     - ../engine:/app/engine
-  #     - ../ingestion:/app/ingestion
-  #     - ../services:/app/services
-  #     - ../utils:/app/utils
-  #     - ../worker:/app/worker
-  #     - ../configs:/app/configs
-  #     - ../main.py:/app/main.py
-  #     - ../celery_app.py:/app/celery_app.py
-  #     - ../data:/app/data
-  #     - ../outputs:/app/outputs
-  #   networks:
-  #     - deepfishy
+  celery_worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: celery_worker
+    command: celery -A celery_app worker --loglevel=info --concurrency=2 -Q crawler,ingestion,celery
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+    volumes:
+      - ../api:/app/api
+      - ../core:/app/core
+      - ../db:/app/db
+      - ../engine:/app/engine
+      - ../ingestion:/app/ingestion
+      - ../services:/app/services
+      - ../utils:/app/utils
+      - ../worker:/app/worker
+      - ../configs:/app/configs
+      - ../main.py:/app/main.py
+      - ../celery_app.py:/app/celery_app.py
+      - ../data:/app/data
+      - ../outputs:/app/outputs
+    networks:
+      - deepfishy
 
-  # celery_beat:
-  #   build:
-  #     context: ..
-  #     dockerfile: docker/Dockerfile
-  #   container_name: celery_beat
-  #   command: celery -A celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
-  #   environment:
-  #     - PYTHONUNBUFFERED=1
-  #     - PYTHONPATH=/app
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     minio:
-  #       condition: service_healthy
-  #     milvus:
-  #       condition: service_healthy
-  #   volumes:
-  #     - ../api:/app/api
-  #     - ../core:/app/core
-  #     - ../db:/app/db
-  #     - ../engine:/app/engine
-  #     - ../ingestion:/app/ingestion
-  #     - ../services:/app/services
-  #     - ../utils:/app/utils
-  #     - ../worker:/app/worker
-  #     - ../configs:/app/configs
-  #     - ../main.py:/app/main.py
-  #     - ../celery_app.py:/app/celery_app.py
-  #   networks:
-  #     - deepfishy
+  celery_beat:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: celery_beat
+    command: celery -A celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+    volumes:
+      - ../api:/app/api
+      - ../core:/app/core
+      - ../db:/app/db
+      - ../engine:/app/engine
+      - ../ingestion:/app/ingestion
+      - ../services:/app/services
+      - ../utils:/app/utils
+      - ../worker:/app/worker
+      - ../configs:/app/configs
+      - ../main.py:/app/main.py
+      - ../celery_app.py:/app/celery_app.py
+    networks:
+      - deepfishy
 
   server:
     build:
@@ -121,7 +121,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8000:8000"
+      - "1214:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -155,8 +155,8 @@ services:
     image: minio/minio:latest
     container_name: minio
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "1215:9000"
+      - "1216:9001"
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=minioadmin
@@ -180,7 +180,7 @@ services:
       - ETCD_QUOTA_BACKEND_BYTES=4294967296
       - ETCD_SNAPSHOT_COUNT=50000
     ports:
-      - "2379:2379"
+      - "1217:2379"
     volumes:
       - etcd_data:/etcd
     command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
@@ -197,8 +197,8 @@ services:
     image: milvusdb/milvus:latest
     container_name: milvus
     ports:
-      - "19530:19530"
-      - "9091:9091"
+      - "1218:19530"
+      - "1219:9091"
     environment:
       - COMMON_STORAGETYPE=local
       - ETCD_ENDPOINTS=etcd:2379
@@ -221,7 +221,7 @@ services:
     image: zilliz/attu:latest
     container_name: milvus_webui
     ports:
-      - "8001:3000"
+      - "1220:3000"
     environment:
       - MILVUS_URL=milvus:19530
     depends_on:
@@ -231,13 +231,13 @@ services:
       - deepfishy
 
   neo4j:
-    image: neo4j:5-community
+    image: neo4j:2026.02
     container_name: neo4j
     ports:
-      - "7474:7474" # HTTP Browser
-      - "7687:7687" # Bolt Protocol
+      - "1221:7474" # HTTP Browser
+      - "1222:7687" # Bolt Protocol
     environment:
-      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-password}
+      - NEO4J_AUTH=${NEO4J_USER}/${NEO4J_PASSWORD}
       - NEO4J_PLUGINS=["apoc"]
       - NEO4J_apoc_export_file_enabled=true
       - NEO4J_apoc_import_file_enabled=true

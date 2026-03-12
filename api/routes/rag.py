@@ -11,7 +11,6 @@ from api.schemas.rag import (
 from services.rag import get_rag_service
 from core.logging import logger
 
-
 router = APIRouter(prefix="/rag", tags=["RAG"])
 
 

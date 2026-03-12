@@ -11,13 +11,10 @@ from api.schemas.chat import (
     ChatResponse,
     ConversationDetail,
     ConversationListResponse,
-    ConversationSummary,
     DeleteConversationResponse,
-    ChatMessage,
 )
 from services.chat import ChatService
 from core.logging import logger
-
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 

@@ -20,7 +20,6 @@ from graph_rag.graphiti_service import (
     reset_graphiti_service,
 )
 
-
 load_dotenv()
 
 ENABLE_DISK_BACKEND = "true"

@@ -21,7 +21,6 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from enum import Enum
 
-
 # =============================================================================
 # ENUMS - Preventing string variations, ensuring consistent values
 # =============================================================================

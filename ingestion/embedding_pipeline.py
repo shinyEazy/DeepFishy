@@ -1,6 +1,4 @@
-"""Embedding pipeline for processing articles and preparing them for Milvus insertion."""
-
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Tuple
 
 from core.logging import logger
 from services.embeddings import ChunkedArticle
@@ -50,7 +48,7 @@ class EmbeddingPipeline:
         try:
             # Validate article
             if not self._validate_article(article):
-                error = f"Invalid article: missing required fields"
+                error = "Invalid article: missing required fields"
                 logger.warning(error)
                 errors.append(error)
                 return [], errors
@@ -119,7 +117,9 @@ class EmbeddingPipeline:
             f"✓ Processed {len(articles)} articles → {len(all_chunked_articles)} chunks"
         )
         if all_errors:
-            logger.warning(f"⚠️  Encountered {len(all_errors)} errors during processing")
+            logger.warning(
+                f"⚠️  Encountered {len(all_errors)} errors during processing"
+            )
 
         return all_chunked_articles, all_errors
 
