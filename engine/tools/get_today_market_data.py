@@ -1,10 +1,10 @@
-from typing import Literal
 from langchain_core.tools import tool
 from vnstock import Quote
 from datetime import datetime
 
 
 def get_current_date():
+    """Return the current date as a YYYY-MM-DD string."""
     try:
         return datetime.now().strftime("%Y-%m-%d")
     except Exception as exc:
