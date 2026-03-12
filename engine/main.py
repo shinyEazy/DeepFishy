@@ -342,11 +342,16 @@ if __name__ == "__main__":
         help="Phase to run: 'build' for Graph RAG building with Graphiti, 'write' for Report writing. If not specified, runs both in sequence.",
     )
     parser.add_argument(
-        "--input", type=str, default=None, help="User input/query for the agent"
+        "--topic", type=str, default=None, help="User input/query for the agent"
     )
     args = parser.parse_args()
 
-    phases = [args.phase] if args.phase else None
-    user_input = args.input or "Báo cáo tài chính về VNINDEX tháng 12/2025"
+    input_template = "Hãy giúp tôi viết một báo cáo nghiên cứu chi tiết về tài chính doanh nghiệp của {topic}. Báo cáo cần phong phú cả về nội dung văn bản lẫn các biểu đồ minh họa. Đồng thời, hãy cung cấp danh mục trích dẫn tài liệu tham khảo theo chuẩn ở cuối báo cáo (bao gồm số thứ tự và các nguồn tài liệu tương ứng)."
 
+    phases = [args.phase] if args.phase else None
+    topic = (
+        args.topic or "Ngân hàng TMCP Quân đội (MBBank - MBB) trong quý 4 năm 2025"
+    )
+    user_input = input_template.format(topic=topic)
+    
     run_engine(user_input=user_input, phases=phases)
