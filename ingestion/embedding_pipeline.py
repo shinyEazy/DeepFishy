@@ -1,8 +1,8 @@
 from typing import List, Dict, Tuple
 
 from core.logging import logger
-from services.embeddings import ChunkedArticle
 from embedding.base_embedding import BaseEmbedding
+from services.embeddings import ChunkedArticle
 from services.milvus import MilvusService
 
 
@@ -59,11 +59,7 @@ class EmbeddingPipeline:
             else:
                 from services.embeddings import EmbeddingService
 
-                # Create a minimal EmbeddingService instance just for chunking
-                # The api_url is not used for chunking, only for embedding
-                chunking_svc = EmbeddingService(
-                    api_url="unused", timeout=60, max_retries=1
-                )
+                chunking_svc = EmbeddingService()
                 chunked_articles = chunking_svc.process_article(article)
 
             if not chunked_articles:

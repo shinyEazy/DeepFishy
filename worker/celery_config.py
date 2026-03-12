@@ -1,5 +1,3 @@
-"""Celery configuration with scheduled tasks."""
-
 import os
 from datetime import timedelta
 
