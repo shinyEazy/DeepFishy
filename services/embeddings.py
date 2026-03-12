@@ -1,14 +1,7 @@
-"""Embedding service for text vectorization via remote API (Kaggle + ngrok)."""
-
 import hashlib
-import json
 from datetime import datetime
-from typing import List, Dict, Any
 from dataclasses import dataclass
-
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+from typing import List, Dict, Any
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from core.logging import logger
@@ -29,45 +22,27 @@ class ChunkedArticle:
 
 
 class EmbeddingService:
-    """Service for text embedding via remote API (Kaggle + ngrok)."""
+    """Service for chunking articles into Milvus-ready pieces.
 
-    def __init__(self, api_url: str, timeout: int = 60, max_retries: int = 3):
-        """
-        Initialize remote embedding service.
+    Handles fixed-size field allocation per chunk:
+    - Title:   max 256 chars
+    - Sapo:    max 768 chars
+    - Content: max 1024 chars (per chunk)
+    - Total:   ~2048 chars per chunk
 
-        Args:
-            api_url: URL of the remote embedding API endpoint (required)
-            timeout: Request timeout in seconds
-            max_retries: Maximum number of retry attempts
-        """
-        self.api_url = api_url
-        self.timeout = timeout
-        self.max_retries = max_retries
-        self.embedding_dim = 1024
+    Embedding is delegated to the embedding provider (e.g. Gemini API)
+    via the BaseEmbedding interface — this service does NOT call any
+    embedding API itself.
+    """
 
-        self.session = self._create_session()
+    def __init__(self):
         self.splitter = RecursiveCharacterTextSplitter(
             chunk_size=1024,
             chunk_overlap=102,
             separators=["\n\n", "\n", ". ", " ", ""],
             length_function=len,
         )
-
-        logger.info(f"Initialized EmbeddingService with API URL {api_url}")
-
-    def _create_session(self) -> requests.Session:
-        """Create HTTP session with retry strategy."""
-        session = requests.Session()
-        retry_strategy = Retry(
-            total=self.max_retries,
-            backoff_factor=1,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["POST"],
-        )
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        session.mount("http://", adapter)
-        session.mount("https://", adapter)
-        return session
+        logger.info("Initialized EmbeddingService")
 
     def _parse_date(self, date_str: str) -> int:
         """
@@ -91,106 +66,18 @@ class EmbeddingService:
             )
             return int(datetime.now().timestamp())
 
-    def embed_texts(self, texts: List[str], batch_size: int = 32) -> List[List[float]]:
-        """
-        Generate embeddings for a list of texts via remote API.
-
-        Args:
-            texts: List of texts to embed
-            batch_size: Batch size for API calls (API may have limits)
-
-        Returns:
-            List of embedding vectors
-
-        Raises:
-            Exception: If API call fails after retries
-        """
-        if not texts:
-            return []
-
-        all_embeddings = []
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i : i + batch_size]
-            batch_embeddings = self._call_api(batch)
-            all_embeddings.extend(batch_embeddings)
-
-        return all_embeddings
-
-    def _call_api(self, texts: List[str]) -> List[List[float]]:
-        """
-        Call the remote embedding API.
-
-        Args:
-            texts: List of texts to embed
-
-        Returns:
-            List of embedding vectors
-
-        Raises:
-            Exception: If API call fails
-        """
-        try:
-            payload = {"text": texts}
-            response = self.session.post(
-                self.api_url,
-                json=payload,
-                headers={"Content-Type": "application/json"},
-                timeout=self.timeout,
-            )
-            response.raise_for_status()
-
-            result = response.json()
-
-            if isinstance(result, dict):
-                if "embeddings" in result:
-                    embeddings = result["embeddings"]
-                elif "data" in result:
-                    embeddings = result["data"]
-                elif "vectors" in result:
-                    embeddings = result["vectors"]
-                else:
-                    logger.warning(
-                        f"Unknown response format. Keys: {list(result.keys())}"
-                    )
-                    raise ValueError(f"Unexpected API response format: {result}")
-            elif isinstance(result, list):
-                embeddings = result
-            else:
-                raise ValueError(f"Unexpected API response format: {type(result)}")
-
-            if not isinstance(embeddings, list) or len(embeddings) != len(texts):
-                raise ValueError(
-                    f"API returned {len(embeddings) if isinstance(embeddings, list) else 'invalid'} embeddings for {len(texts)} texts"
-                )
-
-            if embeddings:
-                first_embedding = embeddings[0]
-                if not isinstance(first_embedding, (list, tuple)):
-                    raise ValueError(
-                        f"Invalid embedding format: {type(first_embedding)}"
-                    )
-
-            return embeddings
-
-        except requests.exceptions.RequestException as e:
-            logger.error(f"API request failed: {e}")
-            raise
-        except (ValueError, KeyError, json.JSONDecodeError) as e:
-            logger.error(f"Failed to parse API response: {e}")
-            raise
-
     def process_article(self, article_json: Dict[str, Any]) -> List[ChunkedArticle]:
         """
-        Process a single article with fixed-size field allocation.
+        Process a single article into chunked articles ready for embedding.
 
         Allocation strategy:
         - Title: max 256 chars (Vietnamese titles ~50-150 chars)
         - Sapo: max 768 chars (lead paragraph ~200-600 chars)
         - Content: max 1024 chars (article body chunks)
-        - Total: 2048 chars per chunk (fits easily in 8000 char Milvus limit)
+        - Total: ~2048 chars per chunk (fits easily in 8000 char Milvus limit)
 
         Args:
-            article_json: Article data from JSON
+            article_json: Article data from JSON.
                 Expected keys: url, title, sapo, content, date, category, tags
 
         Returns:
@@ -250,72 +137,3 @@ class EmbeddingService:
             f"Processed article {article_json['url']} - {len(chunked_articles)} chunks"
         )
         return chunked_articles
-
-    def process_articles_batch(
-        self, articles: List[Dict[str, Any]]
-    ) -> tuple[List[ChunkedArticle], List[List[float]]]:
-        """
-        Process a batch of articles and generate embeddings.
-
-        Args:
-            articles: List of article JSON objects
-
-        Returns:
-            Tuple of (chunked_articles, embeddings)
-        """
-        chunked_articles = []
-
-        for article in articles:
-            chunks = self.process_article(article)
-            chunked_articles.extend(chunks)
-
-        if not chunked_articles:
-            logger.warning("No chunks generated from batch")
-            return [], []
-
-        vector_sources = [chunk.vector_source for chunk in chunked_articles]
-        embeddings = self.embed_texts(vector_sources)
-
-        logger.info(
-            f"Processed batch: {len(articles)} articles → {len(chunked_articles)} chunks"
-        )
-        return chunked_articles, embeddings
-
-    def close(self):
-        """Close HTTP session."""
-        self.session.close()
-
-
-# if __name__ == "__main__":
-#     embedding_client = EmbeddingClient()
-#     chunked_articles, embeddings = embedding_client.process_articles_batch(
-#         [
-#             {
-#                 "url": "https://vnexpress.net/",
-#                 "title": "Title",
-#                 "sapo": "Sapo",
-#                 "content": "Content",
-#                 "date": "2022-01-01",
-#                 "category": "Category",
-#                 "tags": ["Tag1", "Tag2"],
-#             }
-#         ]
-#     )
-#     print(chunked_articles)
-#     print(embeddings)
-
-    # from google import genai
-
-    # client = genai.Client(api_key="AIzaSyAgzFxxbKbw1ME6QV4JJeOcA9Yk-3-a1zQ")
-
-    # result = client.models.embed_content(
-    #         model="gemini-embedding-001",
-    #         contents= [
-    #             "What is the meaning of life?",
-    #             "What is the purpose of existence?",
-    #             "How do I bake a cake?"
-    #         ]
-    # )
-
-    # for embedding in result.embeddings:
-    #     print(embedding)

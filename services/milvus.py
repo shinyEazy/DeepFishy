@@ -378,7 +378,7 @@ class MilvusService:
                 ]
 
                 # Insert into Milvus
-                mr = self.collection.insert(data)
+                self.collection.insert(data)
                 inserted_count = len(batch)
                 total_inserted += inserted_count
 

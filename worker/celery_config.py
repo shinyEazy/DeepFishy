@@ -1,5 +1,3 @@
-"""Celery configuration with scheduled tasks."""
-
 import os
 from datetime import timedelta
 
@@ -35,18 +33,18 @@ task_default_routing_key = "celery"
 worker_hijack_root_logger = False
 
 # Celery Beat schedule - periodic tasks
-# beat_schedule = {
-#     "crawl-article-urls-every-1-min": {
-#         "task": "crawler.crawl_article_urls",
-#         "schedule": timedelta(minutes=1),
-#         "options": {"queue": "crawler"},
-#     },
-# }
-
 beat_schedule = {
-    "crawl-article-urls-every-day": {
+    "crawl-article-urls-every-1-min": {
         "task": "crawler.crawl_article_urls",
-        "schedule": timedelta(days=1),
+        "schedule": timedelta(minutes=1),
         "options": {"queue": "crawler"},
     },
 }
+
+# beat_schedule = {
+#     "crawl-article-urls-every-day": {
+#         "task": "crawler.crawl_article_urls",
+#         "schedule": timedelta(days=1),
+#         "options": {"queue": "crawler"},
+#     },
+# }
