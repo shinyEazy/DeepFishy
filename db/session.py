@@ -46,7 +46,6 @@ def init_db() -> None:
     """
     try:
         from db.base import Base
-        from db.models import Conversation, Message, Article
 
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")

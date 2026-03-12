@@ -1,9 +1,6 @@
-"""Milvus vector database service."""
-
 import threading
 from typing import List, Dict, Any, Optional
 from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType
-from pymilvus.orm.index import Index
 
 from core.logging import logger
 from core.config import settings

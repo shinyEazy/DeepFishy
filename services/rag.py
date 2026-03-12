@@ -5,7 +5,6 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
 from core.logging import logger
-from core.config import settings
 from services.milvus import MilvusService
 from services.embedding_factory import get_embedding_provider, get_embedding_dim
 from embedding.base_embedding import BaseEmbedding

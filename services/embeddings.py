@@ -286,23 +286,23 @@ class EmbeddingService:
         self.session.close()
 
 
-if __name__ == "__main__":
-    embedding_client = EmbeddingClient()
-    chunked_articles, embeddings = embedding_client.process_articles_batch(
-        [
-            {
-                "url": "https://vnexpress.net/",
-                "title": "Title",
-                "sapo": "Sapo",
-                "content": "Content",
-                "date": "2022-01-01",
-                "category": "Category",
-                "tags": ["Tag1", "Tag2"],
-            }
-        ]
-    )
-    print(chunked_articles)
-    print(embeddings)
+# if __name__ == "__main__":
+#     embedding_client = EmbeddingClient()
+#     chunked_articles, embeddings = embedding_client.process_articles_batch(
+#         [
+#             {
+#                 "url": "https://vnexpress.net/",
+#                 "title": "Title",
+#                 "sapo": "Sapo",
+#                 "content": "Content",
+#                 "date": "2022-01-01",
+#                 "category": "Category",
+#                 "tags": ["Tag1", "Tag2"],
+#             }
+#         ]
+#     )
+#     print(chunked_articles)
+#     print(embeddings)
 
     # from google import genai
 

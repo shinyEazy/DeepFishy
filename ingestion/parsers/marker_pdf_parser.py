@@ -1,6 +1,6 @@
 """PDF parser using Marker - converts PDFs to markdown."""
 
-from typing import List, Optional
+from typing import List
 from pathlib import Path
 import tempfile
 import requests

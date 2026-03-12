@@ -1,6 +1,4 @@
-"""Pydantic schemas for RAG API endpoints."""
-
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 

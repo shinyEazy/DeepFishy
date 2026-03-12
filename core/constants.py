@@ -1,4 +1,3 @@
-# Crawler configuration
 CRAWLER_BASE_URL = "https://vneconomy.vn/"
 CRAWLER_PATHS = [
     "tieu-diem",

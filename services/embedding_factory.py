@@ -1,7 +1,5 @@
 """Factory for creating embedding providers from config.yaml."""
 
-from typing import Optional
-
 from embedding.base_embedding import BaseEmbedding
 from embedding.google_embedding import GoogleEmbedding
 from embedding.openai_embedding import OpenAIEmbedding

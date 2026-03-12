@@ -1,11 +1,6 @@
-"""
-Enhanced PDF converter with support for images and charts.
-"""
-
 import os
 import re
 from markdown_pdf import MarkdownPdf, Section
-from typing import Optional
 
 
 def convert_md_to_pdf(md_content: str, output_path: str) -> None:

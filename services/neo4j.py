@@ -1,8 +1,4 @@
-"""Neo4j database service for knowledge graph operations."""
-
-import os
 from typing import Optional, List, Dict, Any
-from contextlib import contextmanager
 import threading
 
 from neo4j import GraphDatabase, Driver

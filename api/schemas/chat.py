@@ -1,5 +1,3 @@
-"""Pydantic schemas for Chat API endpoints."""
-
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field

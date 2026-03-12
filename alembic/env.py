@@ -13,7 +13,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 # Import app configuration and models
 from core.config import settings
 from db.base import Base
-from db.models import Conversation, Message, Article
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

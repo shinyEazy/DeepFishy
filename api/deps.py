@@ -1,8 +1,3 @@
-"""API dependencies."""
-
-from typing import Generator
-from sqlalchemy.orm import Session
-
 from db.session import get_db
 
 # Export get_db for easy import
