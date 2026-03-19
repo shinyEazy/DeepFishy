@@ -89,14 +89,16 @@ def validate_drafts(workspace_path: str) -> Dict[str, object]:
         image_refs = re.findall(r"!\[.*?\]\((.*?)\)", content)
         for img_ref in image_refs:
             # Resolve relative paths
-            if img_ref.startswith("./"):
-                img_path = os.path.join(workspace_path, img_ref[2:])
-            elif img_ref.startswith("/"):
-                img_path = os.path.join(workspace_path, img_ref[1:])
-            elif not os.path.isabs(img_ref):
-                img_path = os.path.join(workspace_path, img_ref)
-            else:
+            if os.path.isabs(img_ref):
                 img_path = img_ref
+            else:
+                # Treat paths starting with '/' as relative to workspace and resolve '..'
+                img_path = os.path.abspath(os.path.join(workspace_path, img_ref.lstrip('/')))
+                # Prevent path traversal
+                if not img_path.startswith(os.path.abspath(workspace_path)):
+                    warnings.append(f"{section_name}: Image path outside workspace: {img_ref}")
+                    section_result["issues"].append(f"Image path outside workspace: {img_ref}")
+                    continue
 
             if not os.path.exists(img_path):
                 section_result["issues"].append(f"Image not found: {img_ref}")
