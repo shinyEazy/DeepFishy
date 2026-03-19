@@ -2,7 +2,7 @@ name: deepfishy
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:15
     container_name: postgres
     ports:
       - "1212:5432"
@@ -37,77 +37,77 @@ services:
     networks:
       - deepfishy
 
-  # celery_worker:
-  #   build:
-  #     context: ..
-  #     dockerfile: docker/Dockerfile
-  #   container_name: celery_worker
-  #   command: celery -A celery_app worker --loglevel=info --concurrency=2 -Q crawler,ingestion,celery
-  #   environment:
-  #     - PYTHONUNBUFFERED=1
-  #     - PYTHONPATH=/app
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     minio:
-  #       condition: service_healthy
-  #     milvus:
-  #       condition: service_healthy
-  #   volumes:
-  #     - ../api:/app/api
-  #     - ../core:/app/core
-  #     - ../db:/app/db
-  #     - ../engine:/app/engine
-  #     - ../ingestion:/app/ingestion
-  #     - ../services:/app/services
-  #     - ../utils:/app/utils
-  #     - ../worker:/app/worker
-  #     - ../configs:/app/configs
-  #     - ../main.py:/app/main.py
-  #     - ../celery_app.py:/app/celery_app.py
-  #     - ../data:/app/data
-  #     - ../outputs:/app/outputs
-  #   networks:
-  #     - deepfishy
+  celery_worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: celery_worker
+    command: celery -A celery_app worker --loglevel=info --concurrency=2 -Q crawler,ingestion,celery
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+    volumes:
+      - ../api:/app/api
+      - ../core:/app/core
+      - ../db:/app/db
+      - ../engine:/app/engine
+      - ../ingestion:/app/ingestion
+      - ../services:/app/services
+      - ../utils:/app/utils
+      - ../worker:/app/worker
+      - ../configs:/app/configs
+      - ../main.py:/app/main.py
+      - ../celery_app.py:/app/celery_app.py
+      - ../data:/app/data
+      - ../outputs:/app/outputs
+    networks:
+      - deepfishy
 
-  # celery_beat:
-  #   build:
-  #     context: ..
-  #     dockerfile: docker/Dockerfile
-  #   container_name: celery_beat
-  #   command: celery -A celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
-  #   environment:
-  #     - PYTHONUNBUFFERED=1
-  #     - PYTHONPATH=/app
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     minio:
-  #       condition: service_healthy
-  #     milvus:
-  #       condition: service_healthy
-  #   volumes:
-  #     - ../api:/app/api
-  #     - ../core:/app/core
-  #     - ../db:/app/db
-  #     - ../engine:/app/engine
-  #     - ../ingestion:/app/ingestion
-  #     - ../services:/app/services
-  #     - ../utils:/app/utils
-  #     - ../worker:/app/worker
-  #     - ../configs:/app/configs
-  #     - ../main.py:/app/main.py
-  #     - ../celery_app.py:/app/celery_app.py
-  #   networks:
-  #     - deepfishy
+  celery_beat:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: celery_beat
+    command: celery -A celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+    volumes:
+      - ../api:/app/api
+      - ../core:/app/core
+      - ../db:/app/db
+      - ../engine:/app/engine
+      - ../ingestion:/app/ingestion
+      - ../services:/app/services
+      - ../utils:/app/utils
+      - ../worker:/app/worker
+      - ../configs:/app/configs
+      - ../main.py:/app/main.py
+      - ../celery_app.py:/app/celery_app.py
+    networks:
+      - deepfishy
 
   server:
     build:
@@ -152,7 +152,7 @@ services:
       - deepfishy
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: minio
     ports:
       - "1215:9000"
@@ -194,7 +194,7 @@ services:
       - deepfishy
 
   milvus:
-    image: milvusdb/milvus:latest
+    image: milvusdb/milvus:2.6-20260319-27c9122b
     container_name: milvus
     ports:
       - "1218:19530"
@@ -218,7 +218,7 @@ services:
       - deepfishy
 
   milvus_webui:
-    image: zilliz/attu:latest
+    image: zilliz/attu:v2.6
     container_name: milvus_webui
     ports:
       - "1220:3000"

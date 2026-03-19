@@ -22,7 +22,8 @@ class WriterOrchestrator:
     4. Write sections:
        - Informational: Direct writing
        - Analysis: Bull/Bear debate -> Synthesis
-    5. Fill in report content with charts
+    5. Critique and revise weak sections
+    6. Fill in report content with charts
 
     Example:
         >>> orchestrator = WriterOrchestrator(model)
@@ -34,6 +35,7 @@ class WriterOrchestrator:
     SUBAGENT_NAMES = [
         "bull_agent",
         "bear_agent",
+        "critique_agent",
         # synthesizer_agent is now SynthesizerOrchestrator (CompiledSubAgent)
         # chart_generator is now a subagent of SynthesizerOrchestrator
     ]
@@ -51,9 +53,9 @@ class WriterOrchestrator:
 
     def create(self):
         """Create and return the orchestrator agent."""
-        # Load markdown-based subagents
+        # Load subagents
         subagents = load_agents(names=self.SUBAGENT_NAMES)
-        logger.info(f"Report Writer: Loaded {len(subagents)} markdown subagent(s)")
+        logger.info(f"Report Writer: Loaded {len(subagents)} subagent(s)")
 
         # Add SynthesizerOrchestrator as a CompiledSubAgent
         synth_orchestrator = SynthesizerOrchestrator(

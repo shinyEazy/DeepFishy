@@ -11,6 +11,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from core.logging import logger
 from engine.orchestrators.writer import create_writer_orchestrator
 from engine.orchestrators.builder import create_builder_orchestrator
+from engine.tools.validate_drafts import validate_drafts
 
 from utils.load_config import get_default_llm_name
 from utils.model_factory import create_llm_client
@@ -262,9 +263,18 @@ def run_engine(
             agent_duration = time.time() - agent_start_time
             logger.info(f"⏱️ Agent invocation completed in {agent_duration:.2f}s")
 
-            # After write phase, concatenate section drafts into final.md
+            # After write phase, validate and concatenate section drafts into final.md
             if current_phase == "write" and hasattr(agent, "_workspace_path"):
                 try:
+                    # Validate drafts before concatenation
+                    validation = validate_drafts(agent._workspace_path)
+                    if validation["warnings"]:
+                        for w in validation["warnings"]:
+                            logger.warning(f"Draft validation: {w}")
+                    if validation["errors"]:
+                        for e in validation["errors"]:
+                            logger.error(f"Draft validation: {e}")
+
                     final_path = _concatenate_drafts_to_final(agent._workspace_path)
                     if final_path:
                         logger.info(f"✅ Created final report: {final_path}")
@@ -349,9 +359,7 @@ if __name__ == "__main__":
     input_template = "Hãy giúp tôi viết một báo cáo nghiên cứu chi tiết về tài chính doanh nghiệp của {topic}. Báo cáo cần phong phú cả về nội dung văn bản lẫn các biểu đồ minh họa. Đồng thời, hãy cung cấp danh mục trích dẫn tài liệu tham khảo theo chuẩn ở cuối báo cáo (bao gồm số thứ tự và các nguồn tài liệu tương ứng)."
 
     phases = [args.phase] if args.phase else None
-    topic = (
-        args.topic or "Ngân hàng TMCP Quân đội (MBBank - MBB) trong quý 4 năm 2025"
-    )
+    topic = args.topic or "Ngân hàng TMCP Quân đội (MBBank - MBB) trong quý 4 năm 2025"
     user_input = input_template.format(topic=topic)
-    
+
     run_engine(user_input=user_input, phases=phases)

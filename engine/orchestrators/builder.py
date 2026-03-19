@@ -21,6 +21,7 @@ from engine.tools.search_and_build_graph import (
     set_current_session_id,
 )
 from engine.tools.list_kg_communities import list_kg_communities
+from engine.tools.search_engine_tavily import search_engine_tavily
 
 
 class BuilderOrchestrator:
@@ -41,7 +42,6 @@ class BuilderOrchestrator:
     # Pipeline configuration
     MAX_ITERATIONS = 5
     CHUNKS_PER_QUERY = 5
-    COVERAGE_THRESHOLD = 0.8
 
     # Subagents for research phase
     SUBAGENT_NAMES = []
@@ -109,6 +109,7 @@ class BuilderOrchestrator:
         tools = [
             search_and_build_graph,
             list_kg_communities,
+            search_engine_tavily,
         ]
 
         agent = create_deep_agent(
