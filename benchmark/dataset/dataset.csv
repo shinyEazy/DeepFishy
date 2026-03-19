@@ -1,6 +1,21 @@
-id,type,topic,golden_report_path
-1,company,Ngân hàng TMCP Quân đội (MBBank - MBB) trong quý 4 năm 2025,mbb_q4_2025.pdf
-2,company,CTCP Tập đoàn Hòa Phát (HPG) trong quý 3 năm 2025,hpg_q3_2025.pdf
-3,company,Công ty Cổ phần Sữa Việt Nam (Vinamilk - VNM) trong quý 4 năm 2025,vinamilk_q4_2025.pdf
-4,industry,Ngành chứng khoán Việt Nam trong quý 3 năm 2025,securities_industry_q3_2025.pdf
-5,industry,Ngành ngân hàng Việt Nam trong quý 4 năm 2025,banking_industry_q4_2025.pdf
+ID,Type,Topic,Golden_Report_Path
+1,company,Ngân hàng TMCP Quân đội (MBBank – MBB) trong giai đoạn 2025–2026,mbb.pdf
+2,company,CTCP Tập đoàn Hòa Phát (HPG) trong giai đoạn 2025–2026,hpg.pdf
+3,company,Công ty Cổ phần Sữa Việt Nam (Vinamilk – VNM) trong giai đoạn 2025–2026,vnm.pdf
+4,company,Tình hình kinh doanh của FPT 9 tháng đầu năm 2023 và kỳ vọng năm 2024,fpt.pdf
+5,company,"Báo cáo doanh thu, lợi nhuận của Nhựa Bình Minh (BMP) thời điểm cuối năm 2025",bmp.pdf
+6,company,Tình hình tài chính của Thế Giới Di Động (MWG) cuối năm 2022,mwg.pdf
+7,company,Tình hình làm ăn của Techcombank (TCB) sau 9 tháng đầu năm 2024,tcb.pdf
+8,company,Tình hình tài chính của Đông Hải Bến Tre (DHC) cuối năm 2025,dhc.pdf
+9,company,Báo cáo kết quả kinh doanh quý 3/2025 của Ngân hàng TMCP Sài Gòn Thương Tín (STB),stb.pdf
+10,company,Tình hình kinh doanh của Tập đoàn Công nghiệp Cao su Việt Nam (GVR) cuối năm 2025,gvr.pdf
+11,industry,Triển vọng làm ăn của các công ty công nghệ và viễn thông Việt Nam năm 2024,tech_industry.pdf
+12,industry,Ngành ngân hàng Việt Nam trong quý 4 năm 2025,banking_industry.pdf
+13,industry,Ngành chứng khoán Việt Nam trong quý 3 năm 2025,stock_industry.pdf
+14,industry,Báo cáo ngành xây dựng và vật liệu xây dựng,construction_and_construction_materials_industry.pdf
+15,industry,Báo cáo ngành dầu khí Việt Nam,oil_and_gas_industry.pdf
+16,industry,Báo cáo ngành hàng không Việt Nam,aviation_industry.pdf
+17,industry,Báo cáo ngành tiêu dùng và bán lẻ Việt Nam,consumer_and_retail_industry.pdf
+18,industry,Báo cáo ngành điện Việt Nam,power_industry.pdf
+19,industry,Báo cáo ngành thép Việt Nam,steel_industry.pdf
+20,industry,Báo cáo ngành bán lẻ Việt Nam,retail_industry.pdf
