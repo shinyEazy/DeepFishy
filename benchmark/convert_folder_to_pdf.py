@@ -13,10 +13,10 @@ def main():
         description="Convert all .md files in a folder to .pdf in the same folder."
     )
     parser.add_argument(
-        "--folder", 
-        type=str, 
-        required=True, 
-        help="Path to the folder containing .md files"
+        "--folder",
+        type=str,
+        required=True,
+        help="Path to the folder containing .md files",
     )
     args = parser.parse_args()
 
@@ -27,7 +27,7 @@ def main():
 
     # Find all .md files in the folder (not recursive)
     md_files = list(folder_path.glob("*.md"))
-    
+
     if not md_files:
         print(f"No .md files found in {args.folder}")
         return
@@ -36,18 +36,19 @@ def main():
 
     for md_path in md_files:
         pdf_path = md_path.with_suffix(".pdf")
-        
+
         print(f"Converting: {md_path.name} -> {pdf_path.name}")
-        
+
         try:
             with open(md_path, "r", encoding="utf-8") as f:
                 md_content = f.read()
-            
+
             convert_md_to_pdf(md_content, str(pdf_path))
         except Exception as e:
             print(f"Failed to convert {md_path.name}: {e}")
 
     print("Bulk conversion completed.")
+
 
 if __name__ == "__main__":
     main()

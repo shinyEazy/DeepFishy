@@ -10,15 +10,16 @@ def _format_markdown_content(md_content: str) -> str:
     """Format markdown content to fix common issues like source formatting."""
     # 1. Fix sources formatting
     # If citations are separated by single newlines, make them double so they render as separate paragraphs
-    content = re.sub(r'\n(\[\d+\]\s+)', r'\n\n\1', md_content)
-    
+    content = re.sub(r"\n(\[\d+\]\s+)", r"\n\n\1", md_content)
+
     # If citations are glued on the same line after a URL (common LLM artifact)
-    content = re.sub(r'(https?://[^\s]+)\s+(\[\d+\]\s+)', r'\1\n\n\2', content)
-    
+    content = re.sub(r"(https?://[^\s]+)\s+(\[\d+\]\s+)", r"\1\n\n\2", content)
+
     # If citations are glued after a period
-    content = re.sub(r'(\.\s+)(\[\d+\]\s+)', r'\1\n\n\2', content)
+    content = re.sub(r"(\.\s+)(\[\d+\]\s+)", r"\1\n\n\2", content)
 
     return content
+
 
 def convert_md_to_pdf(md_content: str, output_path: str) -> None:
     """
@@ -34,13 +35,14 @@ def convert_md_to_pdf(md_content: str, output_path: str) -> None:
 
         # Convert Markdown to HTML
         # Using extensions for tables, fenced code, and attributes (common in MD)
-        extensions = ['extra', 'tables', 'fenced_code', 'toc', 'attr_list']
+        extensions = ["extra", "tables", "fenced_code", "toc", "attr_list"]
         html_content = markdown.markdown(md_content, extensions=extensions)
 
         # Define CSS for Vietnamese fonts and basic styling
         # Using Noto Sans as primary font for better Vietnamese support
         font_config = FontConfiguration()
-        css = CSS(string="""
+        css = CSS(
+            string="""
             @page {
                 margin: 2cm;
                 @bottom-right {
@@ -102,7 +104,9 @@ def convert_md_to_pdf(md_content: str, output_path: str) -> None:
                 color: #666;
                 font-style: italic;
             }
-        """, font_config=font_config)
+        """,
+            font_config=font_config,
+        )
 
         # Ensure output directory exists
         output_dir = os.path.dirname(output_path)
@@ -112,11 +116,9 @@ def convert_md_to_pdf(md_content: str, output_path: str) -> None:
         # Generate PDF
         # base_url allows WeasyPrint to resolve relative image paths from the current working directory
         HTML(string=html_content, base_url=os.getcwd()).write_pdf(
-            output_path, 
-            stylesheets=[css], 
-            font_config=font_config
+            output_path, stylesheets=[css], font_config=font_config
         )
-        
+
         print(f"PDF generated successfully at: {output_path}")
 
     except Exception as e:
@@ -132,18 +134,21 @@ def convert_md_to_pdf(md_content: str, output_path: str) -> None:
             raise
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--md_path", type=str, required=True, help="Path to markdown file")
-    parser.add_argument("--pdf_path", type=str, required=True, help="Path to output PDF file")
+    parser.add_argument(
+        "--md_path", type=str, required=True, help="Path to markdown file"
+    )
+    parser.add_argument(
+        "--pdf_path", type=str, required=True, help="Path to output PDF file"
+    )
     args = parser.parse_args()
-    
+
     if not os.path.exists(args.md_path):
         print(f"Error: Markdown file not found at {args.md_path}")
         exit(1)
-        
+
     with open(args.md_path, "r", encoding="utf-8") as f:
         md_content = f.read()
-    
+
     convert_md_to_pdf(md_content, args.pdf_path)
-    

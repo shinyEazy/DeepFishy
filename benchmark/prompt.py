@@ -227,25 +227,21 @@ def _pdf_content_block(pdf_bytes: bytes) -> dict:
 
 
 def format_evaluation_prompt(
-    research_question: str,
+    system_prompt: str,
     golden_pdf: bytes,
     report_pdfs: list[dict],
 ) -> list:
     """Build multimodal messages with PDF attachments for the LLM evaluation.
 
     Args:
-        research_question: The research question to evaluate against.
+        system_prompt: The formatted system prompt to use.
         golden_pdf: Raw bytes of the golden standard report PDF.
         report_pdfs: List of dicts with 'filename' (str) and 'pdf_bytes' (bytes).
 
     Returns:
         A list of LangChain message objects (SystemMessage, HumanMessage).
     """
-    system_msg = SystemMessage(
-        content=GOLDEN_REPORT_IRRELEVANT_METRICS_SYSTEM_PROMPT.format(
-            RESEARCH_QUESTION=research_question
-        )
-    )
+    system_msg = SystemMessage(content=system_prompt)
 
     # Build multimodal user message with PDF attachments
     content_blocks = []
@@ -255,53 +251,6 @@ def format_evaluation_prompt(
         {
             "type": "text",
             "text": "# [GOLDEN STANDARD REPORT]\nThe following PDF is the Golden Standard Report:",
-        }
-    )
-    content_blocks.append(_pdf_content_block(golden_pdf))
-
-    # Separator
-    content_blocks.append({"type": "text", "text": "\n---\n\n# [REPORTS TO EVALUATE]"})
-
-    # Candidate reports
-    for report in report_pdfs:
-        content_blocks.append(
-            {
-                "type": "text",
-                "text": f"\n## Report: `{report['filename']}`\nThe following PDF is this report:",
-            }
-        )
-        content_blocks.append(_pdf_content_block(report["pdf_bytes"]))
-
-    human_msg = HumanMessage(content=content_blocks)
-
-    return [system_msg, human_msg]
-
-
-def format_relevant_evaluation_prompt(
-    golden_pdf: bytes,
-    report_pdfs: list[dict],
-) -> list:
-    """Build multimodal messages with PDF attachments for the LLM evaluation of relevant metrics.
-
-    Args:
-        golden_pdf: Raw bytes of the golden standard report PDF.
-        report_pdfs: List of dicts with 'filename' (str) and 'pdf_bytes' (bytes).
-
-    Returns:
-        A list of LangChain message objects (SystemMessage, HumanMessage).
-    """
-    system_msg = SystemMessage(
-        content=GOLDEN_REPORT_RELEVANT_METRICS_SYSTEM_PROMPT
-    )
-
-    # Build multimodal user message with PDF attachments
-    content_blocks = []
-
-    # Golden standard report
-    content_blocks.append(
-        {
-            "type": "text",
-            "text": "# [GOLDEN STANDARD REPORT]\nThe following PDF is the Benchmark Report (`golden_report.pdf`):",
         }
     )
     content_blocks.append(_pdf_content_block(golden_pdf))

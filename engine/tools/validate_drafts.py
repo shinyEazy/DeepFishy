@@ -93,11 +93,17 @@ def validate_drafts(workspace_path: str) -> Dict[str, object]:
                 img_path = img_ref
             else:
                 # Treat paths starting with '/' as relative to workspace and resolve '..'
-                img_path = os.path.abspath(os.path.join(workspace_path, img_ref.lstrip('/')))
+                img_path = os.path.abspath(
+                    os.path.join(workspace_path, img_ref.lstrip("/"))
+                )
                 # Prevent path traversal
                 if not img_path.startswith(os.path.abspath(workspace_path)):
-                    warnings.append(f"{section_name}: Image path outside workspace: {img_ref}")
-                    section_result["issues"].append(f"Image path outside workspace: {img_ref}")
+                    warnings.append(
+                        f"{section_name}: Image path outside workspace: {img_ref}"
+                    )
+                    section_result["issues"].append(
+                        f"Image path outside workspace: {img_ref}"
+                    )
                     continue
 
             if not os.path.exists(img_path):
