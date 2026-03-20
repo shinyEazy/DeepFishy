@@ -1,39 +1,123 @@
 import os
 import re
-from markdown_pdf import MarkdownPdf, Section
+import argparse
+import markdown
+from weasyprint import HTML, CSS
+from weasyprint.text.fonts import FontConfiguration
 
+
+def _format_markdown_content(md_content: str) -> str:
+    """Format markdown content to fix common issues like source formatting."""
+    # 1. Fix sources formatting
+    # If citations are separated by single newlines, make them double so they render as separate paragraphs
+    content = re.sub(r'\n(\[\d+\]\s+)', r'\n\n\1', md_content)
+    
+    # If citations are glued on the same line after a URL (common LLM artifact)
+    content = re.sub(r'(https?://[^\s]+)\s+(\[\d+\]\s+)', r'\1\n\n\2', content)
+    
+    # If citations are glued after a period
+    content = re.sub(r'(\.\s+)(\[\d+\]\s+)', r'\1\n\n\2', content)
+
+    return content
 
 def convert_md_to_pdf(md_content: str, output_path: str) -> None:
     """
-    Convert markdown content to PDF with support for embedded images and charts.
+    Convert markdown content to PDF using WeasyPrint with support for Vietnamese fonts.
 
     Args:
-        md_content: Markdown content string (may contain image references)
+        md_content: Markdown content string
         output_path: Path where the PDF file will be saved
     """
     try:
-        # Process markdown to handle relative image paths
-        processed_content = _process_image_paths(md_content, output_path)
+        # Pre-format content for source lists
+        md_content = _format_markdown_content(md_content)
 
-        # Ensure markdown starts with a level 1 heading (required by markdown-pdf)
-        processed_content = _ensure_valid_markdown_hierarchy(processed_content)
+        # Convert Markdown to HTML
+        # Using extensions for tables, fenced code, and attributes (common in MD)
+        extensions = ['extra', 'tables', 'fenced_code', 'toc', 'attr_list']
+        html_content = markdown.markdown(md_content, extensions=extensions)
+
+        # Define CSS for Vietnamese fonts and basic styling
+        # Using Noto Sans as primary font for better Vietnamese support
+        font_config = FontConfiguration()
+        css = CSS(string="""
+            @page {
+                margin: 2cm;
+                @bottom-right {
+                    content: counter(page);
+                }
+            }
+            body {
+                font-family: "Noto Sans", "DejaVu Sans", Arial, sans-serif;
+                font-size: 12pt;
+                line-height: 1.6;
+                color: #333;
+                text-align: justify;
+            }
+            h1, h2, h3, h4, h5, h6 {
+                font-family: "Noto Sans", "DejaVu Sans", Arial, sans-serif;
+                color: #1a1a1a;
+                margin-top: 1em;
+                margin-bottom: 0.5em;
+            }
+            h1 { font-size: 24pt; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
+            h2 { font-size: 18pt; margin-top: 1.5em; }
+            h3 { font-size: 14pt; }
+            code {
+                font-family: "Noto Sans Mono", "DejaVu Sans Mono", monospace;
+                background-color: #f4f4f4;
+                padding: 2px 4px;
+                border-radius: 4px;
+            }
+            pre {
+                background-color: #f4f4f4;
+                padding: 1em;
+                border-radius: 8px;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 1em 0;
+            }
+            th, td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: left;
+            }
+            th {
+                background-color: #f2f2f2;
+            }
+            img {
+                max-width: 100%;
+                height: auto;
+                display: block;
+                margin: 1em auto;
+            }
+            blockquote {
+                border-left: 5px solid #ccc;
+                margin: 1.5em 10px;
+                padding: 0.5em 10px;
+                color: #666;
+                font-style: italic;
+            }
+        """, font_config=font_config)
 
         # Ensure output directory exists
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
 
-        # Create PDF with enhanced settings
-        try:
-            pdf = MarkdownPdf(toc_level=3)
-            pdf.add_section(Section(processed_content))
-            pdf.save(output_path)
-            print(f"PDF generated successfully at: {output_path}")
-        except Exception as e:
-            # If toc_level causes issues, try without it
-            print(f"Retrying PDF generation without TOC: {e}")
-            pdf = MarkdownPdf()
-            pdf.add_section(Section(processed_content))
-            pdf.save(output_path)
-            print(f"PDF generated successfully at: {output_path}")
+        # Generate PDF
+        # base_url allows WeasyPrint to resolve relative image paths from the current working directory
+        HTML(string=html_content, base_url=os.getcwd()).write_pdf(
+            output_path, 
+            stylesheets=[css], 
+            font_config=font_config
+        )
+        
+        print(f"PDF generated successfully at: {output_path}")
 
     except Exception as e:
         print(f"Error generating PDF: {e}")
@@ -48,117 +132,18 @@ def convert_md_to_pdf(md_content: str, output_path: str) -> None:
             raise
 
 
-def _ensure_valid_markdown_hierarchy(md_content: str) -> str:
-    """
-    Ensure markdown has proper heading hierarchy.
-    The markdown-pdf library requires:
-    1. Documents must start with # (level 1 heading)
-    2. Headings must not skip levels (e.g., # then ### is invalid)
-
-    Args:
-        md_content: Original markdown content
-
-    Returns:
-        Markdown content with valid hierarchy
-    """
-    lines = md_content.strip().split("\n")
-
-    if not lines:
-        return "# Báo Cáo Tài Chính\n\n"
-
-    result_lines = []
-    current_level = 0
-    title_added = False
-
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-
-        # Check if this is a heading line
-        if stripped.startswith("#"):
-            # Count heading level
-            level = 0
-            for char in stripped:
-                if char == "#":
-                    level += 1
-                else:
-                    break
-
-            heading_text = stripped[level:].strip()
-
-            # First heading must be level 1
-            if not title_added:
-                if level != 1:
-                    # Force first heading to be level 1
-                    result_lines.append(f"# {heading_text}")
-                    current_level = 1
-                else:
-                    result_lines.append(line)
-                    current_level = 1
-                title_added = True
-            else:
-                # Ensure we don't skip levels
-                # e.g., if current is 1, next can only be 1 or 2, not 3
-                max_allowed_level = current_level + 1
-
-                if level > max_allowed_level:
-                    # Adjust to max allowed level
-                    adjusted_level = max_allowed_level
-                    result_lines.append(("#" * adjusted_level) + " " + heading_text)
-                    current_level = adjusted_level
-                else:
-                    result_lines.append(line)
-                    current_level = level
-        else:
-            # Not a heading line
-            # If we haven't added a title yet and this is content, add default title
-            if not title_added and stripped:
-                result_lines.append("# Báo Cáo Tài Chính\n")
-                title_added = True
-                current_level = 1
-
-            result_lines.append(line)
-
-    # If no title was added at all, add one at the beginning
-    if not title_added:
-        result_lines.insert(0, "# Báo Cáo Tài Chính\n")
-
-    return "\n".join(result_lines)
-
-
-def _process_image_paths(md_content: str, output_path: str) -> str:
-    """
-    Process markdown content to convert relative image paths to absolute paths.
-
-    Args:
-        md_content: Original markdown content
-        output_path: Output PDF path (used to resolve relative paths)
-
-    Returns:
-        Processed markdown content with absolute image paths
-    """
-    # Find all image references in markdown: ![alt text](path)
-    image_pattern = r"!\[([^\]]*)\]\(([^\)]+)\)"
-
-    def replace_image_path(match):
-        alt_text = match.group(1)
-        image_path = match.group(2)
-
-        # Skip if already absolute path or URL
-        if image_path.startswith(("http://", "https://", "/", "file://")):
-            return match.group(0)
-
-        # Convert relative path to absolute
-        base_dir = os.getcwd()
-        abs_image_path = os.path.abspath(os.path.join(base_dir, image_path))
-
-        # Check if file exists
-        if os.path.exists(abs_image_path):
-            # Use file:// protocol for local files
-            abs_image_path = abs_image_path.replace("\\", "/")
-            return f"![{alt_text}](file:///{abs_image_path})"
-        else:
-            # Keep original if file doesn't exist
-            return match.group(0)
-
-    processed_content = re.sub(image_pattern, replace_image_path, md_content)
-    return processed_content
+if __name__=="__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--md_path", type=str, required=True, help="Path to markdown file")
+    parser.add_argument("--pdf_path", type=str, required=True, help="Path to output PDF file")
+    args = parser.parse_args()
+    
+    if not os.path.exists(args.md_path):
+        print(f"Error: Markdown file not found at {args.md_path}")
+        exit(1)
+        
+    with open(args.md_path, "r", encoding="utf-8") as f:
+        md_content = f.read()
+    
+    convert_md_to_pdf(md_content, args.pdf_path)
+    

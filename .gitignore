@@ -219,4 +219,4 @@ config.yaml
 outputs/
 benchmark/results/
 benchmark/golden_reports/
-benchmark/reports/
+benchmark/generated_reports/

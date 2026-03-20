@@ -5,6 +5,16 @@ FROM python:3.11-slim
 # Install system dependencies (keep curl only if you need it for healthchecks)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    fonts-roboto \
+    fonts-noto \
+    fonts-liberation \
+    fontconfig \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libharfbuzz-subset0 \
+    libjpeg62-turbo \
+    libopenjp2-7 \
+    libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
