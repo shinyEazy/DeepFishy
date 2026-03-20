@@ -13,7 +13,7 @@ report based on how effectively it addresses the central **Research Question**, 
 Standard Report** as a quality benchmark.
 
 # [INPUTS]
-* **Research Question:** {research_question}
+* **Research Question:** {RESEARCH_QUESTION}
 * **Golden Standard Report:** The first PDF attached below (labeled "GOLDEN STANDARD REPORT").
 * **Reports to Evaluate:** The subsequent PDFs attached below, each labeled with their report ID.
 
@@ -87,27 +87,27 @@ report as its report id.
     {{
       "report_id": "<filename>",
       "scores": {{
-        "information_richness": {{
+        "rich": {{
           "score": <1-10>,
           "rationale": "<one-sentence justification>"
         }},
-        "textual_faithfulness": {{
+        "faith": {{
           "score": <1-10>,
           "rationale": "<one-sentence justification>"
         }},
-        "text_image_coherence": {{
+        "t_i": {{
           "score": <1-10>,
           "rationale": "<one-sentence justification>"
         }},
-        "analytical_insight": {{
+        "ins": {{
           "score": <1-10>,
           "rationale": "<one-sentence justification>"
         }},
-        "structural_logic": {{
+        "logic": {{
           "score": <1-10>,
           "rationale": "<one-sentence justification>"
         }},
-        "chart_table_expressiveness": {{
+        "vis": {{
           "score": <1-10>,
           "rationale": "<one-sentence justification>"
         }}
@@ -122,7 +122,98 @@ Now start your evaluation of the given reports. Carefully read each report and g
 """
 
 GOLDEN_REPORT_RELEVANT_METRICS_SYSTEM_PROMPT = """
+**[ROLE]** 
+You are an expert financial analyst and editor, specializing in the comparative analysis of research
+reports.
 
+**[TASK]** 
+Your task is to rigorously evaluate a list of **Generated Reports** by comparing each one against
+a **Benchmark Report** (a professionally written 'gold standard'). You will assess each Generated Report's
+quality across three key dimensions on a scale of 1 to 10, producing a structured JSON output with scores and
+justifications.
+
+**[INPUTS]**
+1. **'Benchmark Report'**: A high-quality, professional research report that serves as the "gold standard" for
+this evaluation. All comparisons should be made against this document. The file name of the benchmark report
+begins with "golden_".
+2. **'Generated Reports'**: A list of one or more reports to be evaluated against the Benchmark Report.
+3. **'Report ID'**: An identifier for each Generated Report. Use the file name as the report ID.
+
+**[EVALUATION METHODOLOGY]**
+To ensure fairness and accuracy, you must follow this three-step process for **each Generated Report**:
+
+1. **Step 1: Establish the Benchmark (Internal Thought Process)**
+* For each of the three evaluation dimensions, first thoroughly analyze the **Benchmark Report**. Identify its
+key characteristics, depth, and quality to create a mental benchmark for what constitutes a score of **7**.
+
+2. **Step 2: Comparative Analysis (Internal Thought Process)**
+* Now, analyze the Generated Report. For each dimension, find concrete evidence (e.g., specific conclusions,
+data points included/omitted, linguistic style). * **Directly compare** this evidence against the benchmark
+established in Step 1. Note where the report meets, exceeds, or falls short of the Benchmark Report.
+
+3. **Step 3: Score and Justify (Final Output Generation)**
+* Based on the comparison in Step 2, assign a score from 1 to 10 for the dimension, following the 'SCORING
+GUIDELINES' below. * Write a **concise, one-sentence rationale** that justifies your score by referencing
+your comparative findings.
+
+**[SCORING GUIDELINES]**
+Adhere strictly to these principles to maintain objectivity:
+* **Benchmark-Based Scoring:**
+* **The Benchmark Report is the standard for a score of 7.**
+* A report demonstrating a **similar level of quality**, depth, and execution as the Benchmark Report on a specific
+dimension should receive a score of **7**.
+* Scores of **8-10** are reserved for reports that **demonstrably exceed** the Benchmark Report in that
+dimension (e.g., providing a more nuanced conclusion, broader data coverage, or more sophisticated language).
+* Scores of **1-6** indicate that the report **falls short** of the Benchmark Report's quality in that
+dimension, with the score reflecting the degree of the gap.
+* **Justification for Extremes:** Scores of **9-10** (exceptional) or **1-2** (critically flawed) require a particularly strong
+and specific justification in the rationale.
+
+**[EVALUATION FRAMEWORK & CRITERIA]**
+
+### **Dimension 1: Core Conclusion & Data Consistency (Score 1-10)**
+* **Definition:** Measures the alignment of the Generated Report's core thesis, key arguments, and supporting
+data points with those presented in the Benchmark Report.
+
+### **Dimension 2: Information Coverage (Score 1-10)**
+* **Definition:** Assesses the extent to which the Generated Report includes the key information points,
+topics, and analytical angles present in the Benchmark Report.
+
+### **Dimension 3: Professional Language & Tone (Score 1-10)**
+* **Definition:** Evaluates the linguistic quality of the Generated Report, using the Benchmark Report's
+writing style, tone, and vocabulary as the standard for professional financial analysis.
+
+**[OUTPUT FORMAT]**
+Provide your evaluation in the following strict JSON format. For each score, you
+must provide a brief, one-sentence rationale that explains the score relative to the benchmark. Do not add any
+conversational text outside of this structure.
+
+```json
+{{
+  "evaluations": [
+    {{
+      "report_id": "<filename>",
+      "scores": {{
+        "cons": {{
+          "score": <1-10>,
+          "rationale": "<one-sentence justification>"
+        }},
+        "cover": {{
+          "score": <1-10>,
+          "rationale": "<one-sentence justification>"
+        }},
+        "lang": {{
+          "score": <1-10>,
+          "rationale": "<one-sentence justification>"
+        }}
+      }},
+      "overall_average": <float>
+    }}
+  ]
+}}
+```
+
+Now start your evaluation of the given reports. Carefully read each report and give a score.
 """
 
 
@@ -152,7 +243,7 @@ def format_evaluation_prompt(
     """
     system_msg = SystemMessage(
         content=GOLDEN_REPORT_IRRELEVANT_METRICS_SYSTEM_PROMPT.format(
-            research_question=research_question
+            RESEARCH_QUESTION=research_question
         )
     )
 
@@ -164,6 +255,53 @@ def format_evaluation_prompt(
         {
             "type": "text",
             "text": "# [GOLDEN STANDARD REPORT]\nThe following PDF is the Golden Standard Report:",
+        }
+    )
+    content_blocks.append(_pdf_content_block(golden_pdf))
+
+    # Separator
+    content_blocks.append({"type": "text", "text": "\n---\n\n# [REPORTS TO EVALUATE]"})
+
+    # Candidate reports
+    for report in report_pdfs:
+        content_blocks.append(
+            {
+                "type": "text",
+                "text": f"\n## Report: `{report['filename']}`\nThe following PDF is this report:",
+            }
+        )
+        content_blocks.append(_pdf_content_block(report["pdf_bytes"]))
+
+    human_msg = HumanMessage(content=content_blocks)
+
+    return [system_msg, human_msg]
+
+
+def format_relevant_evaluation_prompt(
+    golden_pdf: bytes,
+    report_pdfs: list[dict],
+) -> list:
+    """Build multimodal messages with PDF attachments for the LLM evaluation of relevant metrics.
+
+    Args:
+        golden_pdf: Raw bytes of the golden standard report PDF.
+        report_pdfs: List of dicts with 'filename' (str) and 'pdf_bytes' (bytes).
+
+    Returns:
+        A list of LangChain message objects (SystemMessage, HumanMessage).
+    """
+    system_msg = SystemMessage(
+        content=GOLDEN_REPORT_RELEVANT_METRICS_SYSTEM_PROMPT
+    )
+
+    # Build multimodal user message with PDF attachments
+    content_blocks = []
+
+    # Golden standard report
+    content_blocks.append(
+        {
+            "type": "text",
+            "text": "# [GOLDEN STANDARD REPORT]\nThe following PDF is the Benchmark Report (`golden_report.pdf`):",
         }
     )
     content_blocks.append(_pdf_content_block(golden_pdf))

@@ -29,17 +29,20 @@ def print_results_table(results: dict):
         return
 
     dimensions = [
-        "information_richness",
-        "textual_faithfulness",
-        "text_image_coherence",
-        "analytical_insight",
-        "structural_logic",
-        "chart_table_expressiveness",
+        "cons",
+        "faith",
+        "t_i",
+        "rich",
+        "cover",
+        "ins",
+        "logic",
+        "lang",
+        "vis",
     ]
-    dim_short = ["InfoRich", "TextFaith", "TxtImg", "Insight", "Structure", "Charts"]
+    dim_short = ["Cons", "Faith", "T-I", "Rich", "Cover", "Ins", "Logic", "Lang", "Vis"]
 
     header = (
-        f"{'Report ID':<40} " + " ".join(f"{d:>10}" for d in dim_short) + f" {'AVG':>8}"
+        f"{'Report ID':<30} " + " ".join(f"{d:>5}" for d in dim_short) + f" {'AVG':>8}"
     )
     print("\n" + "=" * len(header))
     print("BENCHMARK EVALUATION RESULTS")
@@ -49,17 +52,17 @@ def print_results_table(results: dict):
 
     for ev in evaluations:
         report_id = ev.get("report_id", "unknown")
-        if len(report_id) > 38:
-            report_id = "..." + report_id[-35:]
+        if len(report_id) > 28:
+            report_id = "..." + report_id[-25:]
 
         scores_dict = ev.get("scores", {})
         scores = []
         for dim in dimensions:
             s = scores_dict.get(dim, {}).get("score", "-")
-            scores.append(f"{s:>10}")
+            scores.append(f"{s:>5}")
 
         avg = ev.get("overall_average", "-")
         avg_str = f"{avg:>8.2f}" if isinstance(avg, (int, float)) else f"{avg:>8}"
-        print(f"{report_id:<40} " + " ".join(scores) + f" {avg_str}")
+        print(f"{report_id:<30} " + " ".join(scores) + f" {avg_str}")
 
     print("=" * len(header))

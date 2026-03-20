@@ -24,7 +24,7 @@ from utils.load_config import get_deepfishy_defaults
 from utils.pdf_helpers import load_report_as_pdf
 from utils.response_parser import parse_json_response, compute_averages
 from utils.results_io import save_results, print_results_table
-from benchmark.prompt import format_evaluation_prompt, RESEARCH_QUESTION
+from benchmark.prompt import format_evaluation_prompt, format_relevant_evaluation_prompt, RESEARCH_QUESTION
 
 # Setup path and encoding first
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -87,7 +87,7 @@ def evaluate_generated_report(
     model_name: str,
     results_dir: str,
 ) -> dict | None:
-    """Evaluate a single generated report against a golden standard."""
+    """Evaluate a single generated report against a golden standard using 2 LLM prompts and merge the metrics."""
     # Load generated report as PDF
     generated_pdf = load_report_as_pdf(Path(report_path))
     if generated_pdf is None:
@@ -110,36 +110,60 @@ def evaluate_generated_report(
         logger.error(f"Row {row_id}: Failed to create LLM client: {model_name}")
         return None
 
-    # Build prompt & call LLM judge
     report_pdfs = [{"filename": report_path, "pdf_bytes": generated_pdf}]
-    messages = format_evaluation_prompt(
+
+    # Format 2 different prompts
+    messages_irrelevant = format_evaluation_prompt(
         research_question=research_question,
         golden_pdf=golden_pdf,
         report_pdfs=report_pdfs,
     )
+    
+    messages_relevant = format_relevant_evaluation_prompt(
+        golden_pdf=golden_pdf,
+        report_pdfs=report_pdfs,
+    )
 
-    logger.info(f"Row {row_id}: Calling LLM judge...")
+    logger.info(f"Row {row_id}: Calling LLM judge for 6 irrelevant metrics...")
+    
     llm_start = time.time()
     try:
-        response = llm.invoke(messages)
+        response_irrelevant = llm.invoke(messages_irrelevant)
     except Exception as e:
-        logger.error(f"Row {row_id}: LLM invocation failed: {e}")
+        logger.error(f"Row {row_id}: LLM irrelevant invocation failed: {e}")
         return None
+        
+    logger.info(f"Row {row_id}: Calling LLM judge for 3 relevant metrics...")
+    try:
+        response_relevant = llm.invoke(messages_relevant)
+    except Exception as e:
+        logger.error(f"Row {row_id}: LLM relevant invocation failed: {e}")
+        return None
+        
     llm_duration = time.time() - llm_start
 
-    # Extract response text
-    response_text = response.content
-    if isinstance(response_text, list):
-        response_text = "\n".join(
-            block.get("text", "") if isinstance(block, dict) else str(block)
-            for block in response_text
-        )
+    def extract_text(resp):
+        response_text = resp.content
+        if isinstance(response_text, list):
+            response_text = "\n".join(
+                block.get("text", "") if isinstance(block, dict) else str(block)
+                for block in response_text
+            )
+        return response_text
 
-    # Token usage & cost
-    usage = response.usage_metadata or {}
-    input_tokens = usage.get("input_tokens", 0)
-    output_tokens = usage.get("output_tokens", 0)
-    total_tokens = usage.get("total_tokens", input_tokens + output_tokens)
+    text_irrelevant = extract_text(response_irrelevant)
+    text_relevant = extract_text(response_relevant)
+
+    def extract_usage(resp):
+        usage = resp.usage_metadata or {}
+        return usage.get("input_tokens", 0), usage.get("output_tokens", 0)
+
+    input_tok_irr, output_tok_irr = extract_usage(response_irrelevant)
+    input_tok_rel, output_tok_rel = extract_usage(response_relevant)
+
+    input_tokens = input_tok_irr + input_tok_rel
+    output_tokens = output_tok_irr + output_tok_rel
+    total_tokens = input_tokens + output_tokens
 
     pricing = MODEL_PRICING.get(model_name, {"input": 0, "output": 0})
     total_cost = (input_tokens / 1_000_000) * pricing["input"] + (
@@ -150,17 +174,33 @@ def evaluate_generated_report(
         f"  Time: {llm_duration:.2f}s | Tokens: {total_tokens:,} | Cost: ${total_cost:.4f}"
     )
 
-    # Parse & save
-    results = parse_json_response(response_text)
-    if results is None:
+    # Parse JSONs
+    results_irrelevant = parse_json_response(text_irrelevant)
+    results_relevant = parse_json_response(text_relevant)
+
+    if results_irrelevant is None or results_relevant is None:
         save_results(
-            {"error": "Failed to parse JSON", "raw_response": response_text},
+            {"error": "Failed to parse JSON", "raw_response_irr": text_irrelevant, "raw_response_rel": text_relevant},
             results_dir,
         )
-        logger.error(f"Row {row_id}: Failed to parse LLM response.")
+        logger.error(f"Row {row_id}: Failed to parse LLM response(s).")
         return None
 
-    results = compute_averages(results)
+    # Merge results
+    merged_evals = []
+    
+    # We assume 'evaluations' array length and order match
+    for ir_ev, re_ev in zip(results_irrelevant.get("evaluations", []), results_relevant.get("evaluations", [])):
+        merged_scores = ir_ev.get("scores", {}).copy()
+        merged_scores.update(re_ev.get("scores", {}))
+        ir_ev["scores"] = merged_scores
+        merged_evals.append(ir_ev)
+        
+    results_irrelevant["evaluations"] = merged_evals
+    
+    # Compute averages after merging the scores
+    results = compute_averages(results_irrelevant)
+    
     results["metadata"] = {
         "row_id": row_id,
         "topic": topic,
@@ -291,28 +331,37 @@ def main():
     parser.add_argument(
         "--dataset",
         type=str,
-        default="benchmark/dataset/dataset_tmp.csv",
         help="Path to dataset CSV file (for batch evaluation)",
     )
 
     # Direct mode args
-    parser.add_argument("--topic", type=str, help="Topic of the report")
-    parser.add_argument("--report", type=str, help="Path to generated report (.md)")
-    parser.add_argument("--golden", type=str, help="Path to golden standard (.pdf)")
+    parser.add_argument(
+        "--topic", 
+        type=str, 
+        default="Ngân hàng TMCP Quân đội (MBBank – MBB) trong giai đoạn 2025–2026", 
+        help="Topic of the report"
+    )
+    parser.add_argument(
+        "--generated_report", 
+        type=str, 
+        default="benchmark/generated_reports/open_deep_research/topic_1.pdf", 
+        help="Path to generated report (.pdf)"
+    )
+    parser.add_argument(
+        "--golden_report", 
+        type=str, 
+        default="benchmark/golden_reports/mbb.pdf", 
+        help="Path to golden standard (.pdf)"
+    )
 
     args = parser.parse_args()
     config = load_config()
 
     # Check which mode to run
-    if args.topic and args.report and args.golden:
-        run_direct_benchmark(config, args.topic, args.report, args.golden)
-    elif args.topic or args.report or args.golden:
-        parser.error(
-            "For direct evaluation, --topic, --report, and --golden must all be provided."
-        )
-    else:
+    if args.dataset:
         run_dataset_benchmark(config, args.dataset)
-
+    else:
+        run_direct_benchmark(config, args.topic, args.generated_report, args.golden_report)
 
 if __name__ == "__main__":
     main()
