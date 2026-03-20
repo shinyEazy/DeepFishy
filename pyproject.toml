@@ -17,7 +17,7 @@ dependencies = [
     "langchain-openai>=1.1.7",
     "langchain-text-splitters>=1.1.0",
     "langgraph-cli[inmem]>=0.4.11",
-    "markdown-pdf>=1.10",
+    "markdown>=3.10.2",
     "matplotlib>=3.10.8",
     "minio>=7.2.20",
     "neo4j>=6.1.0",
@@ -31,4 +31,5 @@ dependencies = [
     "tavily>=1.1.0",
     "uvicorn>=0.40.0",
     "vnstock>=3.3.1",
+    "weasyprint>=68.1",
 ]
