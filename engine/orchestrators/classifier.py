@@ -24,9 +24,9 @@ def classify_topic(model: BaseChatModel, user_input: str) -> int:
     response = model.invoke(messages)
     content = str(response.content).strip()
 
-    if "1" in content:
+    if content == "1":
         return 1
-    elif "2" in content:
+    elif content == "2":
         return 2
     else:
         return 0

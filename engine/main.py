@@ -218,18 +218,17 @@ def run_engine(
         template_path = "templates/industry_outline.md"
         logger.info("Topic classified as INDUSTRY. Using industry outline template.")
     else:
-        template_path = "engine/outline_vnindex.md"
-        logger.info("Topic unknown. Falling back to default outline.")
+        template_path = "templates/company_outline.md"
+        logger.info(f"Topic unknown. Falling back to default outline: {template_path}")
 
+    template_outline = ""
     try:
         with open(template_path, "r", encoding="utf-8") as f:
             template_outline = f.read()
     except FileNotFoundError:
-        logger.warning(
-            f"Template not found: {template_path}, falling back to engine/outline_vnindex.md"
+        logger.error(
+            f"Template file not found: {template_path}. Proceeding with an empty outline."
         )
-        with open("engine/outline_vnindex.md", "r", encoding="utf-8") as f:
-            template_outline = f.read()
 
     build_outline = None
     final_path = ""
@@ -266,8 +265,19 @@ def run_engine(
                     f"No build outline available, falling back to {template_path}"
                 )
                 outline = template_outline
+
+            # Write outline to file so writer reads it via tool (avoids large inline context)
+            workspace_path = os.path.join(OUTPUT_BASE_PATH, session_id)
+            os.makedirs(workspace_path, exist_ok=True)
+            outline_path = os.path.join(workspace_path, "outline.md")
+            with open(outline_path, "w", encoding="utf-8") as f:
+                f.write(outline)
+            logger.info(f"Wrote outline ({len(outline)} chars) to {outline_path}")
+
             user_input_for_phase = (
-                f"Viết báo cáo tài chính theo outline sau:\n\n{outline}"
+                "Viết báo cáo tài chính theo outline được lưu tại `/outline.md`.\n"
+                "Đọc file đó trước khi bắt đầu. "
+                "Số lượng section trong outline xác định số lượng section_N/draft.md cần tạo."
             )
         logger.info("=" * 60)
 
