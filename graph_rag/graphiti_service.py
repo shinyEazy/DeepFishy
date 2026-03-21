@@ -43,9 +43,9 @@ class GraphitiService:
     """
 
     # Default configuration
-    DEFAULT_LLM_MODEL = "gemini-2.5-flash-lite"
+    DEFAULT_LLM_MODEL = "gemini-2.5-flash"
     DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
-    DEFAULT_RERANKER_MODEL = "gemini-2.5-flash-lite"
+    DEFAULT_RERANKER_MODEL = "gemini-2.5-flash"
 
     def __init__(
         self,

@@ -3,7 +3,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 TOPIC = "CTCP Tập đoàn Hòa Phát (HPG) trong quý 3 năm 2025"
 
-RESEARCH_QUESTION = "Vui lòng giúp tôi viết một báo cáo nghiên cứu chi tiết về tài chính doanh nghiệp của {TOPIC}, trong đó nội dung cần phong phú cả về phần văn bản lẫn các biểu đồ. Hãy cung cấp danh mục trích dẫn theo chuẩn ở cuối báo cáo (bao gồm số thứ tự và các tài liệu tham khảo tương ứng)."
+RESEARCH_QUESTION = "Hãy giúp tôi viết một báo cáo nghiên cứu chi tiết về tài chính doanh nghiệp của {topic}. Báo cáo cần phong phú cả về nội dung văn bản lẫn các biểu đồ minh họa. Đồng thời, hãy cung cấp danh mục trích dẫn tài liệu tham khảo theo chuẩn ở cuối báo cáo (bao gồm số thứ tự và các nguồn tài liệu tương ứng). Bắt đầu viết báo cáo ngay và trả về toàn bộ nội dung."
 
 GOLDEN_REPORT_IRRELEVANT_METRICS_SYSTEM_PROMPT = """
 # [TASK]

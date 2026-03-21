@@ -47,9 +47,6 @@ MODEL_PRICING = {
     "gemini-2.5-flash-lite": {"input": 0.10, "output": 0.40},
     "gemini-2.0-flash": {"input": 0.10, "output": 0.40},
     "gemini-3-flash-preview": {"input": 0.30, "output": 2.50},
-    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
-    "gpt-4.1-nano-2025-04-14": {"input": 0.10, "output": 0.40},
-    "gpt-5-nano-2025-08-07": {"input": 0.10, "output": 0.40},
 }
 
 
