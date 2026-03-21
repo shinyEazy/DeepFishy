@@ -12,6 +12,7 @@ from core.logging import logger
 from engine.orchestrators.writer import create_writer_orchestrator
 from engine.orchestrators.builder import create_builder_orchestrator
 from engine.tools.validate_drafts import validate_drafts
+from engine.orchestrators.classifier import classify_topic
 
 from utils.load_config import get_default_llm_name
 from utils.model_factory import create_llm_client
@@ -206,6 +207,30 @@ def run_engine(
     # Graphiti group_id must be alphanumeric (no '/'), derive from session_id
     group_id = session_id.replace("/", "_")
 
+    logger.info("Classifying topic...")
+    custom_model = _create_model()
+    topic_type = classify_topic(custom_model, user_input)
+
+    if topic_type == 1:
+        template_path = "templates/company_outline.md"
+        logger.info("Topic classified as COMPANY. Using company outline template.")
+    elif topic_type == 2:
+        template_path = "templates/industry_outline.md"
+        logger.info("Topic classified as INDUSTRY. Using industry outline template.")
+    else:
+        template_path = "engine/outline_vnindex.md"
+        logger.info("Topic unknown. Falling back to default outline.")
+
+    try:
+        with open(template_path, "r", encoding="utf-8") as f:
+            template_outline = f.read()
+    except FileNotFoundError:
+        logger.warning(
+            f"Template not found: {template_path}, falling back to engine/outline_vnindex.md"
+        )
+        with open("engine/outline_vnindex.md", "r", encoding="utf-8") as f:
+            template_outline = f.read()
+
     build_outline = None
     final_path = ""
 
@@ -230,6 +255,7 @@ def run_engine(
             logger.info(
                 f"Cleared existing graph data in {time.time() - clear_start:.2f}s"
             )
+            user_input_for_phase = f"{user_input}\n\nVui lòng sử dụng template outline sau đây làm cơ sở cấu trúc khi xây dựng report outline cuối cùng:\n\n{template_outline}"
         else:
             logger.info("PHASE 2: Write Report")
             if build_outline:
@@ -237,11 +263,12 @@ def run_engine(
                 logger.info("Using outline generated from build phase")
             else:
                 logger.warning(
-                    "No build outline available, falling back to engine/outline_vnindex.md"
+                    f"No build outline available, falling back to {template_path}"
                 )
-                with open("engine/outline_vnindex.md", "r", encoding="utf-8") as f:
-                    outline = f.read()
-            user_input = f"Viết báo cáo tài chính theo outline sau:\n\n{outline}"
+                outline = template_outline
+            user_input_for_phase = (
+                f"Viết báo cáo tài chính theo outline sau:\n\n{outline}"
+            )
         logger.info("=" * 60)
 
         agent, orchestrator = _create_agent(
@@ -253,12 +280,12 @@ def run_engine(
         if ENABLE_DISK_BACKEND and hasattr(agent, "_workspace_path"):
             os.environ["OUTPUT_DIR"] = agent._workspace_path
 
-        logger.info(f"Starting agent invocation with input: {user_input}")
+        logger.info(f"Starting agent invocation for phase {current_phase}.")
         agent_start_time = time.time()
 
         try:
             result = agent.invoke(
-                {"messages": [{"role": "user", "content": user_input}]}
+                {"messages": [{"role": "user", "content": user_input_for_phase}]}
             )
             agent_duration = time.time() - agent_start_time
             logger.info(f"⏱️ Agent invocation completed in {agent_duration:.2f}s")
