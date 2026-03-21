@@ -359,7 +359,9 @@ if __name__ == "__main__":
     input_template = "Hãy giúp tôi viết một báo cáo nghiên cứu chi tiết về tài chính doanh nghiệp của {topic}. Báo cáo cần phong phú cả về nội dung văn bản lẫn các biểu đồ minh họa. Đồng thời, hãy cung cấp danh mục trích dẫn tài liệu tham khảo theo chuẩn ở cuối báo cáo (bao gồm số thứ tự và các nguồn tài liệu tương ứng). Bắt đầu viết báo cáo ngay và trả về toàn bộ nội dung."
 
     phases = [args.phase] if args.phase else None
-    topic = args.topic or "Ngân hàng TMCP Quân đội (MBBank – MBB) trong giai đoạn 2025–2026"
+    topic = (
+        args.topic or "Ngân hàng TMCP Quân đội (MBBank – MBB) trong giai đoạn 2025–2026"
+    )
     user_input = input_template.format(topic=topic)
 
     run_engine(user_input=user_input, phases=phases)
