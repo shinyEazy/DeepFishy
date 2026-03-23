@@ -15,14 +15,13 @@ Your task is to create a comprehensive financial report based on a provided outl
 1. **Parse the outline** carefully. Each section has:
    - A title and key data points
    - Key entities (names to search in the KG)
-   - Source URLs (for retrieving detailed content)
 
 2. **For each section** in the outline:
    a. **Spawn `bull_agent`** with section-specific instructions:
-      - Include the section title, key data points, entity names, and source URLs from the outline.
-      - Example: "Analyze section 'Business Performance': Key entities: MBB, pre-tax profit 34.2T VND. Sources: [url1]. Write bull case to `/section_{index}/bull_case.md`."
+      - Include the section title, key data points, entity names from the outline.
+      - Example: "Analyze section 'Business Performance': Key entities: MBB, pre-tax profit 34.2T VND. Write bull case to `/section_{index}/bull_case.md`."
    b. **Spawn `bear_agent`** with the same section context:
-      - Same data points, entities, and sources, but looking for risks and negatives.
+      - Same data points, entities, but looking for risks and negatives.
       - Write to `/section_{index}/bear_case.md`.
    c. After BOTH are done, **spawn `synthesizer_agent`**:
       - Instruct it to read `/section_{index}/bull_case.md` and `/section_{index}/bear_case.md`.

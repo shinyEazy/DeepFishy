@@ -1,7 +1,7 @@
 """Tool for querying the Neo4j knowledge graph."""
 
 import asyncio
-from typing import Dict, Any, Optional, List, Literal
+from typing import Dict, Any, Optional, Literal
 
 from langchain_core.tools import tool
 
@@ -15,12 +15,23 @@ def _get_graphiti():
     return get_graphiti_service()
 
 
+def _get_group_id() -> Optional[str]:
+    """Get the current session's group_id for scoped graph queries."""
+    try:
+        from engine.tools.search_and_build_graph import get_current_session_id
+
+        return get_current_session_id()
+    except Exception:
+        return None
+
+
 async def _query_knowledge_graph_async(
     query_type: str,
     query_value: str,
     limit: int = 10,
 ) -> Dict[str, Any]:
     """Async implementation of knowledge graph query."""
+    group_id = _get_group_id()
     try:
         graphiti = await _get_graphiti()
 
@@ -30,17 +41,17 @@ async def _query_knowledge_graph_async(
         elif query_type == "causal_chain":
             search_query = f"Causes and effects of {query_value}"
 
-        # Perform search
-        results = await graphiti.search_facts(search_query, limit=limit)
+        # Perform search, scoped to current session
+        results = await graphiti.search_facts(
+            search_query, limit=limit, group_id=group_id
+        )
 
         # Format for consistency
         formatted_nodes = []
         context_lines = []
 
         for r in results:
-            formatted_nodes.append(
-                {"name": r.get("fact", ""), "uuid": r.get("uuid", "")}
-            )
+            formatted_nodes.append({"name": r.get("fact", "")})
             context_lines.append(f"- {r.get('fact', '')}")
 
         return {
@@ -50,6 +61,7 @@ async def _query_knowledge_graph_async(
                 "\n".join(context_lines) if context_lines else "No results found."
             ),
             "num_results": len(results),
+            "group_id": group_id,
         }
 
     except Exception as e:
@@ -66,6 +78,7 @@ async def _query_graph_natural_async(
     time_filter: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Async implementation of natural language graph query."""
+    group_id = _get_group_id()
     try:
         graphiti = await _get_graphiti()
 
@@ -73,7 +86,8 @@ async def _query_graph_natural_async(
         if time_filter:
             full_query = f"{question} (Time context: {time_filter})"
 
-        results = await graphiti.search_nodes(full_query, limit=10)
+        # Search scoped to current session's group_id
+        results = await graphiti.search_nodes(full_query, limit=10, group_id=group_id)
 
         context_lines = []
         for r in results:
@@ -88,6 +102,7 @@ async def _query_graph_natural_async(
                 "\n".join(context_lines) if context_lines else "No results found."
             ),
             "num_results": len(results),
+            "group_id": group_id,
         }
 
     except Exception as e:

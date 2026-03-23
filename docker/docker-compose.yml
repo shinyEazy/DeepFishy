@@ -148,6 +148,8 @@ services:
       - ../embedding:/app/embedding
       - ../outputs:/app/outputs
       - ../benchmark:/app/benchmark
+      - ../templates:/app/templates
+      - ../prompts:/app/prompts
     networks:
       - deepfishy
 

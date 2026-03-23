@@ -7,12 +7,14 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import SystemMessage, HumanMessage
 
 from core.logging import logger
 from engine.orchestrators.writer import create_writer_orchestrator
 from engine.orchestrators.builder import create_builder_orchestrator
 from engine.tools.validate_drafts import validate_drafts
 from engine.orchestrators.classifier import classify_topic
+from engine.tools.normalizer import finalize_staged_facts_to_graph
 
 from utils.load_config import get_default_llm_name
 from utils.model_factory import create_llm_client
@@ -86,6 +88,46 @@ def _concatenate_drafts_to_final(workspace_path: str) -> str:
     return final_path
 
 
+def _materialize_outline_to_drafts(workspace_path: str, outline_text: str) -> int:
+    """Create section_N/draft.md files from outline markdown as a fallback.
+
+    Splits by level-2 headers (`## `). If none exist, writes a single section_1/draft.md.
+    Returns the number of draft files created.
+    """
+    text = (outline_text or "").strip()
+    if not text:
+        return 0
+
+    lines = text.splitlines()
+    section_starts = [i for i, ln in enumerate(lines) if ln.startswith("## ")]
+
+    sections: list[str] = []
+    if section_starts:
+        for idx, start in enumerate(section_starts):
+            end = (
+                section_starts[idx + 1] if idx + 1 < len(section_starts) else len(lines)
+            )
+            chunk = "\n".join(lines[start:end]).strip()
+            if chunk:
+                sections.append(chunk)
+    else:
+        sections = [text]
+
+    created = 0
+    for i, content in enumerate(sections, start=1):
+        section_dir = os.path.join(workspace_path, f"section_{i}")
+        os.makedirs(section_dir, exist_ok=True)
+        draft_path = os.path.join(section_dir, "draft.md")
+        with open(draft_path, "w", encoding="utf-8") as f:
+            f.write(content + "\n")
+        created += 1
+
+    logger.warning(
+        f"Fallback activated: materialized {created} draft(s) directly from outline at {workspace_path}"
+    )
+    return created
+
+
 def _extract_text_from_content(content) -> str:
     """
     Extract text from message content (handles both string and list formats).
@@ -120,6 +162,92 @@ def _extract_text_from_content(content) -> str:
 
     # Fallback: convert to string
     return str(content)
+
+
+def _refine_final_markdown_for_pdf(
+    final_md_path: str, model: Optional[BaseChatModel]
+) -> str:
+    """Refine final markdown for Vietnamese quality and PDF/LaTeX compatibility.
+
+    Creates a backup at `<final>.raw.md`, writes refined content to
+    `<workspace>/final_refined.md`, and overwrites `final.md`.
+    Returns the path to the final refined file (usually `final.md`).
+    """
+    if not model:
+        logger.warning("Skipping final refinement: model is unavailable.")
+        return final_md_path
+
+    if not final_md_path or not os.path.exists(final_md_path):
+        logger.warning(f"Skipping final refinement: file not found: {final_md_path}")
+        return final_md_path
+
+    try:
+        with open(final_md_path, "r", encoding="utf-8") as f:
+            original = f.read()
+    except (IOError, OSError) as e:
+        logger.warning(f"Skipping final refinement: cannot read file: {e}")
+        return final_md_path
+
+    if not original.strip():
+        logger.warning("Skipping final refinement: final.md is empty.")
+        return final_md_path
+
+    system_prompt = (
+        "Bạn là biên tập viên báo cáo tài chính tiếng Việt chuyên nghiệp.\n"
+        "Nhiệm vụ: tinh chỉnh toàn bộ markdown để sẵn sàng xuất PDF.\n"
+        "BẮT BUỘC:\n"
+        "1) Giữ nguyên sự thật, số liệu, thời điểm, tên riêng, và nguồn tham chiếu.\n"
+        "2) Cải thiện diễn đạt tiếng Việt, mạch logic, tiêu đề và chuyển đoạn.\n"
+        "3) Chuẩn hóa markdown tương thích chuyển PDF/LaTeX: không HTML rác, "
+        "danh sách/bảng rõ ràng, heading nhất quán.\n"
+        "4) Không thêm thông tin mới không có trong bản gốc.\n"
+        "5) Trả về DUY NHẤT nội dung markdown hoàn chỉnh."
+    )
+
+    try:
+        response = model.invoke(
+            [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=original),
+            ]
+        )
+        refined = _extract_text_from_content(response.content).strip()
+    except Exception as e:
+        logger.warning(f"Final refinement failed during model invocation: {e}")
+        return final_md_path
+
+    if not refined:
+        logger.warning(
+            "Final refinement produced empty output. Keeping original final.md"
+        )
+        return final_md_path
+
+    # Safety guard against accidental truncation.
+    if len(refined) < max(500, int(len(original) * 0.4)):
+        logger.warning(
+            "Final refinement output appears too short; keeping original final.md"
+        )
+        return final_md_path
+
+    workspace_path = os.path.dirname(final_md_path)
+    backup_path = os.path.join(workspace_path, "final.raw.md")
+    refined_copy_path = os.path.join(workspace_path, "final_refined.md")
+
+    try:
+        with open(backup_path, "w", encoding="utf-8") as f:
+            f.write(original)
+        with open(refined_copy_path, "w", encoding="utf-8") as f:
+            f.write(refined + "\n")
+        with open(final_md_path, "w", encoding="utf-8") as f:
+            f.write(refined + "\n")
+        logger.info(
+            f"Final refinement complete. Backup: {backup_path}, refined copy: {refined_copy_path}"
+        )
+    except (IOError, OSError) as e:
+        logger.warning(f"Failed to persist refined final markdown: {e}")
+        return final_md_path
+
+    return final_md_path
 
 
 def _create_model() -> Optional[BaseChatModel]:
@@ -201,6 +329,10 @@ def run_engine(
     """
     if phases is None:
         phases = ["build", "write"]
+    if phases == ["write"] and not session_id:
+        raise ValueError(
+            "Write-only mode requires --session so the engine can reuse outputs/{session_id}."
+        )
     if session_id is None:
         session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -232,6 +364,7 @@ def run_engine(
 
     build_outline = None
     final_path = ""
+    outline_for_write = ""
 
     for current_phase in phases:
         if current_phase not in ["build", "write"]:
@@ -261,10 +394,20 @@ def run_engine(
                 outline = build_outline
                 logger.info("Using outline generated from build phase")
             else:
-                logger.warning(
-                    f"No build outline available, falling back to {template_path}"
-                )
-                outline = template_outline
+                workspace_path = os.path.join(OUTPUT_BASE_PATH, session_id)
+                existing_outline_path = os.path.join(workspace_path, "outline.md")
+                if os.path.exists(existing_outline_path):
+                    with open(existing_outline_path, "r", encoding="utf-8") as f:
+                        outline = f.read()
+                    logger.info(
+                        f"Using existing outline from prior build run: {existing_outline_path}"
+                    )
+                else:
+                    logger.warning(
+                        f"No build outline available, and no existing outline at {existing_outline_path}. Falling back to {template_path}"
+                    )
+                    outline = template_outline
+            outline_for_write = outline
 
             # Write outline to file so writer reads it via tool (avoids large inline context)
             workspace_path = os.path.join(OUTPUT_BASE_PATH, session_id)
@@ -311,15 +454,32 @@ def run_engine(
                     if validation["errors"]:
                         for e in validation["errors"]:
                             logger.error(f"Draft validation: {e}")
+                        if "No draft files found" in validation["errors"]:
+                            _materialize_outline_to_drafts(
+                                agent._workspace_path, outline_for_write
+                            )
+                            validation = validate_drafts(agent._workspace_path)
+                            if validation["errors"]:
+                                for e in validation["errors"]:
+                                    logger.error(
+                                        f"Draft validation after fallback: {e}"
+                                    )
 
                     final_path = _concatenate_drafts_to_final(agent._workspace_path)
                     if final_path:
+                        final_path = _refine_final_markdown_for_pdf(
+                            final_path, custom_model
+                        )
                         logger.info(f"✅ Created final report: {final_path}")
                 except IOError as e:
                     logger.warning(f"Failed to concatenate drafts: {e}")
 
             if orchestrator is not None:
                 try:
+                    # Build graph once from all staged section facts after outline is finalized
+                    finalize_result = finalize_staged_facts_to_graph()
+                    logger.info(f"Final staged graph ingest result: {finalize_result}")
+
                     finalize_start = time.time()
 
                     async def get_final_stats(gid: str):
@@ -391,6 +551,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--topic", type=str, default=None, help="User input/query for the agent"
     )
+    parser.add_argument(
+        "--session",
+        type=str,
+        default=None,
+        help="Session ID to reuse output workspace (e.g., 20260323_205711). Required for --phase write.",
+    )
     args = parser.parse_args()
 
     input_template = "Hãy giúp tôi viết một báo cáo nghiên cứu chi tiết về tài chính doanh nghiệp của {topic}. Báo cáo cần phong phú cả về nội dung văn bản lẫn các biểu đồ minh họa. Đồng thời, hãy cung cấp danh mục trích dẫn tài liệu tham khảo theo chuẩn ở cuối báo cáo (bao gồm số thứ tự và các nguồn tài liệu tương ứng). Bắt đầu viết báo cáo ngay và trả về toàn bộ nội dung."
@@ -401,4 +567,4 @@ if __name__ == "__main__":
     )
     user_input = input_template.format(topic=topic)
 
-    run_engine(user_input=user_input, phases=phases)
+    run_engine(user_input=user_input, session_id=args.session, phases=phases)
