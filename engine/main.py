@@ -10,6 +10,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from core.logging import logger
+from engine.prompts.refiner_prompt import REFINER_SYSTEM_PROMPT
 from engine.orchestrators.writer import create_writer_orchestrator
 from engine.orchestrators.builder import create_builder_orchestrator
 from engine.tools.validate_drafts import validate_drafts
@@ -192,22 +193,10 @@ def _refine_final_markdown_for_pdf(
         logger.warning("Skipping final refinement: final.md is empty.")
         return final_md_path
 
-    system_prompt = (
-        "Bạn là biên tập viên báo cáo tài chính tiếng Việt chuyên nghiệp.\n"
-        "Nhiệm vụ: tinh chỉnh toàn bộ markdown để sẵn sàng xuất PDF.\n"
-        "BẮT BUỘC:\n"
-        "1) Giữ nguyên sự thật, số liệu, thời điểm, tên riêng, và nguồn tham chiếu.\n"
-        "2) Cải thiện diễn đạt tiếng Việt, mạch logic, tiêu đề và chuyển đoạn.\n"
-        "3) Chuẩn hóa markdown tương thích chuyển PDF/LaTeX: không HTML rác, "
-        "danh sách/bảng rõ ràng, heading nhất quán.\n"
-        "4) Không thêm thông tin mới không có trong bản gốc.\n"
-        "5) Trả về DUY NHẤT nội dung markdown hoàn chỉnh."
-    )
-
     try:
         response = model.invoke(
             [
-                SystemMessage(content=system_prompt),
+                SystemMessage(content=REFINER_SYSTEM_PROMPT),
                 HumanMessage(content=original),
             ]
         )

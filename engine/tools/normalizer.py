@@ -12,6 +12,8 @@ from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from core.logging import logger
+from utils.model_factory import create_llm_client
+from utils.load_config import get_default_llm_name
 
 
 def _get_staging_file_path() -> Path:
@@ -128,25 +130,9 @@ Output in Markdown bullet format only. No preamble, no commentary.\
 
 
 def _get_normalizer_model():
-    """Get a fast, cheap LLM for normalization tasks.
-
-    Prefers gemini-2.5-flash-lite for speed and cost efficiency.
-    Falls back to the default LLM if the fast model is unavailable.
-    """
-    from utils.model_factory import create_llm_client
-    from utils.load_config import get_default_llm_name
-
-    # Try the fastest available model first
-    for model_name in ["gemini-3.1-flash-lite-preview"]:
-        model = create_llm_client(model_name)
-        if model is not None:
-            logger.debug(f"Normalizer using model: {model_name}")
-            return model
-
-    # Fall back to the project default
-    default = get_default_llm_name()
-    if default:
-        return create_llm_client(default)
+    model = get_default_llm_name()
+    if model:
+        return create_llm_client(model)
 
     raise RuntimeError("No LLM model available for normalization.")
 
