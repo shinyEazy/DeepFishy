@@ -2,8 +2,10 @@ import os
 from typing import Optional, List, Dict, Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain.agents import create_agent
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
+from deepagents.middleware.subagents import CompiledSubAgent
 
 from core.logging import logger
 from engine.prompts.builder_orchestrator_prompt import (
@@ -15,13 +17,16 @@ from graph_rag.chunk_tracker import ChunkTracker
 from services.rag import RAGService, get_rag_service
 
 from engine.tools.search_and_build_graph import (
-    search_and_build_graph,
     get_pending_graph_updates,
     clear_pending_graph_updates,
     set_current_session_id,
 )
-from engine.tools.list_kg_communities import list_kg_communities
-from engine.tools.search_engine_tavily import search_engine_tavily
+from engine.tools.normalizer import (  # noqa: F401 — resolved by load_agents() for subagents
+    search_local_normalized,
+    search_web_normalized,
+    get_finance_data_normalized,
+    commit_facts_to_graph,
+)
 
 
 class BuilderOrchestrator:
@@ -44,7 +49,7 @@ class BuilderOrchestrator:
     CHUNKS_PER_QUERY = 5
 
     # Subagents for research phase
-    SUBAGENT_NAMES = []
+    SUBAGENT_NAMES = ["researcher"]
 
     def __init__(
         self,
@@ -90,8 +95,25 @@ class BuilderOrchestrator:
 
     def create(self):
         """Create and return the orchestrator agent."""
-        subagents = load_agents(names=self.SUBAGENT_NAMES)
-        logger.info(f"Builder: Loaded {len(subagents)} subagent(s)")
+        loaded_subagents = load_agents(names=self.SUBAGENT_NAMES)
+        subagents: List[CompiledSubAgent] = []
+        for subagent in loaded_subagents:
+            subagent_model = subagent.get("model", self.model)
+            subagent_graph = create_agent(
+                model=subagent_model,
+                tools=subagent.get("tools", []),
+                system_prompt=subagent.get("system_prompt", ""),
+            ).with_config({"recursion_limit": 100})
+            subagents.append(
+                CompiledSubAgent(
+                    name=subagent["name"],
+                    description=subagent["description"],
+                    runnable=subagent_graph,
+                )
+            )
+        logger.info(
+            f"Builder: Loaded {len(loaded_subagents)} subagent(s), compiled without deep default middleware"
+        )
 
         config = {"recursion_limit": 150}
         backend = None
@@ -106,17 +128,15 @@ class BuilderOrchestrator:
 
         set_current_session_id(self.group_id)
 
-        tools = [
-            search_and_build_graph,
-            list_kg_communities,
-            search_engine_tavily,
-        ]
+        # Orchestrator only needs community inspection and coverage verification
+        # The subagents handle all searching and graph ingestion via normalized tools
+        tools = []
 
         agent = create_deep_agent(
             model=self.model,
             tools=tools,
             system_prompt=BUILDER_ORCHESTRATOR_SYSTEM_PROMPT,
-            # subagents=subagents,
+            subagents=subagents,
             backend=backend,
         ).with_config(config)
 

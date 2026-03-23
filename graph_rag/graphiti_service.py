@@ -108,7 +108,7 @@ class GraphitiService:
                 cross_encoder=GeminiRerankerClient(
                     config=LLMConfig(api_key=api_key, model=self.reranker_model)
                 ),
-                max_coroutines=10,
+                max_coroutines=50,
             )
 
             self._initialized = True
@@ -231,13 +231,6 @@ class GraphitiService:
                 - Stock Exchanges (HOSE, HNX, UPCOM) with PublicCompany
                 - MarketIndex with FinancialMetric
                 - Rumors/Announcements with confirmed events
-
-                Think step-by-step:
-                - What happened? → MarketEvent
-                - Who is affected? → PublicCompany
-                - What number changed? → FinancialMetric
-                - Why did it happen? → Causes relationship
-                - Is this macro-driven? → MacroIndicator
                 """,
             )
 

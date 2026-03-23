@@ -2,13 +2,12 @@ import os
 from typing import Literal
 from tavily import TavilyClient
 from langchain_core.tools import tool
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
-# Lazily create the Tavily client to avoid side effects on import
 def _get_tavily_client():
-    from dotenv import load_dotenv
-
-    load_dotenv()
     return TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
 
 
@@ -29,4 +28,5 @@ def search_engine_tavily(
         max_results=max_results,
         include_raw_content=include_raw_content,
         topic=topic,
+        country="vietnam",
     )

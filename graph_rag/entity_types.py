@@ -280,9 +280,6 @@ class Causes(BaseModel):
         None, description="Direct, Indirect, Contributing factor"
     )
     time_lag: Optional[str] = Field(None, description="Time between cause and effect")
-    confidence: Optional[float] = Field(
-        None, description="Confidence in causal link 0.0-1.0"
-    )
 
 
 class Triggers(BaseModel):
