@@ -108,10 +108,15 @@ class PublicCompany(BaseModel):
     NOTE: major_shareholders removed - use Owns edge instead for proper ontology.
     """
 
-    company_name: str = Field(
-        ..., description="Full legal name, e.g., 'Công ty CP Tập đoàn Hòa Phát'"
+    # NOTE:
+    # Graphiti validates extracted attributes independently from the node's
+    # canonical `name`. These enrichment fields therefore must stay optional;
+    # otherwise a partial extraction such as "VPBank" without explicit ticker
+    # would fail the entire ingestion batch.
+    company_name: Optional[str] = Field(
+        None, description="Full legal name, e.g., 'Công ty CP Tập đoàn Hòa Phát'"
     )
-    ticker: str = Field(..., description="3-letter stock code, e.g., 'HPG'")
+    ticker: Optional[str] = Field(None, description="3-letter stock code, e.g., 'HPG'")
     exchange: Optional[Exchange] = Field(None, description="HOSE, HNX, or UPCOM")
     industry: Optional[str] = Field(
         None, description="e.g., 'Thép', 'Bất động sản', 'Ngân hàng'"
@@ -128,8 +133,8 @@ class FinancialMetric(BaseModel):
     metric_type prevents agent from comparing wrong types (e.g., Revenue vs Debt).
     """
 
-    metric_name: str = Field(
-        ..., description="e.g., 'Doanh thu thuần', 'Lợi nhuận sau thuế', 'NIM'"
+    metric_name: Optional[str] = Field(
+        None, description="e.g., 'Doanh thu thuần', 'Lợi nhuận sau thuế', 'NIM'"
     )
     metric_type: Optional[MetricType] = Field(
         None, description="FLOW/STOCK/MARKET/RATIO"
@@ -154,7 +159,9 @@ class KeyPerson(BaseModel):
     In Vietnam, the reputation of the "Captain" heavily influences stock price.
     """
 
-    full_name: str = Field(..., description="e.g., 'Trần Đình Long', 'Phạm Nhật Vượng'")
+    full_name: Optional[str] = Field(
+        None, description="e.g., 'Trần Đình Long', 'Phạm Nhật Vượng'"
+    )
     current_role: Optional[str] = Field(
         None, description="e.g., 'Chủ tịch HĐQT', 'Tổng Giám đốc'"
     )
@@ -177,8 +184,8 @@ class MarketEvent(BaseModel):
     KEY DESIGN: Event-centric, not Company-centric.
     """
 
-    title: str = Field(
-        ..., description="Short summary, e.g., 'Ngân hàng Nhà nước hạ lãi suất'"
+    title: Optional[str] = Field(
+        None, description="Short summary, e.g., 'Ngân hàng Nhà nước hạ lãi suất'"
     )
     event_type: Optional[EventType] = Field(None, description="Type of event")
     event_status: Optional[EventStatus] = Field(
@@ -208,8 +215,8 @@ class MacroIndicator(BaseModel):
     Used to connect to both companies AND events.
     """
 
-    indicator_name: str = Field(
-        ..., description="e.g., 'Lãi suất liên ngân hàng', 'CPI', 'Tỷ giá USD/VND'"
+    indicator_name: Optional[str] = Field(
+        None, description="e.g., 'Lãi suất liên ngân hàng', 'CPI', 'Tỷ giá USD/VND'"
     )
     trend: Optional[Trend] = Field(None, description="INCREASING/DECREASING/STABLE")
     current_status: Optional[str] = Field(

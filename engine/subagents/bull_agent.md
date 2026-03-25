@@ -34,9 +34,9 @@ Return your analysis in Markdown:
 
 ### 1. [Argument 1 Title]
 
-- **Signal**: [Description of positive signal]
-- **Evidence**: [Specific numbers/quote from graph]
-- **Impact**: [Why this is bullish]
+- **Signal**: [Description of positive signal] [1]
+- **Evidence**: [Specific numbers/quote from graph] [1][2]
+- **Impact**: [Why this is bullish] [2]
 
 ### 2. [Argument 2 Title]
 
@@ -44,11 +44,27 @@ Return your analysis in Markdown:
 
 ### Conclusion (Bull Case)
 
-[Summary of why the outlook is positive]
+[Summary of why the outlook is positive] [1][2]
+
+### References
+
+[1] Source title: [https://example.com/source-1](https://example.com/source-1)
+[2] Source title: [https://example.com/source-2](https://example.com/source-2)
 ```
 
 ## Guidelines
 
 - **Focus ONLY on positive details**. Ignore negative news (the Bear Agent will handle that).
 - **Be specific**. Use numbers, dates, and entity names.
-- **Cite sources** if available in the context.
+- **Use Inline Citations**. Every factual claim, number, date, quote, and sourced statement should include inline citations such as `[1]` or `[2][3]` immediately after the supported text.
+- **Add a Numbered Reference List**. End the response with `### References`, listing all cited sources in numeric order.
+- **Citation Format**. Follow this exact style:
+
+```markdown
+Định nghĩa AI là ... [1]
+
+### References
+
+[1] MWG: Báo cáo tài chính hợp nhất Quý 4/2022: [https://vietnamcredit.com.vn/news/MWG-Bao-cao-tai-chinh-hop-nhat-Quy-4-2022_143168](https://vietnamcredit.com.vn/news/MWG-Bao-cao-tai-chinh-hop-nhat-Quy-4-2022_143168)
+```
+- **Reference Hygiene**. Reuse the same citation number for the same source within the response; do not create duplicate entries for one URL/title pair.

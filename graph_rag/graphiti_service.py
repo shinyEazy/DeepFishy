@@ -25,6 +25,60 @@ from graph_rag.entity_types import ENTITY_TYPES, EDGE_TYPES, EDGE_TYPE_MAP
 load_dotenv()
 
 
+class SafeGeminiClient(GeminiClient):
+    """Gemini client wrapper that normalizes malformed structured outputs.
+
+    Graphiti expects object-shaped responses for attribute extraction, but Gemini
+    occasionally returns a top-level JSON array like `[ {...} ]` even when the
+    schema is an object. That crashes downstream code before Pydantic validation
+    can help. We coerce obvious single-object arrays back into a dict here.
+    """
+
+    @staticmethod
+    def _coerce_structured_response(
+        response: Any, response_model: type | None
+    ) -> Dict[str, Any] | Any:
+        if response_model is None or not isinstance(response, list):
+            return response
+
+        schema_type = response_model.model_json_schema().get("type")
+        if schema_type == "array":
+            return response
+
+        if not response:
+            logger.warning(
+                "SafeGeminiClient received an empty list for object schema; coercing to empty object."
+            )
+            return {}
+
+        first = response[0]
+        if isinstance(first, dict):
+            logger.warning(
+                "SafeGeminiClient received list output for object schema; using the first item."
+            )
+            return first
+
+        logger.warning(
+            "SafeGeminiClient received non-dict list output for object schema; coercing to empty object."
+        )
+        return {}
+
+    async def _generate_response(
+        self,
+        messages,
+        response_model=None,
+        max_tokens=None,
+        model_size=None,
+    ):
+        response = await super()._generate_response(
+            messages=messages,
+            response_model=response_model,
+            max_tokens=max_tokens,
+            model_size=model_size,
+        )
+        return self._coerce_structured_response(response, response_model)
+
+
 class GraphitiService:
     """
     Session-based Graphiti wrapper for temporal knowledge graphs.
@@ -95,7 +149,7 @@ class GraphitiService:
                 self.neo4j_uri,
                 self.neo4j_user,
                 self.neo4j_password,
-                llm_client=GeminiClient(
+                llm_client=SafeGeminiClient(
                     config=LLMConfig(api_key=api_key, model=self.llm_model)
                 ),
                 embedder=GeminiEmbedder(
@@ -186,12 +240,34 @@ class GraphitiService:
                 else:
                     reference_time = datetime.now(timezone.utc)
 
-                # Build source description with metadata
-                source_desc = ""
+                # Build source description with provenance metadata.
+                source_desc_parts: List[str] = []
+                if result.url:
+                    source_desc_parts.append(f"Source URL: {result.url}")
                 if result.category:
-                    source_desc += f"Category: {result.category}"
+                    source_desc_parts.append(f"Category: {result.category}")
                 if result.tags:
-                    source_desc += f", Tags: {', '.join(result.tags[:5])}"
+                    source_desc_parts.append(f"Tags: {', '.join(result.tags[:5])}")
+                source_desc = ", ".join(source_desc_parts)
+
+                # Prepend provenance so extraction has direct access to URLs.
+                related_urls = [
+                    tag
+                    for tag in (result.tags or [])
+                    if isinstance(tag, str)
+                    and tag.startswith(("http://", "https://"))
+                    and tag != result.url
+                ]
+                provenance_lines: List[str] = []
+                if result.url:
+                    provenance_lines.append(f"Source URL: {result.url}")
+                if related_urls:
+                    provenance_lines.append(
+                        f"Related Source URLs: {', '.join(related_urls[:5])}"
+                    )
+                episode_content = result.content
+                if provenance_lines:
+                    episode_content = "\n".join(provenance_lines + ["", result.content])
 
                 # print(f"Episode name: {episode_name}")
                 # print(f"Episode content: {result.content}")
@@ -202,7 +278,7 @@ class GraphitiService:
                 raw_episodes.append(
                     RawEpisode(
                         name=episode_name,
-                        content=result.content,
+                        content=episode_content,
                         source=EpisodeType.text,
                         source_description=source_desc,
                         reference_time=reference_time,
@@ -383,6 +459,55 @@ class GraphitiService:
         except Exception as e:
             logger.error(f"Failed to search nodes: {e}")
             return []
+
+    async def get_node_provenance(
+        self,
+        node_uuids: List[str],
+        group_id: Optional[str] = None,
+    ) -> Dict[str, Dict[str, Any]]:
+        """Fetch provenance fields for entity nodes by UUID.
+
+        Returns a mapping keyed by node UUID with best-effort provenance
+        metadata such as `source_url` and `extraction_date`.
+        """
+        if not node_uuids:
+            return {}
+
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            driver = self.graphiti.driver
+            async with driver.session() as session:
+                result = await session.run(
+                    """
+                    MATCH (n:Entity)
+                    WHERE n.uuid IN $uuids
+                      AND ($group_id IS NULL OR n.group_id = $group_id)
+                    RETURN n.uuid AS uuid,
+                           n.name AS name,
+                           n.source_url AS source_url,
+                           n.extraction_date AS extraction_date,
+                           labels(n) AS labels
+                    """,
+                    {"uuids": node_uuids, "group_id": group_id},
+                )
+
+                provenance: Dict[str, Dict[str, Any]] = {}
+                async for record in result:
+                    provenance[record["uuid"]] = {
+                        "uuid": record["uuid"],
+                        "name": record["name"],
+                        "source_url": record["source_url"],
+                        "extraction_date": record["extraction_date"],
+                        "labels": record["labels"] or [],
+                    }
+
+                return provenance
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch node provenance: {e}")
+            return {}
 
     async def build_communities(self, group_id: Optional[str] = None) -> int:
         """

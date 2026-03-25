@@ -24,7 +24,6 @@ Write your plan to your memory/notes file: `research_plan.md`
 
 For each sub-query in your plan, delegate to the `researcher` subagent with the exact sub-query as the task.
 Include the target section identifier/title in the task so the researcher can pass it as `section_id` when staging facts.
-- Prefer parallel execution in small batches (**2-3 sub-queries at a time**) when tasks are independent.
 - Maintain section mapping for every parallel task and wait for all results in the batch before moving on.
 - If a query depends on another query's output, run those dependent queries sequentially.
 - Read the subagent's "EXTRACTION COMPLETE" report and log the key facts returned.

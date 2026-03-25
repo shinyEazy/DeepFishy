@@ -43,7 +43,9 @@ def main():
             with open(md_path, "r", encoding="utf-8") as f:
                 md_content = f.read()
 
-            convert_md_to_pdf(md_content, str(pdf_path))
+            convert_md_to_pdf(
+                md_content, str(pdf_path), base_path=str(md_path.parent.resolve())
+            )
         except Exception as e:
             print(f"Failed to convert {md_path.name}: {e}")
 

@@ -1,5 +1,7 @@
 import os
+import re
 import time
+import glob
 import asyncio
 import argparse
 from typing import Optional
@@ -44,8 +46,6 @@ def _concatenate_drafts_to_final(workspace_path: str) -> str:
     Returns:
         Path to the created final.md file
     """
-    import glob
-    import re
 
     # Find all section draft files
     pattern = os.path.join(workspace_path, "section_*", "draft.md")
@@ -170,9 +170,9 @@ def _refine_final_markdown_for_pdf(
 ) -> str:
     """Refine final markdown for Vietnamese quality and PDF/LaTeX compatibility.
 
-    Creates a backup at `<final>.raw.md`, writes refined content to
-    `<workspace>/final_refined.md`, and overwrites `final.md`.
-    Returns the path to the final refined file (usually `final.md`).
+    Preserves the original `final.md` and writes refined content to
+    `<workspace>/final_refined.md`.
+    Returns the path to the refined output file (`final_refined.md`).
     """
     if not model:
         logger.warning("Skipping final refinement: model is unavailable.")
@@ -211,13 +211,6 @@ def _refine_final_markdown_for_pdf(
         )
         return final_md_path
 
-    # Safety guard against accidental truncation.
-    if len(refined) < max(500, int(len(original) * 0.4)):
-        logger.warning(
-            "Final refinement output appears too short; keeping original final.md"
-        )
-        return final_md_path
-
     workspace_path = os.path.dirname(final_md_path)
     backup_path = os.path.join(workspace_path, "final.raw.md")
     refined_copy_path = os.path.join(workspace_path, "final_refined.md")
@@ -227,16 +220,14 @@ def _refine_final_markdown_for_pdf(
             f.write(original)
         with open(refined_copy_path, "w", encoding="utf-8") as f:
             f.write(refined + "\n")
-        with open(final_md_path, "w", encoding="utf-8") as f:
-            f.write(refined + "\n")
         logger.info(
-            f"Final refinement complete. Backup: {backup_path}, refined copy: {refined_copy_path}"
+            f"Final refinement complete. Original preserved at {final_md_path}; backup: {backup_path}; refined copy: {refined_copy_path}"
         )
     except (IOError, OSError) as e:
         logger.warning(f"Failed to persist refined final markdown: {e}")
         return final_md_path
 
-    return final_md_path
+    return refined_copy_path
 
 
 def _create_model() -> Optional[BaseChatModel]:
@@ -294,6 +285,7 @@ def _create_agent(
             create_writer_orchestrator(
                 model=custom_model,
                 session_id=session_id,
+                group_id=group_id,
                 output_base_path=OUTPUT_BASE_PATH,
             ),
             None,
@@ -332,10 +324,10 @@ def run_engine(
     custom_model = _create_model()
     topic_type = classify_topic(custom_model, user_input)
 
-    if topic_type == 1:
+    if topic_type == "1":
         template_path = "templates/company_outline.md"
         logger.info("Topic classified as COMPANY. Using company outline template.")
-    elif topic_type == 2:
+    elif topic_type == "2":
         template_path = "templates/industry_outline.md"
         logger.info("Topic classified as INDUSTRY. Using industry outline template.")
     else:
