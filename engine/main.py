@@ -257,15 +257,12 @@ def _create_model() -> Optional[BaseChatModel]:
 
 def _create_agent(
     session_id: Optional[str] = None,
-    group_id: Optional[str] = None,
     phase: str = "write",
 ):
     """Factory function to create the agent with lazy initialization.
 
     Args:
         session_id: Session ID for workspace path (may contain '/').
-        group_id: Graphiti namespace ID (alphanumeric only, no '/').
-                  If None, falls back to session_id.
         phase: 'build' or 'write'.
     """
     custom_model = _create_model()
@@ -275,7 +272,6 @@ def _create_agent(
         orchestrator = create_builder_orchestrator(
             model=custom_model,
             session_id=session_id,
-            group_id=group_id,
             output_base_path=OUTPUT_BASE_PATH,
         )
         return orchestrator.create(), orchestrator
@@ -285,7 +281,6 @@ def _create_agent(
             create_writer_orchestrator(
                 model=custom_model,
                 session_id=session_id,
-                group_id=group_id,
                 output_base_path=OUTPUT_BASE_PATH,
             ),
             None,
@@ -316,9 +311,6 @@ def run_engine(
         )
     if session_id is None:
         session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    # Graphiti group_id must be alphanumeric (no '/'), derive from session_id
-    group_id = session_id.replace("/", "_")
 
     logger.info("Classifying topic...")
     custom_model = _create_model()
@@ -407,7 +399,6 @@ def run_engine(
 
         agent, orchestrator = _create_agent(
             session_id=session_id if ENABLE_DISK_BACKEND else None,
-            group_id=group_id,
             phase=current_phase,
         )
 
@@ -463,22 +454,15 @@ def run_engine(
 
                     finalize_start = time.time()
 
-                    async def get_final_stats(gid: str):
+                    async def get_final_stats():
                         service = await get_graphiti_service()
-                        stats = await service.get_graph_stats(group_id=gid)
-                        communities = await service.get_communities(group_id=gid)
-                        return stats, communities
+                        return await service.get_graph_stats()
 
                     reset_graphiti_service()
-                    graph_stats, communities = asyncio.run(get_final_stats(group_id))
+                    graph_stats = asyncio.run(get_final_stats())
                     finalize_duration = time.time() - finalize_start
 
                     logger.info(f"Build phase complete - Graph stats: {graph_stats}")
-                    logger.info(f"Communities: {len(communities)}")
-
-                    for i, community in enumerate(communities, 1):
-                        logger.info(f"Community {i}: {community.get('name', 'N/A')}")
-                        logger.info(f"  - Entities: {community.get('entity_count', 0)}")
 
                     total_phase_duration = time.time() - phase_start_time
                     logger.info(f"\n{'='*60}")

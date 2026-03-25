@@ -20,8 +20,8 @@ def _get_staging_file_path() -> Path:
     """Get the per-session JSONL staging file path."""
     from engine.tools.search_and_build_graph import get_current_session_id
 
-    group_id = get_current_session_id() or "default_session"
-    output_dir = os.environ.get("OUTPUT_DIR", os.path.join("outputs", group_id))
+    session_id = get_current_session_id() or "default_session"
+    output_dir = os.environ.get("OUTPUT_DIR", os.path.join("outputs", session_id))
     staging_dir = Path(output_dir) / "staging"
     staging_dir.mkdir(parents=True, exist_ok=True)
     return staging_dir / "facts.jsonl"
@@ -405,7 +405,7 @@ def commit_facts_to_graph(
     try:
         from engine.tools.search_and_build_graph import get_current_session_id
 
-        group_id = get_current_session_id()
+        session_id = get_current_session_id()
         source_url_list = [u.strip() for u in source_urls.split(",") if u.strip()]
         fact_items = _split_facts_into_items(facts)
         if not fact_items:
@@ -435,7 +435,6 @@ def commit_facts_to_graph(
 
             _append_staged_record(
                 {
-                    "group_id": group_id,
                     "section_id": section_id,
                     "facts": fact,
                     "source_urls": merged_urls,
@@ -448,12 +447,12 @@ def commit_facts_to_graph(
             staged_count += 1
 
         logger.info(
-            f"commit_facts_to_graph: staged {staged_count} facts for section={section_id} (group={group_id})"
+            f"commit_facts_to_graph: staged {staged_count} facts for section={section_id} (session={session_id})"
         )
         return {
             "status": "staged",
             "staged_records": staged_count,
-            "group_id": group_id,
+            "session_id": session_id,
             "section_id": section_id,
             "source_urls": source_urls,
             "facts_length": len(facts),
@@ -478,7 +477,7 @@ def finalize_staged_facts_to_graph() -> Dict[str, Any]:
             reset_graphiti_service,
         )
 
-        group_id = get_current_session_id()
+        session_id = get_current_session_id()
         staged = _load_staged_records()
         if not staged:
             return {
@@ -518,7 +517,6 @@ def finalize_staged_facts_to_graph() -> Dict[str, Any]:
             return await service.add_search_results(
                 results=results,
                 source_query="staged_batch_research",
-                group_id=group_id,
             )
 
         reset_graphiti_service()
@@ -533,21 +531,21 @@ def finalize_staged_facts_to_graph() -> Dict[str, Any]:
                 "episodes_created": episodes_created,
                 "staged_records": len(staged),
                 "deduped_records": len(deduped),
-                "group_id": group_id,
+                "session_id": session_id,
                 "message": "Graph ingest failed; staged facts were preserved for retry.",
             }
 
         _clear_staged_records()
 
         logger.info(
-            f"finalize_staged_facts_to_graph: ingested {episodes_created} episodes from {len(deduped)} staged records (group={group_id})"
+            f"finalize_staged_facts_to_graph: ingested {episodes_created} episodes from {len(deduped)} staged records (session={session_id})"
         )
         return {
             "status": "success",
             "episodes_created": episodes_created,
             "staged_records": len(staged),
             "deduped_records": len(deduped),
-            "group_id": group_id,
+            "session_id": session_id,
         }
 
     except Exception as e:

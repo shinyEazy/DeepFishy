@@ -79,12 +79,10 @@ class WriterOrchestrator:
         self,
         model: BaseChatModel,
         session_id: Optional[str] = None,
-        group_id: Optional[str] = None,
         output_base_path: str = "outputs",
     ):
         self.model = model
         self.session_id = session_id
-        self.group_id = group_id or session_id or "default_session"
         self.output_base_path = output_base_path
         self._agent = None
         self._workspace_path = None
@@ -800,7 +798,7 @@ class WriterOrchestrator:
             ) from exc
 
         self._get_workspace_path()
-        set_current_session_id(self.group_id)
+        set_current_session_id(self.session_id)
 
         graph = StateGraph(WriteState)
         graph.add_node("draft_sections", self._draft_sections_node)
@@ -838,13 +836,11 @@ class WriterOrchestrator:
 def create_writer_orchestrator(
     model: BaseChatModel,
     session_id: Optional[str] = None,
-    group_id: Optional[str] = None,
     output_base_path: str = "outputs",
 ):
     orchestrator = WriterOrchestrator(
         model=model,
         session_id=session_id,
-        group_id=group_id,
         output_base_path=output_base_path,
     )
     return orchestrator.create()
