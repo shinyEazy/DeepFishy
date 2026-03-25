@@ -32,11 +32,7 @@ async def _add_to_graph_async(results, query):
     """
     try:
         graphiti_service = await _get_graphiti_service()
-        # Use session_id as group_id for proper namespacing
-        group_id = _current_session_id
-        added = await graphiti_service.add_search_results(
-            results, query, group_id=group_id
-        )
+        added = await graphiti_service.add_search_results(results, query)
         return added
     except Exception as e:
         logger.warning(f"Failed to add results to graph: {e}")
@@ -58,13 +54,13 @@ def clear_pending_graph_updates():
 
 
 def set_current_session_id(session_id: Optional[str]):
-    """Set the current session ID for graph namespacing.
+    """Set the current session ID for session-scoped workspace state.
 
     This should be called by the orchestrator before agent invocation
-    to ensure graph data is properly namespaced.
+    so tools can write into the right output/session workspace.
 
     Args:
-        session_id: The session ID to use as group_id for graph operations
+        session_id: The current session identifier
     """
     global _current_session_id
     _current_session_id = session_id
@@ -72,7 +68,7 @@ def set_current_session_id(session_id: Optional[str]):
 
 
 def get_current_session_id() -> Optional[str]:
-    """Get the current session ID for graph namespacing."""
+    """Get the current session ID for session-scoped workspace state."""
     return _current_session_id
 
 
@@ -131,7 +127,7 @@ def search_and_build_graph(
                 "added_to_graph": 0,
             }
 
-        # Build graph SYNCHRONOUSLY so agent can query communities immediately
+        # Build graph SYNCHRONOUSLY so later graph queries see the new episodes immediately
         # This blocks until graph is built, solving the timing issue
         added_count = 0
         try:
@@ -143,14 +139,11 @@ def search_and_build_graph(
             async def _build_graph_now():
                 """Build graph synchronously within this tool call."""
                 service = await get_graphiti_service()
-                # Use session_id as group_id for proper namespacing
-                group_id = _current_session_id
                 added = await service.add_search_results(
                     results=results,
                     source_query=query,
-                    group_id=group_id,
                 )
-                logger.debug(f"Graph built with group_id={group_id}")
+                logger.debug("Graph built from current search results")
                 return added
 
             # Reset service before new event loop to avoid conflicts
