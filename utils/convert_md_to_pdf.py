@@ -21,13 +21,16 @@ def _format_markdown_content(md_content: str) -> str:
     return content
 
 
-def convert_md_to_pdf(md_content: str, output_path: str) -> None:
+def convert_md_to_pdf(
+    md_content: str, output_path: str, base_path: str | None = None
+) -> None:
     """
     Convert markdown content to PDF using WeasyPrint with support for Vietnamese fonts.
 
     Args:
         md_content: Markdown content string
         output_path: Path where the PDF file will be saved
+        base_path: Base directory used to resolve relative assets like images
     """
     try:
         # Pre-format content for source lists
@@ -113,9 +116,11 @@ def convert_md_to_pdf(md_content: str, output_path: str) -> None:
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
 
+        # Resolve relative Markdown assets like images from the Markdown file's directory.
+        resolved_base_path = os.path.abspath(base_path or os.getcwd())
+
         # Generate PDF
-        # base_url allows WeasyPrint to resolve relative image paths from the current working directory
-        HTML(string=html_content, base_url=os.getcwd()).write_pdf(
+        HTML(string=html_content, base_url=resolved_base_path).write_pdf(
             output_path, stylesheets=[css], font_config=font_config
         )
 
@@ -151,4 +156,8 @@ if __name__ == "__main__":
     with open(args.md_path, "r", encoding="utf-8") as f:
         md_content = f.read()
 
-    convert_md_to_pdf(md_content, args.pdf_path)
+    convert_md_to_pdf(
+        md_content,
+        args.pdf_path,
+        base_path=os.path.dirname(os.path.abspath(args.md_path)),
+    )

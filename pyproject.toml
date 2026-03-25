@@ -16,6 +16,7 @@ dependencies = [
     "langchain-neo4j>=0.8.0",
     "langchain-openai>=1.1.7",
     "langchain-text-splitters>=1.1.0",
+    "langgraph>=1.0.5",
     "langgraph-cli[inmem]>=0.4.11",
     "markdown>=3.10.2",
     "matplotlib>=3.10.8",

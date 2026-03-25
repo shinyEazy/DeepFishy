@@ -37,11 +37,11 @@ Return the **final section content** in Markdown with embedded charts.
 ```markdown
 ## [Section Title]
 
-[Balanced analysis paragraph 1...]
+[Balanced analysis paragraph 1 with inline citations like `... [1]` and `... [2][3]` when supported by sources.]
 
 ![Mô tả biểu đồ](path/to/chart.png)
 
-[Balanced analysis paragraph 2...]
+[Balanced analysis paragraph 2 with inline citations.]
 
 ### Key Drivers
 
@@ -50,9 +50,12 @@ Return the **final section content** in Markdown with embedded charts.
 
 ### Conclusion/Outlook
 
-[Final assessment based on weight of evidence]
+[Final assessment based on weight of evidence, with inline citations where factual claims are made.]
 
-**Nguồn:** [Combine sources from Bull/Bear]
+### References
+
+[1] Source title: [https://example.com/source-1](https://example.com/source-1)
+[2] Source title: [https://example.com/source-2](https://example.com/source-2)
 ```
 
 ## Chart Request Format
@@ -77,6 +80,18 @@ The chart_generator will return a path like `images/chart_name.png`. Embed it as
 - **Be Nuanced**. Real markets are rarely 100% bull or bear.
 - **Use Data**. Carry over specific numbers and citations from the inputs.
 - **Visualize Key Metrics**. Request charts for important data points to make the analysis more compelling.
+- **Use Inline Citations**. Every factual claim, definition, figure, date, or sourced statement should include inline citations such as `[1]` or `[2][3]` immediately after the sentence or clause it supports.
+- **Add a Numbered Reference List**. End each section with `### References`, listing every cited source in numeric order.
+- **Citation Format**. Follow this exact style:
+
+```markdown
+Khái niệm AI là ... [1]
+
+### References
+
+[1] MWG: Báo cáo tài chính hợp nhất Quý 4/2022: [https://vietnamcredit.com.vn/news/MWG-Bao-cao-tai-chinh-hop-nhat-Quy-4-2022_143168](https://vietnamcredit.com.vn/news/MWG-Bao-cao-tai-chinh-hop-nhat-Quy-4-2022_143168)
+```
+- **Reference Hygiene**. Reuse the same citation number for the same source within the section; do not create duplicate entries for one URL/title pair.
 
 ## Note
 - The current date is {current_date}.

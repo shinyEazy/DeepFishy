@@ -523,6 +523,20 @@ def finalize_staged_facts_to_graph() -> Dict[str, Any]:
 
         reset_graphiti_service()
         episodes_created = asyncio.run(_ingest())
+
+        if deduped and episodes_created <= 0:
+            logger.error(
+                "finalize_staged_facts_to_graph: graph ingest returned 0 episodes from non-empty staged data; preserving staging file for retry"
+            )
+            return {
+                "status": "error",
+                "episodes_created": episodes_created,
+                "staged_records": len(staged),
+                "deduped_records": len(deduped),
+                "group_id": group_id,
+                "message": "Graph ingest failed; staged facts were preserved for retry.",
+            }
+
         _clear_staged_records()
 
         logger.info(

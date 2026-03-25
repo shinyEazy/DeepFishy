@@ -6,7 +6,7 @@ then evaluates them against golden standard PDFs using an LLM judge.
 Can also evaluate a single existing report directly using --topic, --report, --golden.
 
 python benchmark/evaluate.py --dataset benchmark/dataset/dataset_tmp.csv
-python benchmark/evaluate.py --topic "Ngân hàng TMCP Quân đội (MBBank - MBB) trong quý 4 năm 2025" --report outputs/20260211_171619/final.md --golden benchmark/golden_reports/mbb_q4_2025.pdf
+python benchmark/evaluate.py --topic "Ngân hàng TMCP Quân đội (MBBank – MBB) trong giai đoạn 2025–2026" --generated_report outputs/test.pdf --golden_report benchmark/golden_reports/mbb.pdf
 """
 
 import csv
@@ -48,6 +48,11 @@ MODEL_PRICING = {
     "gemini-2.0-flash": {"input": 0.10, "output": 0.40},
     "gemini-3-flash-preview": {"input": 0.30, "output": 2.50},
 }
+
+
+def _format_research_question(topic: str) -> str:
+    """Format the benchmark research question robustly across placeholder styles."""
+    return RESEARCH_QUESTION.format(topic=topic, TOPIC=topic)
 
 
 def load_config(config_path: str = None) -> dict:
@@ -257,7 +262,7 @@ def run_dataset_benchmark(config: dict, dataset_path: str):
         row_id = row["id"]
         topic = row["topic"]
         golden_filename = row["golden_report_path"]
-        research_question = RESEARCH_QUESTION.format(TOPIC=topic)
+        research_question = _format_research_question(topic)
 
         logger.info("=" * 60)
         logger.info(f"BENCHMARK ROW {row_id}: {topic}")
@@ -315,7 +320,7 @@ def run_direct_benchmark(config: dict, topic: str, report_path: str, golden_path
     model_name = defaults.get("judge", "gemini-2.5-flash")
     results_dir = config.get("results_dir", "benchmark/results")
 
-    research_question = RESEARCH_QUESTION.format(TOPIC=topic)
+    research_question = _format_research_question(topic)
     golden_path_obj = Path(golden_path)
 
     logger.info("=" * 60)

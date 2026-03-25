@@ -20,7 +20,6 @@ services:
       retries: 5
     networks:
       - deepfishy
-    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -260,7 +259,6 @@ services:
       start_period: 30s
     networks:
       - deepfishy
-    restart: unless-stopped
 
   # langgraph_studio:
   #   build:
