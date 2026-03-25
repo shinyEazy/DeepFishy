@@ -9,10 +9,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import SystemMessage, HumanMessage
 
 from core.logging import logger
-from engine.prompts.refiner_prompt import REFINER_SYSTEM_PROMPT
 from engine.orchestrators.writer import create_writer_orchestrator
 from engine.orchestrators.builder import create_builder_orchestrator
 from engine.tools.validate_drafts import validate_drafts
@@ -163,71 +161,6 @@ def _extract_text_from_content(content) -> str:
 
     # Fallback: convert to string
     return str(content)
-
-
-def _refine_final_markdown_for_pdf(
-    final_md_path: str, model: Optional[BaseChatModel]
-) -> str:
-    """Refine final markdown for Vietnamese quality and PDF/LaTeX compatibility.
-
-    Preserves the original `final.md` and writes refined content to
-    `<workspace>/final_refined.md`.
-    Returns the path to the refined output file (`final_refined.md`).
-    """
-    if not model:
-        logger.warning("Skipping final refinement: model is unavailable.")
-        return final_md_path
-
-    if not final_md_path or not os.path.exists(final_md_path):
-        logger.warning(f"Skipping final refinement: file not found: {final_md_path}")
-        return final_md_path
-
-    try:
-        with open(final_md_path, "r", encoding="utf-8") as f:
-            original = f.read()
-    except (IOError, OSError) as e:
-        logger.warning(f"Skipping final refinement: cannot read file: {e}")
-        return final_md_path
-
-    if not original.strip():
-        logger.warning("Skipping final refinement: final.md is empty.")
-        return final_md_path
-
-    try:
-        response = model.invoke(
-            [
-                SystemMessage(content=REFINER_SYSTEM_PROMPT),
-                HumanMessage(content=original),
-            ]
-        )
-        refined = _extract_text_from_content(response.content).strip()
-    except Exception as e:
-        logger.warning(f"Final refinement failed during model invocation: {e}")
-        return final_md_path
-
-    if not refined:
-        logger.warning(
-            "Final refinement produced empty output. Keeping original final.md"
-        )
-        return final_md_path
-
-    workspace_path = os.path.dirname(final_md_path)
-    backup_path = os.path.join(workspace_path, "final.raw.md")
-    refined_copy_path = os.path.join(workspace_path, "final_refined.md")
-
-    try:
-        with open(backup_path, "w", encoding="utf-8") as f:
-            f.write(original)
-        with open(refined_copy_path, "w", encoding="utf-8") as f:
-            f.write(refined + "\n")
-        logger.info(
-            f"Final refinement complete. Original preserved at {final_md_path}; backup: {backup_path}; refined copy: {refined_copy_path}"
-        )
-    except (IOError, OSError) as e:
-        logger.warning(f"Failed to persist refined final markdown: {e}")
-        return final_md_path
-
-    return refined_copy_path
 
 
 def _create_model() -> Optional[BaseChatModel]:
@@ -439,9 +372,6 @@ def run_engine(
 
                     final_path = _concatenate_drafts_to_final(agent._workspace_path)
                     if final_path:
-                        final_path = _refine_final_markdown_for_pdf(
-                            final_path, custom_model
-                        )
                         logger.info(f"✅ Created final report: {final_path}")
                 except IOError as e:
                     logger.warning(f"Failed to concatenate drafts: {e}")
