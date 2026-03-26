@@ -1,18 +1,18 @@
 import os
 import re
+import csv
 import time
 import glob
 import asyncio
 import argparse
 from typing import Optional
+from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import SystemMessage, HumanMessage
 
 from core.logging import logger
-from engine.prompts.refiner_prompt import REFINER_SYSTEM_PROMPT
 from engine.orchestrators.writer import create_writer_orchestrator
 from engine.orchestrators.builder import create_builder_orchestrator
 from engine.tools.validate_drafts import validate_drafts
@@ -20,6 +20,7 @@ from engine.orchestrators.classifier import classify_topic
 from engine.tools.normalizer import finalize_staged_facts_to_graph
 
 from utils.load_config import get_default_llm_name
+from utils.convert_md_to_pdf import convert_md_to_pdf
 from utils.model_factory import create_llm_client
 
 from graph_rag.graphiti_service import (
@@ -31,6 +32,88 @@ load_dotenv()
 
 ENABLE_DISK_BACKEND = "true"
 OUTPUT_BASE_PATH = "outputs"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_TOPIC = "Ngân hàng TMCP Quân đội (MBBank – MBB) trong giai đoạn 2025–2026"
+INPUT_TEMPLATE = "Hãy giúp tôi viết một báo cáo nghiên cứu chi tiết về tài chính doanh nghiệp của {topic}. Báo cáo cần phong phú cả về nội dung văn bản lẫn các biểu đồ minh họa. Đồng thời, hãy cung cấp danh mục trích dẫn tài liệu tham khảo theo chuẩn ở cuối báo cáo (bao gồm số thứ tự và các nguồn tài liệu tương ứng). Bắt đầu viết báo cáo ngay và trả về toàn bộ nội dung."
+DATASET_OUTPUT_DIR = PROJECT_ROOT / "benchmark" / "generated_reports" / "deepfishy"
+
+
+def _format_user_input(topic: str) -> str:
+    """Format the standard research prompt for a topic."""
+    return INPUT_TEMPLATE.format(topic=topic)
+
+
+def _resolve_input_path(path_str: str) -> Path:
+    """Resolve a user-provided path relative to the project root when needed."""
+    path = Path(path_str)
+    return path if path.is_absolute() else PROJECT_ROOT / path
+
+
+def _normalize_row_keys(row: dict[str, str]) -> dict[str, str]:
+    """Normalize CSV headers so `Topic` and `topic` behave the same."""
+    return {str(key).strip().lower(): value for key, value in row.items()}
+
+
+def _load_dataset_rows(dataset_path: str) -> list[dict[str, str]]:
+    """Load dataset rows from CSV with case-insensitive headers."""
+    resolved_path = _resolve_input_path(dataset_path)
+    if not resolved_path.exists():
+        raise FileNotFoundError(f"Dataset file not found: {resolved_path}")
+
+    with open(resolved_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = [_normalize_row_keys(row) for row in reader]
+
+    logger.info(f"Loaded {len(rows)} row(s) from dataset: {resolved_path}")
+    return rows
+
+
+def run_dataset_generation(dataset_path: str) -> None:
+    """Generate reports for each dataset topic and export them as PDFs."""
+    rows = _load_dataset_rows(dataset_path)
+    if not rows:
+        raise ValueError("Dataset is empty.")
+
+    DATASET_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    for index, row in enumerate(rows, start=1):
+        row_id = (row.get("id") or "").strip() or str(index)
+        topic = (row.get("topic") or "").strip()
+        output_path = DATASET_OUTPUT_DIR / f"topic_{index}.pdf"
+
+        if not topic:
+            logger.warning(
+                f"Skipping dataset row {row_id}: missing 'topic' value after header normalization."
+            )
+            continue
+
+        logger.info("=" * 60)
+        logger.info(f"DATASET ROW {row_id}: {topic}")
+        logger.info("=" * 60)
+
+        session_id = f"dataset_{run_timestamp}/topic_{index}"
+        final_md_path = run_engine(
+            user_input=_format_user_input(topic),
+            session_id=session_id,
+        )
+
+        if not final_md_path:
+            logger.error(f"Row {row_id}: Engine failed to produce final.md.")
+            continue
+
+        with open(final_md_path, "r", encoding="utf-8") as f:
+            final_md_content = f.read()
+
+        convert_md_to_pdf(
+            final_md_content,
+            str(output_path),
+            base_path=str(Path(final_md_path).resolve().parent),
+        )
+        if output_path.exists():
+            logger.info(f"Converted final.md to PDF at {output_path}")
+        else:
+            logger.error(f"Row {row_id}: PDF conversion did not create {output_path}")
 
 
 def _concatenate_drafts_to_final(workspace_path: str) -> str:
@@ -163,71 +246,6 @@ def _extract_text_from_content(content) -> str:
 
     # Fallback: convert to string
     return str(content)
-
-
-def _refine_final_markdown_for_pdf(
-    final_md_path: str, model: Optional[BaseChatModel]
-) -> str:
-    """Refine final markdown for Vietnamese quality and PDF/LaTeX compatibility.
-
-    Preserves the original `final.md` and writes refined content to
-    `<workspace>/final_refined.md`.
-    Returns the path to the refined output file (`final_refined.md`).
-    """
-    if not model:
-        logger.warning("Skipping final refinement: model is unavailable.")
-        return final_md_path
-
-    if not final_md_path or not os.path.exists(final_md_path):
-        logger.warning(f"Skipping final refinement: file not found: {final_md_path}")
-        return final_md_path
-
-    try:
-        with open(final_md_path, "r", encoding="utf-8") as f:
-            original = f.read()
-    except (IOError, OSError) as e:
-        logger.warning(f"Skipping final refinement: cannot read file: {e}")
-        return final_md_path
-
-    if not original.strip():
-        logger.warning("Skipping final refinement: final.md is empty.")
-        return final_md_path
-
-    try:
-        response = model.invoke(
-            [
-                SystemMessage(content=REFINER_SYSTEM_PROMPT),
-                HumanMessage(content=original),
-            ]
-        )
-        refined = _extract_text_from_content(response.content).strip()
-    except Exception as e:
-        logger.warning(f"Final refinement failed during model invocation: {e}")
-        return final_md_path
-
-    if not refined:
-        logger.warning(
-            "Final refinement produced empty output. Keeping original final.md"
-        )
-        return final_md_path
-
-    workspace_path = os.path.dirname(final_md_path)
-    backup_path = os.path.join(workspace_path, "final.raw.md")
-    refined_copy_path = os.path.join(workspace_path, "final_refined.md")
-
-    try:
-        with open(backup_path, "w", encoding="utf-8") as f:
-            f.write(original)
-        with open(refined_copy_path, "w", encoding="utf-8") as f:
-            f.write(refined + "\n")
-        logger.info(
-            f"Final refinement complete. Original preserved at {final_md_path}; backup: {backup_path}; refined copy: {refined_copy_path}"
-        )
-    except (IOError, OSError) as e:
-        logger.warning(f"Failed to persist refined final markdown: {e}")
-        return final_md_path
-
-    return refined_copy_path
 
 
 def _create_model() -> Optional[BaseChatModel]:
@@ -439,9 +457,6 @@ def run_engine(
 
                     final_path = _concatenate_drafts_to_final(agent._workspace_path)
                     if final_path:
-                        final_path = _refine_final_markdown_for_pdf(
-                            final_path, custom_model
-                        )
                         logger.info(f"✅ Created final report: {final_path}")
                 except IOError as e:
                     logger.warning(f"Failed to concatenate drafts: {e}")
@@ -508,6 +523,12 @@ def run_engine(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--dataset",
+        type=str,
+        default=None,
+        help="Path to a dataset CSV. Generates one report per topic and saves them to benchmark/generated_reports/deepfishy/topic_{n}.pdf.",
+    )
+    parser.add_argument(
         "--phase",
         type=str,
         default=None,
@@ -524,12 +545,14 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    input_template = "Hãy giúp tôi viết một báo cáo nghiên cứu chi tiết về tài chính doanh nghiệp của {topic}. Báo cáo cần phong phú cả về nội dung văn bản lẫn các biểu đồ minh họa. Đồng thời, hãy cung cấp danh mục trích dẫn tài liệu tham khảo theo chuẩn ở cuối báo cáo (bao gồm số thứ tự và các nguồn tài liệu tương ứng). Bắt đầu viết báo cáo ngay và trả về toàn bộ nội dung."
+    if args.dataset:
+        if args.phase or args.session:
+            parser.error("--dataset cannot be combined with --phase or --session.")
+        run_dataset_generation(args.dataset)
+        raise SystemExit(0)
 
     phases = [args.phase] if args.phase else None
-    topic = (
-        args.topic or "Ngân hàng TMCP Quân đội (MBBank – MBB) trong giai đoạn 2025–2026"
-    )
-    user_input = input_template.format(topic=topic)
+    topic = args.topic or DEFAULT_TOPIC
+    user_input = _format_user_input(topic)
 
     run_engine(user_input=user_input, session_id=args.session, phases=phases)
