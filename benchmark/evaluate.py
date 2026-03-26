@@ -1,11 +1,12 @@
 """
 Financial Report Benchmark Evaluator.
 
-Loads a dataset CSV, generates reports via the engine for each row,
-then evaluates them against golden standard PDFs using an LLM judge.
-Can also evaluate a single existing report directly using --topic, --report, --golden.
+Evaluates generated reports against golden standard PDFs using an LLM judge.
+Supports batch evaluation for a whole benchmark dataset via --dataset and
+--report_dir, or single-report evaluation via --topic, --generated_report,
+and --golden_report.
 
-python benchmark/evaluate.py --dataset benchmark/dataset/dataset_tmp.csv
+python benchmark/evaluate.py --dataset benchmark/dataset/dataset.csv --report_dir benchmark/generated_reports/deepfishy
 python benchmark/evaluate.py --topic "Ngân hàng TMCP Quân đội (MBBank – MBB) trong giai đoạn 2025–2026" --generated_report outputs/test.pdf --golden_report benchmark/golden_reports/mbb.pdf
 """
 
@@ -49,10 +50,37 @@ MODEL_PRICING = {
     "gemini-3-flash-preview": {"input": 0.30, "output": 2.50},
 }
 
+BENCHMARK_SCORE_DIMENSIONS = [
+    "cons",
+    "faith",
+    "t_i",
+    "rich",
+    "cover",
+    "ins",
+    "logic",
+    "lang",
+    "vis",
+]
+
 
 def _format_research_question(topic: str) -> str:
     """Format the benchmark research question robustly across placeholder styles."""
     return RESEARCH_QUESTION.format(topic=topic, TOPIC=topic)
+
+
+def _resolve_project_path(path_str: str | Path) -> Path:
+    """Resolve a user-provided path relative to the project root when needed."""
+    path = Path(path_str)
+    return path if path.is_absolute() else PROJECT_ROOT / path
+
+
+def _normalize_dataset_row(row: dict[str, str]) -> dict[str, str]:
+    """Normalize CSV headers so casing differences do not break dataset parsing."""
+    return {
+        str(key).strip().lower(): (value or "").strip()
+        for key, value in row.items()
+        if key is not None
+    }
 
 
 def load_config(config_path: str = None) -> dict:
@@ -72,14 +100,14 @@ def load_config(config_path: str = None) -> dict:
 
 def load_dataset(csv_path: str) -> list[dict]:
     """Load dataset CSV and return list of row dicts."""
-    p = Path(csv_path) if Path(csv_path).is_absolute() else PROJECT_ROOT / csv_path
+    p = _resolve_project_path(csv_path)
     if not p.exists():
         logger.error(f"Dataset file not found: {p}")
         sys.exit(1)
 
     with open(p, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        rows = list(reader)
+        rows = [_normalize_dataset_row(row) for row in reader]
 
     logger.info(f"Loaded {len(rows)} row(s) from {p.name}")
     return rows
@@ -110,6 +138,7 @@ def evaluate_generated_report(
     golden_path: Path,
     model_name: str,
     results_dir: str,
+    print_table: bool = True,
 ) -> dict | None:
     """Evaluate a single generated report against a golden standard using 2 LLM prompts and merge the metrics."""
     # Load generated report as PDF
@@ -231,23 +260,112 @@ def evaluate_generated_report(
         "golden_report": str(golden_path.name),
         "generated_report": report_path,
         "timestamp": datetime.now().isoformat(),
-        "llm_time_seconds": round(llm_duration, 2),
-        "input_tokens": input_tokens,
-        "output_tokens": output_tokens,
-        "total_tokens": total_tokens,
-        "cost_usd": round(total_cost, 6),
     }
 
-    print_results_table(results)
+    if print_table:
+        print_results_table(results)
     return results
 
 
-def run_dataset_benchmark(config: dict, dataset_path: str):
-    """Run the benchmark pipeline for a full dataset."""
+def _find_dataset_report(report_dir: Path, row_index: int, row_id: str) -> Path | None:
+    """Locate the generated report for a dataset row by common naming conventions."""
+    candidate_names = [f"topic_{row_index}.pdf", f"topic_{row_index}.md"]
+    normalized_row_id = row_id.strip()
+    if normalized_row_id and normalized_row_id != str(row_index):
+        candidate_names.extend(
+            [f"topic_{normalized_row_id}.pdf", f"topic_{normalized_row_id}.md"]
+        )
+
+    for candidate_name in candidate_names:
+        candidate_path = report_dir / candidate_name
+        if candidate_path.exists():
+            return candidate_path
+
+    return None
+
+
+def _flatten_benchmark_row(
+    run_timestamp: str,
+    dataset_path: str,
+    report_dir: str,
+    row_index: int,
+    row: dict[str, str],
+    report_path: str,
+    result: dict | None,
+    status: str,
+    error: str = "",
+) -> dict[str, str | int | float]:
+    """Flatten one benchmark row into a CSV-friendly record."""
+    evaluation = (result or {}).get("evaluations", [{}])
+    evaluation = evaluation[0] if evaluation else {}
+    scores = evaluation.get("scores", {})
+
+    flattened = {
+        "benchmark_run": run_timestamp,
+        "dataset": dataset_path,
+        "report_dir": report_dir,
+        "row_index": row_index,
+        "row_id": row.get("id") or str(row_index),
+        "type": row.get("type", ""),
+        "topic": row.get("topic", ""),
+        "golden_report": row.get("golden_report_path", ""),
+        "generated_report": report_path,
+        "status": status,
+        "error": error,
+        "overall_average": evaluation.get("overall_average", ""),
+    }
+
+    for dimension in BENCHMARK_SCORE_DIMENSIONS:
+        flattened[dimension] = scores.get(dimension, {}).get("score", "")
+
+    return flattened
+
+
+def _save_benchmark_csv(
+    rows: list[dict[str, str | int | float]],
+    results_dir: str,
+    run_timestamp: str,
+) -> str:
+    """Save flattened benchmark rows to a CSV file."""
+    output_dir = _resolve_project_path(results_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    output_path = output_dir / f"{run_timestamp}_benchmark.csv"
+    fieldnames = [
+        "benchmark_run",
+        "dataset",
+        "report_dir",
+        "row_index",
+        "row_id",
+        "type",
+        "topic",
+        "golden_report",
+        "generated_report",
+        "status",
+        "error",
+        "overall_average",
+        *BENCHMARK_SCORE_DIMENSIONS,
+    ]
+
+    with open(output_path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    return str(output_path)
+
+
+def run_dataset_benchmark(config: dict, dataset_path: str, report_dir: str):
+    """Evaluate a full benchmark dataset against reports in a directory."""
     defaults = get_deepfishy_defaults()
     model_name = defaults.get("judge", "gemini-2.5-flash")
     golden_reports_dir = config.get("golden_reports_dir", "benchmark/golden_reports")
     results_dir = config.get("results_dir", "benchmark/results")
+    report_dir_path = _resolve_project_path(report_dir)
+
+    if not report_dir_path.exists():
+        logger.error(f"Report directory not found: {report_dir_path}")
+        sys.exit(1)
 
     rows = load_dataset(dataset_path)
     if not rows:
@@ -257,61 +375,153 @@ def run_dataset_benchmark(config: dict, dataset_path: str):
     # Shared timestamp for this benchmark run
     run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     all_results = []
+    flattened_rows = []
 
-    for row in rows:
-        row_id = row["id"]
-        topic = row["topic"]
-        golden_filename = row["golden_report_path"]
+    for row_index, row in enumerate(rows, start=1):
+        row_id = row.get("id") or str(row_index)
+        topic = row.get("topic", "")
+        golden_filename = row.get("golden_report_path", "")
         research_question = _format_research_question(topic)
 
         logger.info("=" * 60)
         logger.info(f"BENCHMARK ROW {row_id}: {topic}")
         logger.info("=" * 60)
 
-        # --- Step A: Generate report via engine ---
-        from engine.main import run_engine
-
-        session_id = f"{run_timestamp}/rq{row_id}"
-        logger.info(f"Running engine with session_id={session_id}")
-
-        final_md_path = run_engine(
-            user_input=research_question,
-            session_id=session_id,
-        )
-
-        if not final_md_path:
-            logger.error(f"Row {row_id}: Engine failed to produce final.md, skipping.")
+        if not topic:
+            error = "Missing topic in dataset row."
+            logger.error(f"Row {row_id}: {error}")
+            flattened_rows.append(
+                _flatten_benchmark_row(
+                    run_timestamp=run_timestamp,
+                    dataset_path=dataset_path,
+                    report_dir=str(report_dir_path),
+                    row_index=row_index,
+                    row=row,
+                    report_path="",
+                    result=None,
+                    status="failed",
+                    error=error,
+                )
+            )
             continue
 
-        logger.info(f"Row {row_id}: Generated report at {final_md_path}")
+        if not golden_filename:
+            error = "Missing golden_report_path in dataset row."
+            logger.error(f"Row {row_id}: {error}")
+            flattened_rows.append(
+                _flatten_benchmark_row(
+                    run_timestamp=run_timestamp,
+                    dataset_path=dataset_path,
+                    report_dir=str(report_dir_path),
+                    row_index=row_index,
+                    row=row,
+                    report_path="",
+                    result=None,
+                    status="failed",
+                    error=error,
+                )
+            )
+            continue
 
-        # --- Step B: Evaluate against golden report ---
+        report_path = _find_dataset_report(report_dir_path, row_index, row_id)
+        if report_path is None:
+            error = (
+                "Generated report not found. Expected topic_{n}.pdf or topic_{n}.md "
+                f"under {report_dir_path}."
+            )
+            logger.error(f"Row {row_id}: {error}")
+            flattened_rows.append(
+                _flatten_benchmark_row(
+                    run_timestamp=run_timestamp,
+                    dataset_path=dataset_path,
+                    report_dir=str(report_dir_path),
+                    row_index=row_index,
+                    row=row,
+                    report_path="",
+                    result=None,
+                    status="failed",
+                    error=error,
+                )
+            )
+            continue
+
+        logger.info(f"Row {row_id}: Evaluating report at {report_path}")
+
         golden_path = PROJECT_ROOT / golden_reports_dir / golden_filename
 
         result = evaluate_generated_report(
             row_id=row_id,
             topic=topic,
             research_question=research_question,
-            report_path=final_md_path,
+            report_path=str(report_path),
             golden_path=golden_path,
             model_name=model_name,
             results_dir=results_dir,
+            print_table=False,
         )
 
         if result:
             all_results.append(result)
+            flattened_rows.append(
+                _flatten_benchmark_row(
+                    run_timestamp=run_timestamp,
+                    dataset_path=dataset_path,
+                    report_dir=str(report_dir_path),
+                    row_index=row_index,
+                    row=row,
+                    report_path=str(report_path),
+                    result=result,
+                    status="success",
+                )
+            )
+        else:
+            flattened_rows.append(
+                _flatten_benchmark_row(
+                    run_timestamp=run_timestamp,
+                    dataset_path=dataset_path,
+                    report_dir=str(report_dir_path),
+                    row_index=row_index,
+                    row=row,
+                    report_path=str(report_path),
+                    result=None,
+                    status="failed",
+                    error="Evaluation failed. Check logs for details.",
+                )
+            )
 
-    # Save combined results
-    if all_results:
-        combined = {
-            "benchmark_run": run_timestamp,
-            "dataset": dataset_path,
-            "rows": all_results,
-        }
-        output_path = save_results(combined, results_dir)
-        logger.info(f"All results saved to: {output_path}")
-    else:
-        logger.error("No successful evaluations.")
+    success_count = sum(1 for row in flattened_rows if row["status"] == "success")
+    failed_count = len(flattened_rows) - success_count
+
+    successful_scores = [
+        row["overall_average"]
+        for row in flattened_rows
+        if row["status"] == "success"
+        and isinstance(row["overall_average"], (int, float))
+    ]
+    dataset_average = (
+        round(sum(successful_scores) / len(successful_scores), 2)
+        if successful_scores
+        else ""
+    )
+
+    combined = {
+        "benchmark_run": run_timestamp,
+        "dataset": str(_resolve_project_path(dataset_path)),
+        "report_dir": str(report_dir_path),
+        "summary": {
+            "total_rows": len(flattened_rows),
+            "successful_rows": success_count,
+            "failed_rows": failed_count,
+            "overall_average": dataset_average,
+        },
+        "rows": flattened_rows,
+        "evaluations": all_results,
+    }
+
+    json_output_path = save_results(combined, results_dir)
+    csv_output_path = _save_benchmark_csv(flattened_rows, results_dir, run_timestamp)
+    logger.info(f"Benchmark JSON saved to: {json_output_path}")
+    logger.info(f"Benchmark CSV saved to: {csv_output_path}")
 
 
 def run_direct_benchmark(config: dict, topic: str, report_path: str, golden_path: str):
@@ -355,6 +565,11 @@ def main():
         type=str,
         help="Path to dataset CSV file (for batch evaluation)",
     )
+    parser.add_argument(
+        "--report_dir",
+        type=str,
+        help="Directory containing generated reports named topic_{n}.pdf or topic_{n}.md",
+    )
 
     # Direct mode args
     parser.add_argument(
@@ -381,8 +596,15 @@ def main():
 
     # Check which mode to run
     if args.dataset:
-        run_dataset_benchmark(config, args.dataset)
+        if not args.report_dir:
+            parser.error(
+                "--dataset requires --report_dir so each dataset row can be matched "
+                "to topic_{n}.pdf or topic_{n}.md."
+            )
+        run_dataset_benchmark(config, args.dataset, args.report_dir)
     else:
+        if args.report_dir:
+            parser.error("--report_dir can only be used together with --dataset.")
         run_direct_benchmark(
             config, args.topic, args.generated_report, args.golden_report
         )

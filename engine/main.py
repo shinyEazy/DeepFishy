@@ -1,10 +1,12 @@
 import os
 import re
+import csv
 import time
 import glob
 import asyncio
 import argparse
 from typing import Optional
+from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -18,6 +20,7 @@ from engine.orchestrators.classifier import classify_topic
 from engine.tools.normalizer import finalize_staged_facts_to_graph
 
 from utils.load_config import get_default_llm_name
+from utils.convert_md_to_pdf import convert_md_to_pdf
 from utils.model_factory import create_llm_client
 
 from graph_rag.graphiti_service import (
@@ -29,6 +32,88 @@ load_dotenv()
 
 ENABLE_DISK_BACKEND = "true"
 OUTPUT_BASE_PATH = "outputs"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_TOPIC = "Ngân hàng TMCP Quân đội (MBBank – MBB) trong giai đoạn 2025–2026"
+INPUT_TEMPLATE = "Hãy giúp tôi viết một báo cáo nghiên cứu chi tiết về tài chính doanh nghiệp của {topic}. Báo cáo cần phong phú cả về nội dung văn bản lẫn các biểu đồ minh họa. Đồng thời, hãy cung cấp danh mục trích dẫn tài liệu tham khảo theo chuẩn ở cuối báo cáo (bao gồm số thứ tự và các nguồn tài liệu tương ứng). Bắt đầu viết báo cáo ngay và trả về toàn bộ nội dung."
+DATASET_OUTPUT_DIR = PROJECT_ROOT / "benchmark" / "generated_reports" / "deepfishy"
+
+
+def _format_user_input(topic: str) -> str:
+    """Format the standard research prompt for a topic."""
+    return INPUT_TEMPLATE.format(topic=topic)
+
+
+def _resolve_input_path(path_str: str) -> Path:
+    """Resolve a user-provided path relative to the project root when needed."""
+    path = Path(path_str)
+    return path if path.is_absolute() else PROJECT_ROOT / path
+
+
+def _normalize_row_keys(row: dict[str, str]) -> dict[str, str]:
+    """Normalize CSV headers so `Topic` and `topic` behave the same."""
+    return {str(key).strip().lower(): value for key, value in row.items()}
+
+
+def _load_dataset_rows(dataset_path: str) -> list[dict[str, str]]:
+    """Load dataset rows from CSV with case-insensitive headers."""
+    resolved_path = _resolve_input_path(dataset_path)
+    if not resolved_path.exists():
+        raise FileNotFoundError(f"Dataset file not found: {resolved_path}")
+
+    with open(resolved_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = [_normalize_row_keys(row) for row in reader]
+
+    logger.info(f"Loaded {len(rows)} row(s) from dataset: {resolved_path}")
+    return rows
+
+
+def run_dataset_generation(dataset_path: str) -> None:
+    """Generate reports for each dataset topic and export them as PDFs."""
+    rows = _load_dataset_rows(dataset_path)
+    if not rows:
+        raise ValueError("Dataset is empty.")
+
+    DATASET_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    for index, row in enumerate(rows, start=1):
+        row_id = (row.get("id") or "").strip() or str(index)
+        topic = (row.get("topic") or "").strip()
+        output_path = DATASET_OUTPUT_DIR / f"topic_{index}.pdf"
+
+        if not topic:
+            logger.warning(
+                f"Skipping dataset row {row_id}: missing 'topic' value after header normalization."
+            )
+            continue
+
+        logger.info("=" * 60)
+        logger.info(f"DATASET ROW {row_id}: {topic}")
+        logger.info("=" * 60)
+
+        session_id = f"dataset_{run_timestamp}/topic_{index}"
+        final_md_path = run_engine(
+            user_input=_format_user_input(topic),
+            session_id=session_id,
+        )
+
+        if not final_md_path:
+            logger.error(f"Row {row_id}: Engine failed to produce final.md.")
+            continue
+
+        with open(final_md_path, "r", encoding="utf-8") as f:
+            final_md_content = f.read()
+
+        convert_md_to_pdf(
+            final_md_content,
+            str(output_path),
+            base_path=str(Path(final_md_path).resolve().parent),
+        )
+        if output_path.exists():
+            logger.info(f"Converted final.md to PDF at {output_path}")
+        else:
+            logger.error(f"Row {row_id}: PDF conversion did not create {output_path}")
 
 
 def _concatenate_drafts_to_final(workspace_path: str) -> str:
@@ -438,6 +523,12 @@ def run_engine(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--dataset",
+        type=str,
+        default=None,
+        help="Path to a dataset CSV. Generates one report per topic and saves them to benchmark/generated_reports/deepfishy/topic_{n}.pdf.",
+    )
+    parser.add_argument(
         "--phase",
         type=str,
         default=None,
@@ -454,12 +545,14 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    input_template = "Hãy giúp tôi viết một báo cáo nghiên cứu chi tiết về tài chính doanh nghiệp của {topic}. Báo cáo cần phong phú cả về nội dung văn bản lẫn các biểu đồ minh họa. Đồng thời, hãy cung cấp danh mục trích dẫn tài liệu tham khảo theo chuẩn ở cuối báo cáo (bao gồm số thứ tự và các nguồn tài liệu tương ứng). Bắt đầu viết báo cáo ngay và trả về toàn bộ nội dung."
+    if args.dataset:
+        if args.phase or args.session:
+            parser.error("--dataset cannot be combined with --phase or --session.")
+        run_dataset_generation(args.dataset)
+        raise SystemExit(0)
 
     phases = [args.phase] if args.phase else None
-    topic = (
-        args.topic or "Ngân hàng TMCP Quân đội (MBBank – MBB) trong giai đoạn 2025–2026"
-    )
-    user_input = input_template.format(topic=topic)
+    topic = args.topic or DEFAULT_TOPIC
+    user_input = _format_user_input(topic)
 
     run_engine(user_input=user_input, session_id=args.session, phases=phases)
