@@ -158,9 +158,9 @@ def _parse_reference_entries(reference_block: str) -> list[dict[str, Any]]:
                 or url
             )
         else:
-            plain_url_match = re.search(r"(https?://\S+)", line)
+            plain_url_match = re.search(r"(https?://\S+?)(?=[.,;)]*(?:\s|$))", line)
             if plain_url_match:
-                url = plain_url_match.group(1).rstrip(").,")
+                url = plain_url_match.group(1)
                 title = line[: plain_url_match.start()].rstrip(": ").strip() or url
             else:
                 title = line.rstrip(":").strip()

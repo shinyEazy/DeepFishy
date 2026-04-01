@@ -298,11 +298,10 @@ class BuilderOrchestrator:
         points: List[str] = []
         for raw_line in section.get("body", "").splitlines():
             stripped = raw_line.strip()
-            if not stripped.startswith("- **"):
+            match = re.match(r"^[-*]\s*\*\*(.*?)\*\*", stripped)
+            if not match:
                 continue
-            cleaned = re.sub(r"^- \*\*", "", stripped)
-            cleaned = cleaned.replace("**", "").strip()
-            cleaned = cleaned.rstrip(":").strip()
+            cleaned = match.group(1).rstrip(":").strip()
             if cleaned:
                 points.append(cleaned)
 
@@ -339,7 +338,9 @@ class BuilderOrchestrator:
                     "primary_url": primary_url,
                     "date_ts": int(record.get("date_ts", 0) or 0),
                     "category": str(record.get("category", "")).strip(),
-                    "score": float(record.get("score", 1.0) or 1.0),
+                    "score": float(
+                        record.get("score") if record.get("score") is not None else 1.0
+                    ),
                 }
             )
 
