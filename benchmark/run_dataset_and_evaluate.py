@@ -44,10 +44,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if (
-        not args.skip_generation
-        and Path(args.report_dir) != Path(DEFAULT_REPORT_DIR)
-    ):
+    if not args.skip_generation and Path(args.report_dir) != Path(DEFAULT_REPORT_DIR):
         parser.error(
             "--report_dir can only be changed together with --skip_generation "
             "because dataset generation currently writes to "
@@ -73,7 +70,9 @@ def main() -> None:
         logger.info(f"Generating reports for dataset: {args.dataset}")
         run_dataset_generation(args.dataset)
 
-    logger.info(f"Loading benchmark config: {args.benchmark_config or 'default config'}")
+    logger.info(
+        f"Loading benchmark config: {args.benchmark_config or 'default config'}"
+    )
     config = load_benchmark_config(args.benchmark_config)
 
     logger.info(f"Evaluating dataset reports in: {args.report_dir}")

@@ -37,20 +37,11 @@ Return the **final section content** in Markdown with embedded charts.
 ```markdown
 ## [Section Title]
 
-[Balanced analysis paragraph 1 with inline citations like `... [1]` and `... [2][3]` when supported by sources.]
+[Balanced analysis grounded in the strongest available evidence, with inline citations like `... [1]` and `... [2][3]` when supported by sources.]
 
 ![Mô tả biểu đồ](path/to/chart.png)
 
-[Balanced analysis paragraph 2 with inline citations.]
-
-### Key Drivers
-
-- **Positive**: [Key bull points kept]
-- **Negative**: [Key bear points kept]
-
-### Conclusion/Outlook
-
-[Final assessment based on weight of evidence, with inline citations where factual claims are made.]
+[Continue the section in the structure that best fits the outline and evidence. Only add subheadings such as assumptions, risks, outlook, or conclusion when they are genuinely useful for this section.]
 
 ### References
 
@@ -81,6 +72,7 @@ The chart_generator will return a path like `images/chart_name.png`. Embed it as
 - **Use Data**. Carry over specific numbers and citations from the inputs.
 - **Visualize Key Metrics**. Request charts for important data points to make the analysis more compelling.
 - **Use Inline Citations**. Every factual claim, definition, figure, date, or sourced statement should include inline citations such as `[1]` or `[2][3]` immediately after the sentence or clause it supports.
+- **Follow the Section Need, Not a Template**. Do not force `Key Drivers`, `Conclusion/Outlook`, or any other stock block into every section. Use only the subheadings that fit the section topic and outline.
 - **Add a Numbered Reference List**. End each section with `### References`, listing every cited source in numeric order.
 - **Citation Format**. Follow this exact style:
 
