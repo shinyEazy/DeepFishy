@@ -11,6 +11,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from core.logging import logger
 from engine.tools.normalizer import (
+    _load_staged_records,
     commit_facts_to_graph,
     get_finance_data_normalized,
     search_local_normalized,
@@ -44,6 +45,17 @@ class CritiqueResult(TypedDict):
     missing_points: List[str]
     follow_up_queries: List[str]
     reasoning: str
+    coverage_matrix: List[Dict[str, Any]]
+
+
+class EvidenceRecord(TypedDict, total=False):
+    section_id: str
+    facts: str
+    source_urls: List[str]
+    primary_url: str
+    date_ts: int
+    category: str
+    score: float
 
 
 class SectionWorkflowResult(TypedDict):
@@ -52,6 +64,8 @@ class SectionWorkflowResult(TypedDict):
     plan: List[ResearchTask]
     research_results: List[Dict[str, str]]
     critique: CritiqueResult
+    evidence_records: List[EvidenceRecord]
+    writer_mode: str
     rewritten_section: str
 
 
@@ -79,7 +93,7 @@ Workflow:
 1. Choose the appropriate search tool(s) based on the sub-query.
 2. Gather only facts directly relevant to the sub-query.
 3. Track the source URLs returned by the tools.
-4. If needed, refine once or twice, but stay within the same sub-query.
+4. If needed, refine repeatedly, but stay within the same sub-query and stop only when coverage is sufficient or the tool budget is exhausted.
 5. Call commit_facts_to_graph exactly once with:
    - facts
    - source_urls
@@ -94,7 +108,10 @@ EXTRACTION COMPLETE
 
 Rules:
 - One sub-query only.
-- Maximum 4 total search/data tool calls before commit.
+- Maximum 6 total search/data tool calls before commit.
+- Prefer official company disclosures, regulator sources, and broker research PDFs for important quantitative claims.
+- Do not rely on tertiary explainers, forums, student notes, or generic aggregator pages for key financial facts if better sources are available.
+- If you only find weak sources, keep searching within budget and note the source-quality limitation in your final summary.
 - Never hallucinate.
 - Always call commit_facts_to_graph exactly once if you found any relevant facts.
 """.strip()
@@ -126,8 +143,9 @@ class BuilderOrchestrator:
     4. Merge section outputs back into the template and hand off for graph usage.
     """
 
-    MAX_SECTION_SUBQUERIES = 4
-    MAX_FOLLOW_UP_QUERIES = 2
+    MAX_SECTION_SUBQUERIES = 6
+    MAX_FOLLOW_UP_QUERIES = 3
+    MAX_SECTION_EVIDENCE_RECORDS = 40
 
     def __init__(
         self,
@@ -276,6 +294,83 @@ class BuilderOrchestrator:
             return {}
         return parsed if isinstance(parsed, dict) else {}
 
+    def _extract_section_focus_points(self, section: TemplateSection) -> List[str]:
+        points: List[str] = []
+        for raw_line in section.get("body", "").splitlines():
+            stripped = raw_line.strip()
+            if not stripped.startswith("- **"):
+                continue
+            cleaned = re.sub(r"^- \*\*", "", stripped)
+            cleaned = cleaned.replace("**", "").strip()
+            cleaned = cleaned.rstrip(":").strip()
+            if cleaned:
+                points.append(cleaned)
+
+        if not points:
+            return [section["section_title"]]
+        return points
+
+    def _load_section_evidence_records(self, section_id: str) -> List[EvidenceRecord]:
+        records: List[EvidenceRecord] = []
+        seen = set()
+
+        for record in _load_staged_records():
+            if str(record.get("section_id", "")).strip() != section_id:
+                continue
+
+            fact = str(record.get("facts", "")).strip()
+            primary_url = str(record.get("primary_url", "")).strip()
+            key = (fact, primary_url)
+            if not fact or key in seen:
+                continue
+            seen.add(key)
+
+            source_urls = record.get("source_urls", [])
+            if not isinstance(source_urls, list):
+                source_urls = []
+
+            records.append(
+                {
+                    "section_id": section_id,
+                    "facts": fact,
+                    "source_urls": [
+                        str(url).strip() for url in source_urls if str(url).strip()
+                    ],
+                    "primary_url": primary_url,
+                    "date_ts": int(record.get("date_ts", 0) or 0),
+                    "category": str(record.get("category", "")).strip(),
+                    "score": float(record.get("score", 1.0) or 1.0),
+                }
+            )
+
+        records.sort(
+            key=lambda item: (
+                -float(item.get("score", 1.0) or 1.0),
+                str(item.get("facts", "")),
+            )
+        )
+        return records[: self.MAX_SECTION_EVIDENCE_RECORDS]
+
+    def _infer_writer_mode(self, section: TemplateSection) -> str:
+        combined = (
+            f"{section.get('section_title', '')}\n{section.get('heading_line', '')}\n{section.get('body', '')}"
+        ).lower()
+        debate_keywords = [
+            "triển vọng",
+            "dự báo",
+            "định giá",
+            "khuyến nghị",
+            "rủi ro",
+            "cảnh báo",
+            "outlook",
+            "valuation",
+            "recommendation",
+            "risk",
+        ]
+        if any(keyword in combined for keyword in debate_keywords):
+            return "debate"
+        return "direct"
+
     def _fallback_section_plan(
         self,
         user_request: str,
@@ -359,6 +454,7 @@ class BuilderOrchestrator:
         missing_points: Optional[List[str]] = None,
     ) -> List[ResearchTask]:
         requested_focus = ""
+        focus_points = self._extract_section_focus_points(section)
         if missing_points:
             requested_focus = (
                 "\nMissing coverage points that must be addressed:\n"
@@ -367,7 +463,7 @@ class BuilderOrchestrator:
 
         planner_prompt = (
             "You are planning research for ONE report section.\n"
-            "Create 2 to 4 narrow subqueries that together cover the section template.\n"
+            "Create 3 to 6 narrow subqueries that together cover the section template.\n"
             "Return JSON array only.\n"
             "Each object must contain: subquery, tool_hint, rationale.\n"
             "tool_hint must be one of: local, web, finance, mixed.\n"
@@ -375,7 +471,8 @@ class BuilderOrchestrator:
             "Subqueries must be non-overlapping and directly tied to the section outline.\n\n"
             f"User topic:\n{user_request}\n\n"
             f"Section heading:\n{section['heading_line']}\n\n"
-            f"Section outline body:\n{section['body']}{requested_focus}"
+            f"Section outline body:\n{section['body']}\n\n"
+            f"Section coverage points:\n{json.dumps(focus_points, ensure_ascii=False, indent=2)}{requested_focus}"
         )
 
         try:
@@ -474,19 +571,34 @@ class BuilderOrchestrator:
         user_request: str,
         section: TemplateSection,
         research_results: List[Dict[str, str]],
+        evidence_records: List[EvidenceRecord],
     ) -> CritiqueResult:
+        coverage_points = self._extract_section_focus_points(section)
+        evidence_snapshot = [
+            {
+                "fact": record.get("facts", ""),
+                "primary_url": record.get("primary_url", ""),
+                "source_urls": record.get("source_urls", []),
+            }
+            for record in evidence_records[:20]
+        ]
         critique_prompt = (
             "You are a critique agent for section-level research coverage.\n"
             "Evaluate whether the collected research is sufficient to cover the full section outline.\n"
-            "Return JSON object only with keys: sufficient, missing_points, follow_up_queries, reasoning.\n"
+            "Return JSON object only with keys: sufficient, missing_points, follow_up_queries, reasoning, coverage_matrix.\n"
             "- sufficient: boolean\n"
             "- missing_points: array of uncovered outline points\n"
-            "- follow_up_queries: array of at most 2 narrow additional queries written in Vietnamese\n"
+            "- follow_up_queries: array of at most 3 narrow additional queries written in Vietnamese\n"
             "- reasoning: short explanation\n\n"
+            "- coverage_matrix: array of objects with keys point, status, support_count, sample_facts\n"
+            "Only mark sufficient=true if every coverage point has at least one source-backed fact or is explicitly marked as partially covered with a justified reason.\n\n"
+            "Evidence backed only by generic explainers, student notes, forum-like sources, or obviously mismatched-company sources should be treated as weak or missing.\n\n"
             f"User topic:\n{user_request}\n\n"
             f"Section heading:\n{section['heading_line']}\n\n"
             f"Section outline body:\n{section['body']}\n\n"
-            f"Research results:\n{json.dumps(research_results, ensure_ascii=False, indent=2)}"
+            f"Section coverage points:\n{json.dumps(coverage_points, ensure_ascii=False, indent=2)}\n\n"
+            f"Research results:\n{json.dumps(research_results, ensure_ascii=False, indent=2)}\n\n"
+            f"Structured evidence ledger:\n{json.dumps(evidence_snapshot, ensure_ascii=False, indent=2)}"
         )
 
         try:
@@ -506,11 +618,59 @@ class BuilderOrchestrator:
         sufficient = bool(parsed.get("sufficient", False))
         missing_points = parsed.get("missing_points", [])
         follow_up_queries = parsed.get("follow_up_queries", [])
+        coverage_matrix = parsed.get("coverage_matrix", [])
 
         if not isinstance(missing_points, list):
             missing_points = []
         if not isinstance(follow_up_queries, list):
             follow_up_queries = []
+        if not isinstance(coverage_matrix, list):
+            coverage_matrix = []
+
+        normalized_coverage: List[Dict[str, Any]] = []
+        for point in coverage_matrix:
+            if not isinstance(point, dict):
+                continue
+            normalized_coverage.append(
+                {
+                    "point": str(point.get("point", "")).strip(),
+                    "status": str(point.get("status", "")).strip() or "missing",
+                    "support_count": int(point.get("support_count", 0) or 0),
+                    "sample_facts": (
+                        [
+                            str(item).strip()
+                            for item in point.get("sample_facts", [])[:2]
+                            if str(item).strip()
+                        ]
+                        if isinstance(point.get("sample_facts", []), list)
+                        else []
+                    ),
+                }
+            )
+
+        if not normalized_coverage:
+            normalized_coverage = [
+                {
+                    "point": point,
+                    "status": "missing",
+                    "support_count": 0,
+                    "sample_facts": [],
+                }
+                for point in coverage_points
+            ]
+
+        inferred_missing = [
+            item["point"]
+            for item in normalized_coverage
+            if item["point"]
+            and (
+                item["support_count"] <= 0
+                or item["status"].lower() in {"missing", "weak", "insufficient"}
+            )
+        ]
+        if not missing_points:
+            missing_points = inferred_missing
+        sufficient = sufficient and not inferred_missing
 
         return {
             "sufficient": sufficient,
@@ -524,6 +684,7 @@ class BuilderOrchestrator:
             ],
             "reasoning": str(parsed.get("reasoning", "")).strip()
             or "Fallback critique: coverage could not be fully assessed.",
+            "coverage_matrix": normalized_coverage,
         }
 
     def _rewrite_section(
@@ -531,20 +692,33 @@ class BuilderOrchestrator:
         user_request: str,
         section: TemplateSection,
         research_results: List[Dict[str, str]],
+        evidence_records: List[EvidenceRecord],
         critique: CritiqueResult,
+        writer_mode: str,
     ) -> str:
+        evidence_snapshot = [
+            {
+                "fact": record.get("facts", ""),
+                "primary_url": record.get("primary_url", ""),
+                "source_urls": record.get("source_urls", [])[:3],
+            }
+            for record in evidence_records[:20]
+        ]
         rewrite_prompt = (
             "You are rewriting ONE markdown section in a financial research outline.\n"
             "Use only the collected research. Preserve the section heading exactly.\n"
             "Preserve the section's internal outline shape as much as possible.\n"
             "Replace generic guidance with data-backed bullets or short paragraphs.\n"
             "If some outline points still lack data, keep them and note briefly that evidence is insufficient.\n"
+            "Prefer the structured evidence ledger over any high-level summary.\n"
             "Return markdown for this section only.\n\n"
             f"User topic:\n{user_request}\n\n"
             f"Section heading:\n{section['heading_line']}\n\n"
+            f"Writer mode recommendation:\n{writer_mode}\n\n"
             f"Original section body:\n{section['body']}\n\n"
             f"Critique:\n{json.dumps(critique, ensure_ascii=False, indent=2)}\n\n"
-            f"Research results:\n{json.dumps(research_results, ensure_ascii=False, indent=2)}"
+            f"Research results:\n{json.dumps(research_results, ensure_ascii=False, indent=2)}\n\n"
+            f"Structured evidence ledger:\n{json.dumps(evidence_snapshot, ensure_ascii=False, indent=2)}"
         )
 
         try:
@@ -578,8 +752,9 @@ class BuilderOrchestrator:
     ) -> SectionWorkflowResult:
         plan = self._plan_section_queries(user_request, section, prefix="task")
         research_results = self._run_tasks_parallel(plan)
+        evidence_records = self._load_section_evidence_records(section["section_id"])
         critique = self._critique_section_coverage(
-            user_request, section, research_results
+            user_request, section, research_results, evidence_records
         )
 
         if not critique["sufficient"]:
@@ -607,15 +782,21 @@ class BuilderOrchestrator:
             if follow_up_tasks:
                 research_results.extend(self._run_tasks_parallel(follow_up_tasks))
                 research_results.sort(key=lambda item: item.get("task_id", ""))
+                evidence_records = self._load_section_evidence_records(
+                    section["section_id"]
+                )
                 critique = self._critique_section_coverage(
-                    user_request, section, research_results
+                    user_request, section, research_results, evidence_records
                 )
 
+        writer_mode = self._infer_writer_mode(section)
         rewritten_section = self._rewrite_section(
             user_request=user_request,
             section=section,
             research_results=research_results,
+            evidence_records=evidence_records,
             critique=critique,
+            writer_mode=writer_mode,
         )
 
         return {
@@ -624,6 +805,8 @@ class BuilderOrchestrator:
             "plan": plan,
             "research_results": research_results,
             "critique": critique,
+            "evidence_records": evidence_records,
+            "writer_mode": writer_mode,
             "rewritten_section": rewritten_section,
         }
 
@@ -696,6 +879,9 @@ class BuilderOrchestrator:
                 f"- `{section_result['section_id']}` | {section_result['section_title']} | sufficient={critique['sufficient']}"
             )
             summary_lines.append(f"  Critique: {critique['reasoning']}")
+            summary_lines.append(
+                f"  Evidence records: {len(section_result.get('evidence_records', []))} | writer_mode={section_result.get('writer_mode', 'direct')}"
+            )
             for task in section_result["research_results"]:
                 summary_lines.append(
                     f"  - `{task['task_id']}` | {task['status']} | {task['subquery']}"
@@ -795,6 +981,34 @@ class BuilderOrchestrator:
             combined_payload.append("")
         self._write_workspace_file(
             "combined_sections.md", "\n".join(combined_payload).strip() + "\n"
+        )
+
+        section_evidence_map = {
+            "sections": [
+                {
+                    "section_id": result["section_id"],
+                    "section_title": result["section_title"],
+                    "heading_line": next(
+                        (
+                            section["heading_line"]
+                            for section in template_sections
+                            if section["section_id"] == result["section_id"]
+                        ),
+                        "",
+                    ),
+                    "writer_mode": result.get("writer_mode", "direct"),
+                    "plan": result.get("plan", []),
+                    "coverage_matrix": result.get("critique", {}).get(
+                        "coverage_matrix", []
+                    ),
+                    "evidence_records": result.get("evidence_records", []),
+                }
+                for result in section_results
+            ]
+        }
+        self._write_workspace_file(
+            "section_evidence_map.json",
+            json.dumps(section_evidence_map, ensure_ascii=False, indent=2) + "\n",
         )
 
         return {

@@ -4,6 +4,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict
+from urllib.parse import urlparse
 
 from langchain.agents import create_agent
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -20,12 +21,14 @@ from engine.tools.query_knowledge_graph import (
 from engine.tools.search_and_build_graph import set_current_session_id
 
 
-class SectionTask(TypedDict):
+class SectionTask(TypedDict, total=False):
     index: int
     title: str
     heading: str
     outline_chunk: str
     dir_name: str
+    writer_mode: str
+    build_artifact: Dict[str, Any]
 
 
 class SectionResult(TypedDict, total=False):
@@ -73,7 +76,10 @@ def _extract_frontmatter_body(markdown_text: str) -> str:
 class WriterOrchestrator:
     MAX_CRITIQUE_ROUNDS = 2
     MAX_CHARTS_PER_SECTION = 2
+    MAX_CHART_REVISIONS = 3
     MAX_EVIDENCE_QUERIES = 4
+    MAX_SECTION_EVIDENCE_RECORDS = 24
+    MAX_MODEL_EVIDENCE_RECORDS = 80
 
     def __init__(
         self,
@@ -91,6 +97,8 @@ class WriterOrchestrator:
         self._critique_prompt = self._load_prompt("critique_agent.md")
         self._chart_prompt = self._load_prompt("chart_generator.md")
         self._synth_prompt = self._load_synth_prompt()
+        self._build_artifact_cache: Optional[Dict[str, Any]] = None
+        self._report_model_snapshot: Optional[str] = None
 
     def _load_prompt(self, filename: str) -> str:
         prompt_path = Path(__file__).resolve().parents[1] / "subagents" / filename
@@ -146,6 +154,384 @@ class WriterOrchestrator:
             raise FileNotFoundError(f"Outline file not found: {outline_path}")
         return outline_path.read_text(encoding="utf-8").strip()
 
+    def _normalize_section_key(self, value: str) -> str:
+        return re.sub(r"\s+", " ", (value or "").strip().lower())
+
+    def _load_build_artifact_cache(self) -> Dict[str, Any]:
+        if self._build_artifact_cache is not None:
+            return self._build_artifact_cache
+
+        workspace_path = self._get_workspace_path()
+        artifact_path = (
+            Path(workspace_path) / "section_evidence_map.json"
+            if workspace_path
+            else None
+        )
+        if artifact_path and artifact_path.exists():
+            try:
+                self._build_artifact_cache = json.loads(
+                    artifact_path.read_text(encoding="utf-8")
+                )
+            except json.JSONDecodeError:
+                self._build_artifact_cache = {"sections": []}
+        else:
+            self._build_artifact_cache = {"sections": []}
+        return self._build_artifact_cache
+
+    def _get_build_artifact_for_section(
+        self, title: str, heading: str
+    ) -> Dict[str, Any]:
+        normalized_title = self._normalize_section_key(title)
+        normalized_heading = self._normalize_section_key(heading)
+
+        for artifact in self._load_build_artifact_cache().get("sections", []):
+            if not isinstance(artifact, dict):
+                continue
+            artifact_title = self._normalize_section_key(
+                str(artifact.get("section_title", ""))
+            )
+            if artifact_title and artifact_title == normalized_title:
+                return artifact
+
+            artifact_heading = self._normalize_section_key(
+                str(artifact.get("heading_line", ""))
+            )
+            if artifact_heading and artifact_heading == normalized_heading:
+                return artifact
+
+        return {}
+
+    def _get_source_domain(self, url: str) -> str:
+        if not url:
+            return ""
+        try:
+            return (urlparse(url).netloc or "").lower().replace("www.", "")
+        except Exception:
+            return ""
+
+    def _source_quality_tier(self, url: str) -> int:
+        domain = self._get_source_domain(url)
+        lowered = (url or "").lower()
+        if not domain:
+            return 0
+
+        rejected_domains = [
+            "goonus.io",
+            "chanhtuoi.com",
+            "studocu.com",
+            "baomoi.com",
+            "duytan.edu.vn",
+            "markettimes.vn",
+            "thuongtruong.com.vn",
+        ]
+        if any(pattern in domain for pattern in rejected_domains):
+            return 0
+
+        official_domains = [
+            "mbbank.com.vn",
+            "sbv.gov.vn",
+            "mof.gov.vn",
+            "ssc.gov.vn",
+            "hsx.vn",
+            "hnx.vn",
+            "tapchicongsan.org.vn",
+        ]
+        if any(pattern in domain for pattern in official_domains):
+            return 4
+
+        broker_domains = [
+            "masvn.com",
+            "vndirect.com.vn",
+            "acbs.com.vn",
+            "vcbs.com.vn",
+            "kbsv.com.vn",
+            "nhsv.vn",
+            "dnse.com.vn",
+            "aseansc.com.vn",
+            "cafef1.mediacdn.vn",
+            "rs.nguoiquansat.vn",
+        ]
+        if any(pattern in domain for pattern in broker_domains):
+            return 4 if lowered.endswith(".pdf") or "bao-cao" in lowered else 3
+
+        trusted_news_domains = [
+            "vneconomy.vn",
+            "cafef.vn",
+            "vietstock.vn",
+            "thoibaotaichinhvietnam.vn",
+            "vietnamfinance.vn",
+            "tinnhanhchungkhoan.vn",
+            "thitruongtaichinhtiente.vn",
+            "nhandan.vn",
+            "vietnamnet.vn",
+            "tapchikinhtetaichinh.vn",
+            "kinhte.congthuong.vn",
+            "nhadautu.vn",
+            "vnbusiness.vn",
+        ]
+        if any(pattern in domain for pattern in trusted_news_domains):
+            return 2
+
+        if lowered.endswith(".pdf"):
+            return 3
+
+        return 1
+
+    def _section_style(self, section: SectionTask) -> str:
+        title = str(section.get("title", "")).lower()
+        if self._is_title_section(section):
+            return "title"
+        if "định giá" in title or "khuyến nghị" in title or "valuation" in title:
+            return "valuation"
+        if "rủi ro" in title or "cảnh báo" in title or "risk" in title:
+            return "risk"
+        if "triển vọng" in title or "dự báo" in title or "forward" in title:
+            return "outlook"
+        if "tài chính" in title or "financial" in title:
+            return "financial"
+        if "bối cảnh" in title or "nền tảng" in title or "hồ sơ" in title:
+            return "background"
+        return "general"
+
+    def _is_strict_source_section(self, section: SectionTask) -> bool:
+        return self._section_style(section) in {
+            "financial",
+            "outlook",
+            "valuation",
+            "risk",
+        }
+
+    def _section_specific_guidance(self, section: SectionTask) -> str:
+        style = self._section_style(section)
+        if style == "title":
+            return (
+                "- Viết ngắn gọn, chỉ nêu luận điểm đầu tư trung tâm và 2-3 fact quan trọng nhất.\n"
+                "- Không thêm Key Drivers hay Conclusion/Outlook theo mẫu cứng.\n"
+            )
+        if style == "background":
+            return (
+                "- Chỉ giữ các thông tin nền trực tiếp phục vụ luận điểm đầu tư; bỏ bớt lịch sử/phụ lục không cần thiết.\n"
+                "- Không thêm Key Drivers hay Conclusion/Outlook nếu outline không yêu cầu.\n"
+            )
+        if style == "financial":
+            return (
+                "- Phải có một bảng KPI ngắn gọn nếu evidence đủ, ưu tiên: tín dụng, huy động, CASA, NIM, NPL, CIR, ROE, PBT/PAT.\n"
+                "- Tập trung vào xu hướng, động lực và chất lượng lợi nhuận; tránh kể lại số liệu rời rạc.\n"
+                "- Không thêm Key Drivers hay Conclusion/Outlook theo mẫu nếu không thực sự cần.\n"
+            )
+        if style == "outlook":
+            return (
+                "- Phải tách rõ giả định, biến số chính và kịch bản cơ sở.\n"
+                "- Nếu nêu dự phóng, phải nói rõ cơ sở và mức độ chắc chắn; không dùng câu dự báo chung chung.\n"
+            )
+        if style == "valuation":
+            return (
+                "- Phải có các phần rõ ràng: `### Phương pháp & Giả định`, `### Kết quả định giá`, `### Khuyến nghị`.\n"
+                "- Phải nêu một mức giá mục tiêu cơ sở duy nhất kèm horizon/thời điểm; có thể thêm bull/bear range nhưng không được chỉ nêu range chung chung.\n"
+                "- Phải giải thích cầu nối từ giả định chính -> chỉ số định giá -> giá mục tiêu.\n"
+            )
+        if style == "risk":
+            return (
+                "- Trình bày mỗi rủi ro theo logic: nguyên nhân -> kênh tác động -> chỉ tiêu chịu ảnh hưởng.\n"
+                "- Không thêm phần Positive/Key Drivers trong section rủi ro.\n"
+            )
+        return (
+            "- Bám sát outline gốc và chỉ thêm cấu trúc phụ khi nó làm section rõ hơn.\n"
+            "- Tránh chèn các block mẫu lặp lại giữa các section.\n"
+        )
+
+    def _source_policy_block(self) -> str:
+        return (
+            "Source policy:\n"
+            "- Ưu tiên nguồn chính thức của doanh nghiệp/cơ quan quản lý và PDF research từ CTCK.\n"
+            "- Báo tài chính/chứng khoán chính thống chỉ dùng để bổ sung bối cảnh, không làm nền chính cho số liệu trọng yếu khi đã có nguồn tốt hơn.\n"
+            "- Không dùng nguồn tổng hợp/giải thích phổ thông/diễn đàn/tài liệu học tập cho claim định lượng trọng yếu.\n"
+            "- Chỉ liệt kê những nguồn thực sự được dùng trong section.\n"
+            "- Mỗi reference phải có URL đầy đủ theo đúng format `[1] Tiêu đề: [url](url)`.\n"
+        )
+
+    def _filter_sources_by_quality(
+        self, section: SectionTask, sources: List[Dict[str, Any]], limit: int = 6
+    ) -> List[Dict[str, Any]]:
+        decorated: List[Dict[str, Any]] = []
+        seen = set()
+        for source in sources or []:
+            if not isinstance(source, dict):
+                continue
+            url = str(source.get("url", "")).strip()
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            tier = self._source_quality_tier(url)
+            if tier <= 0:
+                continue
+            decorated.append(
+                {
+                    "url": url,
+                    "title": str(source.get("title") or url).strip(),
+                    "quality_tier": tier,
+                    "domain": self._get_source_domain(url),
+                }
+            )
+
+        decorated.sort(
+            key=lambda item: (
+                -int(item.get("quality_tier", 0)),
+                str(item.get("domain", "")),
+                str(item.get("title", "")),
+            )
+        )
+
+        if not decorated:
+            return []
+
+        strict = self._is_strict_source_section(section)
+        high_quality = [item for item in decorated if int(item["quality_tier"]) >= 3]
+        acceptable = [item for item in decorated if int(item["quality_tier"]) >= 2]
+
+        if strict and high_quality:
+            return high_quality[:limit]
+        if acceptable:
+            return acceptable[:limit]
+        return decorated[:limit]
+
+    def _record_quality_tier(self, record: Dict[str, Any]) -> int:
+        candidate_urls: List[str] = []
+        primary_url = str(record.get("primary_url", "")).strip()
+        if primary_url:
+            candidate_urls.append(primary_url)
+        source_urls = record.get("source_urls", [])
+        if isinstance(source_urls, list):
+            candidate_urls.extend(
+                str(url).strip() for url in source_urls if str(url).strip()
+            )
+        if not candidate_urls:
+            return 0
+        return max(self._source_quality_tier(url) for url in candidate_urls)
+
+    def _filter_evidence_records_by_quality(
+        self, section: SectionTask, records: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        decorated: List[Dict[str, Any]] = []
+        for record in records or []:
+            if not isinstance(record, dict):
+                continue
+            tier = self._record_quality_tier(record)
+            if tier <= 0:
+                continue
+            enriched = dict(record)
+            enriched["quality_tier"] = tier
+            decorated.append(enriched)
+
+        decorated.sort(
+            key=lambda item: (
+                -int(item.get("quality_tier", 0)),
+                str(item.get("primary_url", "")),
+                str(item.get("facts", "")),
+            )
+        )
+
+        strict = self._is_strict_source_section(section)
+        high_quality = [item for item in decorated if int(item["quality_tier"]) >= 3]
+        acceptable = [item for item in decorated if int(item["quality_tier"]) >= 2]
+
+        if strict and high_quality:
+            return high_quality[: self.MAX_SECTION_EVIDENCE_RECORDS]
+        if acceptable:
+            return acceptable[: self.MAX_SECTION_EVIDENCE_RECORDS]
+        return decorated[: self.MAX_SECTION_EVIDENCE_RECORDS]
+
+    def _build_report_model_snapshot(self, sections: List[SectionTask]) -> str:
+        evidence_rows: List[Dict[str, Any]] = []
+        seen = set()
+        for section in sections:
+            artifact = section.get("build_artifact") or {}
+            filtered_records = self._filter_evidence_records_by_quality(
+                section, artifact.get("evidence_records", [])
+            )
+            for record in filtered_records:
+                fact = str(record.get("facts", "")).strip()
+                primary_url = str(record.get("primary_url", "")).strip()
+                key = (fact, primary_url)
+                if not fact or key in seen:
+                    continue
+                seen.add(key)
+                evidence_rows.append(
+                    {
+                        "fact": fact,
+                        "source_url": primary_url,
+                        "quality_tier": int(record.get("quality_tier", 0)),
+                    }
+                )
+
+        if not evidence_rows:
+            return "No canonical report model could be built from the current evidence."
+
+        prompt = (
+            "Bạn đang tạo một `canonical report model` dùng chung cho toàn bộ báo cáo.\n"
+            "Chỉ dùng facts được cung cấp. Không suy diễn nếu evidence không đủ.\n"
+            "Nếu chủ thể là ngân hàng, ưu tiên: tổng tài sản, tín dụng, huy động, CASA, NIM, NPL, LLR, CIR, PBT/PAT, ROE, BVPS/PB, giả định tăng trưởng.\n"
+            "Trả về markdown ngắn gọn theo cấu trúc:\n"
+            "## Canonical Report Model\n"
+            "### Core Facts\n"
+            "| Chỉ tiêu | Giá trị | Kỳ | Nguồn |\n"
+            "### Forecast Anchors\n"
+            "| Biến số | 2024A | 2025E | 2026E | Nguồn |\n"
+            "### Valuation Anchors\n"
+            "| Anchor | Giá trị | Ghi chú | Nguồn |\n"
+            "Dùng `N/A` nếu không đủ evidence.\n"
+        )
+        try:
+            response = self.model.invoke(
+                [
+                    SystemMessage(content=prompt),
+                    HumanMessage(
+                        content=json.dumps(
+                            evidence_rows[: self.MAX_MODEL_EVIDENCE_RECORDS],
+                            ensure_ascii=False,
+                            indent=2,
+                        )
+                    ),
+                ]
+            )
+            snapshot = self._extract_text(response.content).strip()
+        except Exception:
+            snapshot = ""
+
+        return (
+            snapshot
+            or "No canonical report model could be built from the current evidence."
+        )
+
+    def _ensure_report_model_snapshot(self, sections: List[SectionTask]) -> str:
+        if self._report_model_snapshot is None:
+            self._report_model_snapshot = self._build_report_model_snapshot(sections)
+            self._write_file("company_model.md", self._report_model_snapshot + "\n")
+        return self._report_model_snapshot
+
+    def _infer_section_mode(
+        self, title: str, outline_chunk: str, build_artifact: Optional[Dict[str, Any]]
+    ) -> str:
+        if build_artifact and str(build_artifact.get("writer_mode", "")).strip():
+            return str(build_artifact["writer_mode"]).strip()
+
+        combined = f"{title}\n{outline_chunk}".lower()
+        debate_keywords = [
+            "triển vọng",
+            "dự báo",
+            "định giá",
+            "khuyến nghị",
+            "rủi ro",
+            "cảnh báo",
+            "outlook",
+            "valuation",
+            "recommendation",
+            "risk",
+        ]
+        if any(keyword in combined for keyword in debate_keywords):
+            return "debate"
+        return "direct"
+
     def _parse_sections(self, outline_text: str) -> List[SectionTask]:
         lines = outline_text.splitlines()
         section_starts = [i for i, line in enumerate(lines) if line.startswith("## ")]
@@ -176,6 +562,7 @@ class WriterOrchestrator:
             chunk = "\n".join(lines[start:end]).strip()
             heading = lines[start].strip()
             title = heading[len(heading_prefix) :].strip()
+            build_artifact = self._get_build_artifact_for_section(title, heading)
             sections.append(
                 {
                     "index": idx,
@@ -183,6 +570,10 @@ class WriterOrchestrator:
                     "heading": heading,
                     "outline_chunk": chunk,
                     "dir_name": f"section_{idx}",
+                    "writer_mode": self._infer_section_mode(
+                        title, chunk, build_artifact
+                    ),
+                    "build_artifact": build_artifact,
                 }
             )
         return sections
@@ -249,17 +640,22 @@ class WriterOrchestrator:
         guidance_block = (
             f"\nRevision guidance:\n{revision_guidance}\n" if revision_guidance else ""
         )
+        report_model = self._report_model_snapshot or "No canonical report model."
         prompt = (
             f"Write the {stance} case for this report section.\n"
             f"Section title: {section['title']}\n"
             f"Section heading: {section['heading']}\n"
             f"Outline guidance:\n{section['outline_chunk']}\n"
             f"Evidence pack:\n{evidence_pack}\n"
+            f"Canonical report model:\n{report_model}\n"
             f"{guidance_block}"
             "Requirements:\n"
             "- Query the knowledge graph for evidence.\n"
             "- Use the evidence pack as the default grounding source and only extend it with graph facts that are clearly relevant.\n"
+            "- Prefer official/company/regulator sources and broker research PDFs for quantitative claims.\n"
+            "- Do not rely on tertiary or generic explainer sources for key financial numbers.\n"
             "- Use specific facts, dates, and entities.\n"
+            "- Every reference you keep must include a full URL.\n"
             "- Respond in Vietnamese.\n"
             "- Return markdown only.\n"
         )
@@ -296,6 +692,8 @@ class WriterOrchestrator:
                     {
                         "url": url,
                         "title": str(source.get("title") or url).strip(),
+                        "quality_tier": self._source_quality_tier(url),
+                        "domain": self._get_source_domain(url),
                     }
                 )
 
@@ -312,6 +710,89 @@ class WriterOrchestrator:
             url = str(source.get("url") or "").strip()
             lines.append(f"[{idx}] {title}: [{url}]({url})")
         return lines
+
+    def _build_artifact_to_evidence_pack(
+        self, section: SectionTask, artifact: Dict[str, Any]
+    ) -> str:
+        evidence_records = self._filter_evidence_records_by_quality(
+            section, artifact.get("evidence_records", [])
+        )
+        coverage_matrix = artifact.get("coverage_matrix", [])
+        research_plan = artifact.get("plan", [])
+        report_model = self._report_model_snapshot or ""
+
+        blocks: List[str] = [
+            f"# Evidence Pack: {section['title']}",
+            "",
+            f"Section outline:\n{section['outline_chunk']}",
+            "",
+            f"Writer mode: {section.get('writer_mode', 'direct')}",
+            "",
+            self._source_policy_block().strip(),
+            "",
+        ]
+
+        if isinstance(research_plan, list) and research_plan:
+            blocks.extend(["## Research plan", ""])
+            for item in research_plan:
+                if not isinstance(item, dict):
+                    continue
+                subquery = str(item.get("subquery", "")).strip()
+                rationale = str(item.get("rationale", "")).strip()
+                if subquery:
+                    line = f"- {subquery}"
+                    if rationale:
+                        line += f" | coverage: {rationale}"
+                    blocks.append(line)
+            blocks.append("")
+
+        if isinstance(coverage_matrix, list) and coverage_matrix:
+            blocks.extend(["## Coverage matrix", ""])
+            for item in coverage_matrix:
+                if not isinstance(item, dict):
+                    continue
+                point = str(item.get("point", "")).strip()
+                status = str(item.get("status", "")).strip() or "unknown"
+                support_count = int(item.get("support_count", 0) or 0)
+                sample_facts = item.get("sample_facts", [])
+                sample = ""
+                if isinstance(sample_facts, list) and sample_facts:
+                    sample = f" | sample: {str(sample_facts[0]).strip()}"
+                if point:
+                    blocks.append(
+                        f"- {point} | status={status} | support_count={support_count}{sample}"
+                    )
+            blocks.append("")
+
+        if isinstance(evidence_records, list) and evidence_records:
+            blocks.extend(["## Structured evidence ledger", ""])
+            for idx, record in enumerate(evidence_records[:30], start=1):
+                if not isinstance(record, dict):
+                    continue
+                fact = str(record.get("facts", "")).strip()
+                primary_url = str(record.get("primary_url", "")).strip()
+                source_urls = record.get("source_urls", [])
+                quality_tier = int(record.get("quality_tier", 0) or 0)
+                source_line = ""
+                if isinstance(source_urls, list) and source_urls:
+                    source_line = ", ".join(
+                        str(url).strip() for url in source_urls[:3] if str(url).strip()
+                    )
+                blocks.extend(
+                    [
+                        f"### Evidence {idx}",
+                        f"Fact: {fact or 'N/A'}",
+                        f"Primary source: {primary_url or 'N/A'}",
+                        f"Source quality tier: {quality_tier}",
+                        f"Supporting URLs: {source_line or primary_url or 'N/A'}",
+                        "",
+                    ]
+                )
+
+        if report_model:
+            blocks.extend(["## Canonical report model", "", report_model.strip(), ""])
+
+        return "\n".join(blocks).strip()
 
     def _fallback_evidence_queries(self, section: SectionTask) -> List[str]:
         queries: List[str] = []
@@ -362,11 +843,22 @@ class WriterOrchestrator:
         )
 
     def _collect_section_evidence(self, section: SectionTask) -> str:
+        build_artifact = section.get("build_artifact") or {}
+        artifact_records = build_artifact.get("evidence_records", [])
+        if isinstance(artifact_records, list) and artifact_records:
+            evidence_pack = self._build_artifact_to_evidence_pack(
+                section, build_artifact
+            )
+            self._write_file(f"{section['dir_name']}/evidence.md", evidence_pack + "\n")
+            return evidence_pack
+
         queries = self._plan_evidence_queries(section)
         evidence_blocks: List[str] = [
             f"# Evidence Pack: {section['title']}",
             "",
             f"Section outline:\n{section['outline_chunk']}",
+            "",
+            self._source_policy_block().strip(),
             "",
         ]
 
@@ -383,9 +875,12 @@ class WriterOrchestrator:
             except Exception as exc:
                 natural_result = {"context": f"Natural graph query failed: {exc}"}
 
-            query_sources = self._merge_sources(
+            raw_query_sources = self._merge_sources(
                 search_result.get("sources", []),
                 natural_result.get("sources", []),
+            )
+            query_sources = self._filter_sources_by_quality(
+                section, raw_query_sources, limit=6
             )
             source_excerpt = "No source excerpts retrieved."
             if query_sources:
@@ -403,6 +898,10 @@ class WriterOrchestrator:
                     ).strip()
                 except Exception as exc:
                     source_excerpt = f"Source content retrieval failed: {exc}"
+            elif raw_query_sources:
+                source_excerpt = (
+                    "Retrieved sources were filtered out by source-quality policy."
+                )
 
             evidence_blocks.extend(
                 [
@@ -422,6 +921,16 @@ class WriterOrchestrator:
                     "",
                     "### Source excerpts",
                     source_excerpt,
+                    "",
+                ]
+            )
+
+        if self._report_model_snapshot:
+            evidence_blocks.extend(
+                [
+                    "## Canonical report model",
+                    "",
+                    self._report_model_snapshot.strip(),
                     "",
                 ]
             )
@@ -479,19 +988,78 @@ class WriterOrchestrator:
             system_prompt=self._chart_prompt,
             tools=[execute_chart_code, get_current_date, critique_chart],
         )
-        prompt = (
-            "Create a chart for this data.\n"
-            f"Data: {json.dumps(spec.get('data', {}), ensure_ascii=False)}\n"
-            f"Title: {spec.get('title', 'Chart')}\n"
-            f"Y-Label: {spec.get('ylabel', '')}\n"
-            f"Context: {spec.get('rationale', '')}\n"
-            "Return only the chart file path."
-        )
-        result = chart_agent.invoke({"messages": [{"role": "user", "content": prompt}]})
-        chart_path = ""
-        if result.get("messages"):
-            chart_path = self._extract_text(result["messages"][-1].content).strip()
-        return self._relative_to_workspace(chart_path)
+        best_path = ""
+        best_score = -1.0
+        critique_feedback = ""
+
+        for attempt in range(1, self.MAX_CHART_REVISIONS + 1):
+            prompt = (
+                "Create a chart for this data.\n"
+                f"Data: {json.dumps(spec.get('data', {}), ensure_ascii=False)}\n"
+                f"Title: {spec.get('title', 'Chart')}\n"
+                f"Y-Label: {spec.get('ylabel', '')}\n"
+                f"Context: {spec.get('rationale', '')}\n"
+            )
+            if critique_feedback:
+                prompt += (
+                    "Previous critique to fix before regenerating:\n"
+                    f"{critique_feedback}\n"
+                )
+            prompt += "Return only the chart file path."
+
+            result = chart_agent.invoke(
+                {"messages": [{"role": "user", "content": prompt}]}
+            )
+            chart_path = ""
+            if result.get("messages"):
+                raw_output = self._extract_text(result["messages"][-1].content).strip()
+                path_match = re.search(
+                    r"([A-Za-z0-9_./-]+\.(?:png|jpg|jpeg|webp))", raw_output
+                )
+                chart_path = path_match.group(1) if path_match else raw_output
+            relative_path = self._relative_to_workspace(chart_path)
+            if not relative_path or relative_path.startswith("Error"):
+                continue
+
+            absolute_path = Path(self._get_workspace_path() or "") / relative_path
+            critique_raw = critique_chart.invoke(
+                {
+                    "image_path": str(absolute_path),
+                    "context": spec.get("rationale", ""),
+                }
+            )
+            critique = self._extract_json_payload(str(critique_raw), fallback={})
+            score = float(critique.get("overall_score", 0) or 0)
+            pass_threshold = bool(critique.get("pass_threshold", False))
+
+            if score > best_score:
+                best_score = score
+                best_path = relative_path
+
+            critique_payload_path = absolute_path.with_suffix(".critique.json")
+            critique_payload_path.write_text(
+                json.dumps(
+                    critique or {"raw": critique_raw}, ensure_ascii=False, indent=2
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            if pass_threshold:
+                return relative_path
+
+            critique_feedback = json.dumps(
+                {
+                    "overall_score": score,
+                    "weaknesses": critique.get("weaknesses", []),
+                    "suggestions": critique.get("suggestions", []),
+                    "summary": critique.get("summary", ""),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+
+        return best_path
 
     def _synthesize_section(
         self,
@@ -507,11 +1075,8 @@ class WriterOrchestrator:
             for idx, path in enumerate(chart_paths)
             if path
         )
-        title_specific_rule = (
-            "This is the overview title section. Write a concise opening with a specific title and 2 short paragraphs. Do not invent charts or generic 'Key Drivers' blocks.\n"
-            if self._is_title_section(section)
-            else "Follow the section outline closely. Preserve the subsection bullets/themes from the outline and expand them with supported analysis.\n"
-        )
+        report_model = self._report_model_snapshot or "No canonical report model."
+        section_guidance = self._section_specific_guidance(section)
         response = self.model.invoke(
             [
                 SystemMessage(
@@ -522,10 +1087,13 @@ class WriterOrchestrator:
                         + "\n\nAdditional hard rules:\n"
                         + "- Write in Vietnamese.\n"
                         + "- Use only facts supported by the evidence pack, bull case, or bear case.\n"
+                        + f"{self._source_policy_block()}\n"
                         + "- Preserve the exact section heading.\n"
                         + "- Do not collapse the section into a generic template if the outline contains specific bullets.\n"
                         + "- Prefer concrete numbers, dates, entities, and causal explanation over generic claims.\n"
                         + "- If evidence is missing for an outline point, keep it but state ngắn gọn rằng dữ liệu hiện chưa đủ.\n"
+                        + "- Use a single consistent reference format: `[n] Tiêu đề: [url](url)`.\n"
+                        + "- Avoid repeating generic `Key Drivers` or `Conclusion/Outlook` blocks unless the section style really needs them.\n"
                     )
                 ),
                 HumanMessage(
@@ -535,13 +1103,62 @@ class WriterOrchestrator:
                         f"Section heading: {section['heading']}\n"
                         f"Section outline:\n{section['outline_chunk']}\n\n"
                         f"Evidence pack:\n{evidence_pack}\n\n"
+                        f"Canonical report model:\n{report_model}\n\n"
                         f"Bull case:\n{bull_content}\n\n"
                         f"Bear case:\n{bear_content}\n\n"
                         f"Available charts to embed:\n{chart_block or 'No charts'}\n\n"
                         f"Revision guidance:\n{revision_guidance or 'None'}\n\n"
-                        f"{title_specific_rule}"
+                        f"Section-specific guidance:\n{section_guidance}\n"
                         "Return markdown only. Preserve the section heading exactly, produce a detailed section grounded in the evidence pack, "
                         "and include chart markdown only if the charts are genuinely supported."
+                    )
+                ),
+            ]
+        )
+        return self._extract_text(response.content).strip()
+
+    def _write_direct_section(
+        self,
+        section: SectionTask,
+        evidence_pack: str,
+        chart_paths: List[str],
+        revision_guidance: str = "",
+    ) -> str:
+        chart_block = "\n".join(
+            f"![{section['title']} - chart {idx + 1}]({path})"
+            for idx, path in enumerate(chart_paths)
+            if path
+        )
+        report_model = self._report_model_snapshot or "No canonical report model."
+        section_guidance = self._section_specific_guidance(section)
+        system_prompt = (
+            "You write one grounded section of a Vietnamese financial research report.\n"
+            "Use the evidence pack as the primary source of truth.\n"
+            "Do not force a bull/bear structure unless the section itself is inherently about outlook, valuation, or risk.\n"
+            "Every factual claim, number, date, and sourced statement must use inline citations like [1].\n"
+            "End the section with ### References and a numbered reference list.\n"
+            f"{self._source_policy_block()}\n"
+            "Preserve the exact section heading.\n"
+            "If evidence is thin for an outline point, say briefly that evidence is currently insufficient instead of filling with generic prose.\n"
+            "Prefer concrete metrics, dates, named entities, and causal explanation over generic statements.\n"
+            "Use one consistent reference format: `[n] Tiêu đề: [url](url)`.\n"
+            "Avoid appending generic `Key Drivers` or `Conclusion/Outlook` blocks unless the outline explicitly calls for them.\n"
+        )
+        response = self.model.invoke(
+            [
+                SystemMessage(content=system_prompt),
+                HumanMessage(
+                    content=(
+                        f"Write the final section draft in Vietnamese.\n"
+                        f"Section title: {section['title']}\n"
+                        f"Section heading: {section['heading']}\n"
+                        f"Section outline:\n{section['outline_chunk']}\n\n"
+                        f"Evidence pack:\n{evidence_pack}\n\n"
+                        f"Canonical report model:\n{report_model}\n\n"
+                        f"Available charts to embed:\n{chart_block or 'No charts'}\n\n"
+                        f"Revision guidance:\n{revision_guidance or 'None'}\n\n"
+                        f"Section-specific guidance:\n{section_guidance}\n"
+                        "Return markdown only. Keep the section grounded, specific, and structurally faithful to the outline."
                     )
                 ),
             ]
@@ -591,23 +1208,28 @@ class WriterOrchestrator:
         self, section: SectionTask, revision_guidance: str = ""
     ) -> SectionResult:
         evidence_pack = self._collect_section_evidence(section)
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            bull_future = executor.submit(
-                self._run_stance_agent,
-                section,
-                evidence_pack,
-                "bull",
-                revision_guidance,
-            )
-            bear_future = executor.submit(
-                self._run_stance_agent,
-                section,
-                evidence_pack,
-                "bear",
-                revision_guidance,
-            )
-            bull_result = bull_future.result()
-            bear_result = bear_future.result()
+        writer_mode = str(section.get("writer_mode", "direct")).strip() or "direct"
+        bull_result = {"content": "", "path": ""}
+        bear_result = {"content": "", "path": ""}
+
+        if writer_mode == "debate":
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                bull_future = executor.submit(
+                    self._run_stance_agent,
+                    section,
+                    evidence_pack,
+                    "bull",
+                    revision_guidance,
+                )
+                bear_future = executor.submit(
+                    self._run_stance_agent,
+                    section,
+                    evidence_pack,
+                    "bear",
+                    revision_guidance,
+                )
+                bull_result = bull_future.result()
+                bear_result = bear_future.result()
 
         chart_specs = self._extract_chart_specs(
             section, evidence_pack, bull_result["content"], bear_result["content"]
@@ -625,14 +1247,22 @@ class WriterOrchestrator:
                     if chart_path and not chart_path.startswith("Error"):
                         chart_paths.append(chart_path)
 
-        draft_content = self._synthesize_section(
-            section=section,
-            evidence_pack=evidence_pack,
-            bull_content=bull_result["content"],
-            bear_content=bear_result["content"],
-            chart_paths=chart_paths,
-            revision_guidance=revision_guidance,
-        )
+        if writer_mode == "debate":
+            draft_content = self._synthesize_section(
+                section=section,
+                evidence_pack=evidence_pack,
+                bull_content=bull_result["content"],
+                bear_content=bear_result["content"],
+                chart_paths=chart_paths,
+                revision_guidance=revision_guidance,
+            )
+        else:
+            draft_content = self._write_direct_section(
+                section=section,
+                evidence_pack=evidence_pack,
+                chart_paths=chart_paths,
+                revision_guidance=revision_guidance,
+            )
         draft_path = self._write_file(
             f"{section['dir_name']}/draft.md", draft_content + "\n"
         )
@@ -651,6 +1281,7 @@ class WriterOrchestrator:
             "draft_path": draft_path,
             "evidence_pack": evidence_pack,
             "draft": draft_content,
+            "writer_mode": writer_mode,
         }
 
     def _draft_sections_node(self, state: WriteState) -> Dict[str, Any]:
@@ -658,6 +1289,7 @@ class WriterOrchestrator:
         if not sections:
             outline = self._read_outline()
             sections = self._parse_sections(outline)
+        self._ensure_report_model_snapshot(sections)
 
         results: List[SectionResult] = []
         with ThreadPoolExecutor(max_workers=max(1, len(sections))) as executor:
@@ -730,7 +1362,7 @@ class WriterOrchestrator:
         overall_score = (
             sum(numeric_scores) / len(numeric_scores) if numeric_scores else 0
         )
-        pass_threshold = overall_score >= 9 and not weak_sections
+        pass_threshold = overall_score >= 8 and not weak_sections
 
         return {
             "section_results": critiques,
