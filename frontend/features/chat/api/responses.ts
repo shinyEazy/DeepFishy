@@ -1,31 +1,18 @@
-import type { ResponsesApiPayload } from "@/features/chat/types"
-
 type StreamEvent =
+  | { type: "conversation_id"; conversation_id: string }
   | { type: "content"; content: string }
-  | { type: "done" }
+  | { type: "done"; conversation_id: string; message_id: string }
   | { type: "error"; error: string }
 
-export async function requestChatResponse(body: string) {
-  const response = await fetch("/api/responses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body,
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(errorText || `Request failed with status ${response.status}`)
-  }
-
-  return (await response.json()) as ResponsesApiPayload
-}
-
 export async function streamChatResponse(
-  body: string,
+  request: {
+    message: string
+    conversationId?: string
+  },
   handlers: {
     onChunk: (chunk: string) => void
+    onConversationId?: (conversationId: string) => void
+    onDone?: (payload: { conversationId: string; messageId: string }) => void
     onError?: (message: string) => void
   }
 ) {
@@ -35,7 +22,11 @@ export async function streamChatResponse(
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     },
-    body,
+    body: JSON.stringify({
+      message: request.message,
+      conversation_id: request.conversationId,
+      stream: true,
+    }),
   })
 
   if (!response.ok) {
@@ -70,6 +61,11 @@ export async function streamChatResponse(
       const payload = line.replace(/^data:\s*/, "")
       const parsed = JSON.parse(payload) as StreamEvent
 
+      if (parsed.type === "conversation_id") {
+        handlers.onConversationId?.(parsed.conversation_id)
+        continue
+      }
+
       if (parsed.type === "content") {
         handlers.onChunk(parsed.content)
         continue
@@ -81,6 +77,10 @@ export async function streamChatResponse(
       }
 
       if (parsed.type === "done") {
+        handlers.onDone?.({
+          conversationId: parsed.conversation_id,
+          messageId: parsed.message_id,
+        })
         return
       }
     }
@@ -90,8 +90,15 @@ export async function streamChatResponse(
         const payload = buffer.replace(/^data:\s*/, "").trim()
         if (payload) {
           const parsed = JSON.parse(payload) as StreamEvent
-          if (parsed.type === "content") {
+          if (parsed.type === "conversation_id") {
+            handlers.onConversationId?.(parsed.conversation_id)
+          } else if (parsed.type === "content") {
             handlers.onChunk(parsed.content)
+          } else if (parsed.type === "done") {
+            handlers.onDone?.({
+              conversationId: parsed.conversation_id,
+              messageId: parsed.message_id,
+            })
           } else if (parsed.type === "error") {
             handlers.onError?.(parsed.error)
             throw new Error(parsed.error)

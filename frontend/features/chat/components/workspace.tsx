@@ -1,20 +1,58 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { ChatMainPanel } from "@/features/chat/components/main-panel"
 import { ChatSidebar } from "@/features/chat/components/sidebar"
-import { defaultSessionId } from "@/features/chat/data/mock-sessions"
+import { newSessionId } from "@/features/chat/data/session-defaults"
 import { useChatSession } from "@/features/chat/hooks/use-chat-session"
 import { cn } from "@/lib/utils"
 
 export function ChatWorkspace({
-  activeSessionId = defaultSessionId,
+  activeSessionId,
 }: {
   activeSessionId?: string
 }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const { session, transcript, setTranscript } = useChatSession(activeSessionId)
+  const [selectedSessionId, setSelectedSessionId] = useState(activeSessionId)
+  const {
+    sessions,
+    resolvedSessionId,
+    isLoadingSessions,
+    session,
+    transcript,
+    setTranscript,
+    setSessionMode,
+    startDraftSession,
+    promoteDraftSession,
+  } = useChatSession(selectedSessionId)
+
+  useEffect(() => {
+    setSelectedSessionId(activeSessionId)
+  }, [activeSessionId])
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search)
+      setSelectedSessionId(params.get("session") ?? undefined)
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!resolvedSessionId || resolvedSessionId === selectedSessionId) {
+      return
+    }
+
+    const nextUrl = new URL(window.location.href)
+    nextUrl.searchParams.set("session", resolvedSessionId)
+    window.history.replaceState({}, "", nextUrl)
+    setSelectedSessionId(resolvedSessionId)
+  }, [resolvedSessionId, selectedSessionId])
 
   return (
     <main className="h-svh overflow-hidden page-surface relative">
@@ -31,14 +69,43 @@ export function ChatWorkspace({
           )}
         >
           <ChatSidebar
-            activeSessionId={session.id}
+            sessions={sessions}
+            activeSessionId={resolvedSessionId ?? ""}
+            isLoading={isLoadingSessions}
             collapsed={isSidebarCollapsed}
             onToggle={() => setIsSidebarCollapsed((value) => !value)}
+            onCreateSession={() => {
+              startDraftSession()
+              const nextUrl = new URL(window.location.href)
+              nextUrl.searchParams.set("session", newSessionId)
+              window.history.pushState({}, "", nextUrl)
+              setSelectedSessionId(newSessionId)
+            }}
+            onSelectSession={(sessionId) => {
+              const nextUrl = new URL(window.location.href)
+              nextUrl.searchParams.set("session", sessionId)
+              window.history.pushState({}, "", nextUrl)
+              setSelectedSessionId(sessionId)
+            }}
           />
           <ChatMainPanel
             session={session}
             transcript={transcript}
             onTranscriptChange={setTranscript}
+            onModeChange={setSessionMode}
+            onSessionChange={(sessionId) => {
+              if (selectedSessionId === newSessionId) {
+                promoteDraftSession(sessionId)
+              }
+              if (sessionId === selectedSessionId) {
+                return
+              }
+
+              const nextUrl = new URL(window.location.href)
+              nextUrl.searchParams.set("session", sessionId)
+              window.history.replaceState({}, "", nextUrl)
+              setSelectedSessionId(sessionId)
+            }}
           />
         </div>
       </div>

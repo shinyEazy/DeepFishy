@@ -3,10 +3,25 @@ export type Mode = "deep" | "normal"
 export type SessionSummary = {
   id: string
   title: string
-  preview: string
-  time: string
-  status: string
-  mode: Mode
+  createdAt: string
+  updatedAt: string
+  messageCount: number
+}
+
+export type SessionMessage = {
+  id: string
+  role: "user" | "assistant"
+  content: string
+  createdAt: string
+  metadata?: Record<string, unknown> | null
+}
+
+export type SessionDetail = {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+  messages: SessionMessage[]
 }
 
 export type TranscriptMessage = {
@@ -21,20 +36,9 @@ export type TranscriptMessage = {
 }
 
 export type SessionContent = {
-  id: string
+  id?: string
   title: string
   mode: Mode
-  subtitle: string
   inputPlaceholder: string
-  quickActions: readonly string[]
   transcript: readonly TranscriptMessage[]
-}
-
-export type ResponsePart = {
-  text: string
-}
-
-export type ResponsesApiPayload = {
-  role: string
-  parts: ResponsePart[]
 }

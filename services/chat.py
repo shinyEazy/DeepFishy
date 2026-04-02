@@ -9,6 +9,8 @@ import json
 from db.models.conversation import Conversation, Message
 from core.logging import logger
 
+DEFAULT_CONVERSATION_TITLE = "Cuộc trò chuyện mới"
+
 
 class ChatService:
     """Service for managing chat conversations and agent interactions."""
@@ -33,7 +35,9 @@ class ChatService:
             Created conversation
         """
         try:
-            conversation = Conversation(title=title or "New Conversation", meta={})
+            conversation = Conversation(
+                title=title or DEFAULT_CONVERSATION_TITLE, meta={}
+            )
             self.db.add(conversation)
             self.db.commit()
             self.db.refresh(conversation)
@@ -90,6 +94,40 @@ class ChatService:
             )
 
         return self.create_conversation()
+
+    def build_conversation_title(self, content: str, max_length: int = 80) -> str:
+        """Build a readable conversation title from the first user message."""
+        normalized = " ".join(content.split()).strip()
+        if not normalized:
+            return DEFAULT_CONVERSATION_TITLE
+
+        if len(normalized) <= max_length:
+            return normalized
+
+        return normalized[: max_length - 1].rstrip() + "…"
+
+    def ensure_conversation_title(
+        self, conversation: Conversation, seed_text: str
+    ) -> Conversation:
+        """Replace placeholder conversation titles with a title from user input."""
+        current_title = (conversation.title or "").strip()
+        if current_title and current_title not in {
+            DEFAULT_CONVERSATION_TITLE,
+            "New Conversation",
+        }:
+            return conversation
+
+        try:
+            conversation.title = self.build_conversation_title(seed_text)
+            conversation.updated_at = datetime.utcnow()
+            self.db.add(conversation)
+            self.db.commit()
+            self.db.refresh(conversation)
+            return conversation
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Failed to update conversation title: {e}")
+            raise
 
     def list_conversations(
         self, limit: int = 50, offset: int = 0
