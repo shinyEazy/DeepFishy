@@ -1,6 +1,5 @@
 import { Badge } from "@/components/ui/badge"
-
-import type { Mode } from "@/components/chat/mock-data"
+import type { Mode } from "@/features/chat/types"
 
 export function ModeBadge({
   mode,

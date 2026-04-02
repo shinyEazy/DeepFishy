@@ -3,13 +3,13 @@
 import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 
-import { sessionGroups, type SessionSummary } from "@/components/chat/mock-data"
+import { sessionGroups } from "@/features/chat/data/mock-sessions"
+import type { SessionSummary } from "@/features/chat/types"
 import { cn } from "@/lib/utils"
 
 function SessionButton({
   id,
   title,
-  preview,
   active = false,
 }: Pick<SessionSummary, "id" | "title" | "preview"> & { active?: boolean }) {
   return (

@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from api.routes.rag import router as rag_router
 from api.routes.chat import router as chat_router
+from api.routes.response import router as response_router
 from db.session import close_db
 from core.logging import logger
 
@@ -43,6 +44,7 @@ app.add_middleware(
 # Register API routers
 app.include_router(chat_router, prefix="/api")
 app.include_router(rag_router, prefix="/api")
+app.include_router(response_router, prefix="/api")
 
 
 @app.get("/")

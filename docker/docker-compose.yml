@@ -116,6 +116,10 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
+      - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcp-service-account.json
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-us-central1}
+      - RESPONSE_MODEL=${RESPONSE_MODEL:-gemini-3.1-flash-lite-preview}
     env_file:
       - .env
     ports:
@@ -146,6 +150,7 @@ services:
       - ../outputs:/app/outputs
       - ../benchmark:/app/benchmark
       - ../templates:/app/templates
+      - ${GOOGLE_APPLICATION_CREDENTIALS_FILE}:/run/secrets/gcp-service-account.json:ro
     networks:
       - deepfishy
 

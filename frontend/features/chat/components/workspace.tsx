@@ -2,12 +2,10 @@
 
 import { useState } from "react"
 
-import {
-  defaultSessionId,
-  getSessionContent,
-} from "@/components/chat/mock-data"
-import { ChatMainPanel } from "@/components/chat/main-panel"
-import { ChatSidebar } from "@/components/chat/sidebar"
+import { ChatMainPanel } from "@/features/chat/components/main-panel"
+import { ChatSidebar } from "@/features/chat/components/sidebar"
+import { defaultSessionId } from "@/features/chat/data/mock-sessions"
+import { useChatSession } from "@/features/chat/hooks/use-chat-session"
 import { cn } from "@/lib/utils"
 
 export function ChatWorkspace({
@@ -16,15 +14,14 @@ export function ChatWorkspace({
   activeSessionId?: string
 }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const session = getSessionContent(activeSessionId)
+  const { session, transcript, setTranscript } = useChatSession(activeSessionId)
 
   return (
     <main className="h-svh overflow-hidden page-surface relative">
-      {/* Background Orbs for atmospheric depth */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] soft-orb opacity-50 z-0"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] soft-orb opacity-30 z-0"></div>
+      <div className="absolute top-[-10%] left-[-10%] h-[500px] w-[500px] soft-orb z-0 opacity-50"></div>
+      <div className="absolute right-[-10%] bottom-[-10%] h-[600px] w-[600px] soft-orb z-0 opacity-30"></div>
 
-      <div className="flex h-full flex-col px-4 py-3 relative z-10">
+      <div className="relative z-10 flex h-full flex-col px-4 py-3">
         <div
           className={cn(
             "grid min-h-0 flex-1 gap-4 pt-2",
@@ -38,7 +35,11 @@ export function ChatWorkspace({
             collapsed={isSidebarCollapsed}
             onToggle={() => setIsSidebarCollapsed((value) => !value)}
           />
-          <ChatMainPanel session={session} />
+          <ChatMainPanel
+            session={session}
+            transcript={transcript}
+            onTranscriptChange={setTranscript}
+          />
         </div>
       </div>
     </main>
