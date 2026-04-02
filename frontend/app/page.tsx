@@ -1,4 +1,4 @@
-import { ChatWorkspace } from "@/components/chat/workspace"
+import { ChatWorkspace } from "@/features/chat/components/workspace"
 
 export default async function Page({
   searchParams,

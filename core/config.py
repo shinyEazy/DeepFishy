@@ -44,6 +44,12 @@ class Settings(BaseSettings):
 
     MINERU_API_KEY: str = os.getenv("MINERU_API_KEY")
     TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY")
+    GOOGLE_CLOUD_API_KEY: str | None = os.getenv("GOOGLE_CLOUD_API_KEY")
+    GOOGLE_API_KEY: str | None = os.getenv("GOOGLE_API_KEY")
+    GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY")
+    GOOGLE_CLOUD_PROJECT: str | None = os.getenv("GOOGLE_CLOUD_PROJECT")
+    GOOGLE_CLOUD_LOCATION: str = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    RESPONSE_MODEL: str = os.getenv("RESPONSE_MODEL", "gemini-3.1-flash-lite-preview")
 
     class Config:
         env_file = ".env"
