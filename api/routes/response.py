@@ -74,14 +74,16 @@ async def create_response(
             content=request.message,
             metadata={"source": "responses_api"},
         )
-        contents = _build_contents(chat_service.get_messages(conversation.id))
+        contents = _build_contents(chat_service.get_messages(conversation.id, limit=10))
 
         if request.stream:
 
             def event_stream():
+                chunks: List[str] = []
+                assistant_message = None
+
                 try:
                     yield f"data: {json.dumps({'type': 'conversation_id', 'conversation_id': conversation.id})}\n\n"
-                    chunks: List[str] = []
                     for chunk in response_service.stream_response(contents):
                         if not chunk:
                             continue
@@ -118,6 +120,24 @@ async def create_response(
                         f"Streaming response generation error: {exc}", exc_info=True
                     )
                     yield f"data: {json.dumps({'type': 'error', 'error': str(exc)})}\n\n"
+                finally:
+                    if assistant_message is not None or not chunks:
+                        return
+
+                    response_text = "".join(chunks).strip()
+                    if not response_text:
+                        return
+
+                    chat_service.save_message(
+                        conversation_id=conversation.id,
+                        role="assistant",
+                        content=response_text,
+                        metadata={
+                            "source": "responses_api",
+                            "streamed": True,
+                            "interrupted": True,
+                        },
+                    )
 
             return StreamingResponse(
                 event_stream(),
