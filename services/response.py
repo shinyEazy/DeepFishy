@@ -14,9 +14,7 @@ class ResponseService:
 
     def __init__(self) -> None:
         self.model_name = os.getenv("RESPONSE_MODEL", "gemini-3.1-flash-lite-preview")
-        self.location = os.getenv("GOOGLE_CLOUD_LOCATION") or os.getenv(
-            "GOOGLE_CLOUD_LOCATION", "us-central1"
-        )
+        self.location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
         self.project = os.getenv("GOOGLE_CLOUD_PROJECT")
         self.api_key = (
             os.getenv("GOOGLE_API_KEY")
@@ -64,7 +62,9 @@ class ResponseService:
             yield chunk_text
 
         if not saw_content:
-            logger.warning("Gemini stream returned no content; falling back to full invoke")
+            logger.warning(
+                "Gemini stream returned no content; falling back to full invoke"
+            )
             fallback = self.generate_response(contents)
             if fallback:
                 yield fallback

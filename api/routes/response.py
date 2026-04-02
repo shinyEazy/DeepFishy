@@ -1,4 +1,5 @@
 """LLM-backed response API endpoints."""
+
 import json
 import os
 from typing import Any, Dict, List
@@ -51,24 +52,21 @@ async def create_response(request: ResponseRequest) -> Any:
     """Generate a response from the configured Gemini model."""
     try:
         response_service = ResponseService()
-        contents = [
-            {
-                "role": item.role,
-                "parts": [{"text": part.text} for part in item.parts],
-            }
-            for item in request.contents
-        ]
+        contents = [item.model_dump() for item in request.contents]
 
         if request.stream:
+
             def event_stream():
                 try:
                     for chunk in response_service.stream_response(contents):
                         if not chunk:
                             continue
                         yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
-                    yield "data: {\"type\": \"done\"}\n\n"
+                    yield 'data: {"type": "done"}\n\n'
                 except Exception as exc:
-                    logger.error(f"Streaming response generation error: {exc}", exc_info=True)
+                    logger.error(
+                        f"Streaming response generation error: {exc}", exc_info=True
+                    )
                     yield f"data: {json.dumps({'type': 'error', 'error': str(exc)})}\n\n"
 
             return StreamingResponse(
@@ -83,9 +81,7 @@ async def create_response(request: ResponseRequest) -> Any:
 
         response_text = response_service.generate_response(contents)
         return ResponsePayload(role="model", parts=[ContentPart(text=response_text)])
-    except ValueError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    except RuntimeError as exc:
+    except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:
         logger.error(f"Response generation error: {exc}", exc_info=True)
