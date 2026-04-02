@@ -46,6 +46,7 @@ def init_db() -> None:
     """
     try:
         from db.base import Base
+        import db.models  # noqa: F401
 
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")

@@ -7,16 +7,19 @@ import {
   useRef,
   useState,
 } from "react"
-import { ArrowUp, LoaderCircle, Mic, Plus } from "lucide-react"
+import { ArrowUp, Globe, LoaderCircle, X } from "lucide-react"
 
 import { streamChatResponse } from "@/features/chat/api/responses"
 import { TranscriptCard } from "@/features/chat/components/transcript-card"
 import {
-  buildConversationPayload,
   createAssistantMessage,
   createUserMessage,
 } from "@/features/chat/lib/messages"
-import type { SessionContent, TranscriptMessage } from "@/features/chat/types"
+import type {
+  Mode,
+  SessionContent,
+  TranscriptMessage,
+} from "@/features/chat/types"
 import { cn } from "@/lib/utils"
 
 export function ChatMainPanel({
@@ -24,19 +27,37 @@ export function ChatMainPanel({
   session,
   transcript,
   onTranscriptChange,
+  onModeChange,
+  onSessionChange,
+  onConversationUpdated,
 }: {
   className?: string
   session: SessionContent
   transcript: TranscriptMessage[]
   onTranscriptChange: Dispatch<SetStateAction<TranscriptMessage[]>>
+  onModeChange?: Dispatch<SetStateAction<Mode>>
+  onSessionChange?: (sessionId: string) => void
+  onConversationUpdated?: () => void
 }) {
   const [draft, setDraft] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const bottomAnchorRef = useRef<HTMLDivElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const isNewSession = !session.id && transcript.length === 0
 
   useEffect(() => {
     bottomAnchorRef.current?.scrollIntoView({ block: "end" })
   }, [transcript, isSubmitting])
+
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) {
+      return
+    }
+
+    textarea.style.height = "0px"
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }, [draft])
 
   const handleSubmit = async () => {
     const trimmedDraft = draft.trim()
@@ -45,21 +66,24 @@ export function ChatMainPanel({
     }
 
     const userMessage = createUserMessage(trimmedDraft, session.mode)
-    const nextTranscript = [...transcript, userMessage]
 
     onTranscriptChange((current) => [...current, userMessage])
     setDraft("")
     setIsSubmitting(true)
     let hasAssistantMessage = false
+    let streamedConversationId: string | undefined
 
     try {
       let streamedText = ""
       await streamChatResponse(
-        JSON.stringify({
-          ...buildConversationPayload(nextTranscript),
-          stream: true,
-        }),
         {
+          message: trimmedDraft,
+          conversationId: session.id,
+        },
+        {
+          onConversationId: (conversationId) => {
+            streamedConversationId = conversationId
+          },
           onChunk: (chunk) => {
             streamedText += chunk
             onTranscriptChange((current) => {
@@ -87,6 +111,9 @@ export function ChatMainPanel({
               return updated
             })
           },
+          onDone: ({ conversationId }) => {
+            streamedConversationId = conversationId
+          },
         }
       )
 
@@ -107,6 +134,10 @@ export function ChatMainPanel({
         }
         return updated
       })
+
+      if (streamedConversationId && streamedConversationId !== session.id) {
+        onSessionChange?.(streamedConversationId)
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unknown request error"
@@ -136,6 +167,7 @@ export function ChatMainPanel({
       })
     } finally {
       setIsSubmitting(false)
+      onConversationUpdated?.()
     }
   }
 
@@ -146,9 +178,17 @@ export function ChatMainPanel({
         className
       )}
     >
-      <div className="flex h-full min-h-0 flex-col">
+      <div
+        className={cn(
+          "flex h-full min-h-0 flex-col bg-[linear-gradient(180deg,#ffffff,#f8fafc)]",
+          isNewSession ? "justify-center" : ""
+        )}
+      >
         <div
-          className="min-h-0 flex-1 overflow-y-auto bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-6 py-5"
+          className={cn(
+            "min-h-0 flex-1 overflow-y-auto px-6 py-5",
+            isNewSession ? "hidden" : ""
+          )}
         >
           <div className="mx-auto flex max-w-4xl flex-col gap-4">
             {transcript.map((message, index) => (
@@ -161,18 +201,17 @@ export function ChatMainPanel({
           </div>
         </div>
 
-        <div className="border-t bg-white px-6 py-5">
+        <div
+          className={cn(
+            "bg-transparent px-6",
+            isNewSession ? "py-5" : "pb-5"
+          )}
+        >
           <div className="mx-auto flex max-w-4xl flex-col gap-4">
-            <div className="flex w-full items-center rounded-full border border-slate-200 bg-white px-5 py-3 shadow-[0_4px_20px_-2px_rgba(79,70,229,0.1)] transition-all duration-300 focus-within:border-indigo-500 focus-within:shadow-[0_10px_25px_-5px_rgba(79,70,229,0.15)] focus-within:ring-2 focus-within:ring-indigo-500 hover:shadow-[0_10px_25px_-5px_rgba(79,70,229,0.15)]">
-              <div className="flex w-full items-center gap-3">
-                <button
-                  type="button"
-                  className="flex size-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition-all duration-200 hover:bg-slate-100 hover:text-indigo-600"
-                >
-                  <Plus className="size-4" />
-                </button>
-
-                <input
+            <div className="flex w-full flex-col gap-3 rounded-[1.75rem] border border-slate-200 bg-white px-5 py-4 shadow-[0_4px_20px_-2px_rgba(79,70,229,0.1)] transition-all duration-300">
+              <div className="flex w-full items-start">
+                <textarea
+                  ref={textareaRef}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={(event) => {
@@ -181,16 +220,33 @@ export function ChatMainPanel({
                       void handleSubmit()
                     }
                   }}
-                  className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                  rows={1}
+                  className="max-h-32 min-h-[32px] flex-1 resize-none overflow-y-auto bg-transparent text-base leading-8 text-slate-900 outline-none placeholder:text-slate-500"
                   placeholder={session.inputPlaceholder}
                 />
+              </div>
 
-                <button
-                  type="button"
-                  className="flex size-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition-all duration-200 hover:bg-slate-100 hover:text-indigo-600"
-                >
-                  <Mic className="size-4" />
-                </button>
+              <div className="flex w-full items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onModeChange?.(
+                        session.mode === "deep" ? "normal" : "deep"
+                      )
+                    }
+                    className={cn(
+                      "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium backdrop-blur-sm transition-all",
+                      session.mode === "deep"
+                        ? "border-blue-200 bg-blue-50 text-blue-700 shadow-[0_6px_18px_-8px_rgba(37,99,235,0.5)] hover:border-blue-300 hover:bg-blue-100"
+                        : "border-slate-200/80 bg-slate-100/70 text-slate-500 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
+                    )}
+                  >
+                    <Globe className="size-4" />
+                    <span>Deep Research</span>
+                    {session.mode === "deep" ? <X className="size-4" /> : null}
+                  </button>
+                </div>
 
                 <button
                   type="button"

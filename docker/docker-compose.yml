@@ -124,15 +124,6 @@ services:
       - .env
     ports:
       - "1214:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-      milvus:
-        condition: service_healthy
     volumes:
       - ../api:/app/api
       - ../core:/app/core
