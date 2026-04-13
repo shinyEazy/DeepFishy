@@ -1,9 +1,18 @@
+# python utils/convert_md_to_pdf.py --md_path "utils/test.md" --pdf_path "utils/test.pdf"
+
 import os
 import re
+import sys
 import argparse
-import markdown
+from pathlib import Path
 from weasyprint import HTML, CSS
 from weasyprint.text.fonts import FontConfiguration
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from utils.pdf_layout import build_pdf_html, build_pdf_stylesheet  # noqa: E402
 
 
 def _format_markdown_content(md_content: str) -> str:
@@ -17,6 +26,25 @@ def _format_markdown_content(md_content: str) -> str:
 
     # If citations are glued after a period
     content = re.sub(r"(\.\s+)(\[\d+\]\s+)", r"\1\n\n\2", content)
+
+    # 2. Collapse duplicate adjacent citations, e.g. [21][21] -> [21]
+    # Keep distinct citations in their original order, e.g. [24][24][3] -> [24][3]
+    citation_run_pattern = re.compile(r"(?:\[\d+\]\s*){2,}")
+
+    def _dedupe_citation_run(match: re.Match[str]) -> str:
+        citation_run = match.group(0)
+        seen: set[str] = set()
+        ordered_citations: list[str] = []
+
+        for citation in re.findall(r"\[\d+\]", citation_run):
+            if citation not in seen:
+                seen.add(citation)
+                ordered_citations.append(citation)
+
+        trailing_space = " " if citation_run.endswith(" ") else ""
+        return "".join(ordered_citations) + trailing_space
+
+    content = citation_run_pattern.sub(_dedupe_citation_run, content)
 
     return content
 
@@ -36,78 +64,12 @@ def convert_md_to_pdf(
         # Pre-format content for source lists
         md_content = _format_markdown_content(md_content)
 
-        # Convert Markdown to HTML
-        # Using extensions for tables, fenced code, and attributes (common in MD)
-        extensions = ["extra", "tables", "fenced_code", "toc", "attr_list"]
-        html_content = markdown.markdown(md_content, extensions=extensions)
+        # Build a richer HTML document with a clickable TOC and print-friendly styling.
+        html_content = build_pdf_html(md_content)
 
-        # Define CSS for Vietnamese fonts and basic styling
-        # Using Noto Sans as primary font for better Vietnamese support
         font_config = FontConfiguration()
         css = CSS(
-            string="""
-            @page {
-                margin: 2cm;
-                @bottom-right {
-                    content: counter(page);
-                }
-            }
-            body {
-                font-family: "Noto Sans", "DejaVu Sans", Arial, sans-serif;
-                font-size: 12pt;
-                line-height: 1.6;
-                color: #333;
-                text-align: justify;
-            }
-            h1, h2, h3, h4, h5, h6 {
-                font-family: "Noto Sans", "DejaVu Sans", Arial, sans-serif;
-                color: #1a1a1a;
-                margin-top: 1em;
-                margin-bottom: 0.5em;
-            }
-            h1 { font-size: 24pt; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
-            h2 { font-size: 18pt; margin-top: 1.5em; }
-            h3 { font-size: 14pt; }
-            code {
-                font-family: "Noto Sans Mono", "DejaVu Sans Mono", monospace;
-                background-color: #f4f4f4;
-                padding: 2px 4px;
-                border-radius: 4px;
-            }
-            pre {
-                background-color: #f4f4f4;
-                padding: 1em;
-                border-radius: 8px;
-                white-space: pre-wrap;
-                word-wrap: break-word;
-            }
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                margin: 1em 0;
-            }
-            th, td {
-                border: 1px solid #ddd;
-                padding: 8px;
-                text-align: left;
-            }
-            th {
-                background-color: #f2f2f2;
-            }
-            img {
-                max-width: 100%;
-                height: auto;
-                display: block;
-                margin: 1em auto;
-            }
-            blockquote {
-                border-left: 5px solid #ccc;
-                margin: 1.5em 10px;
-                padding: 0.5em 10px;
-                color: #666;
-                font-style: italic;
-            }
-        """,
+            string=build_pdf_stylesheet(),
             font_config=font_config,
         )
 
