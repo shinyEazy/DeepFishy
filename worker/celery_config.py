@@ -1,9 +1,11 @@
 import os
 from datetime import timedelta
 
+from core.config import settings
+
 # Broker and backend settings - use environment variables
-broker_url = os.getenv("CELERY_BROKER_URL")
-result_backend = os.getenv("CELERY_RESULT_BACKEND")
+broker_url = settings.CELERY_BROKER_URL or os.getenv("CELERY_BROKER_URL")
+result_backend = settings.CELERY_RESULT_BACKEND or os.getenv("CELERY_RESULT_BACKEND")
 
 # Task serialization
 task_serializer = "json"
