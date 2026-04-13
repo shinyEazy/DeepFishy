@@ -11,8 +11,7 @@ import tempfile
 from pathlib import Path
 
 from core.logging import logger
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+from deepfishy.infra.config.paths import PROJECT_ROOT
 
 
 def _normalize_image_paths(md_content: str, report_dir: str) -> str:

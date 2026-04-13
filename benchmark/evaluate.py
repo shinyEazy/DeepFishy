@@ -25,6 +25,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from dotenv import load_dotenv
 from core.logging import logger
+from deepfishy.infra.config.paths import PROJECT_ROOT, resolve_project_path
 from utils.model_factory import create_llm_client
 from utils.load_config import get_deepfishy_defaults
 from utils.pdf_helpers import load_report_as_pdf
@@ -59,8 +60,7 @@ def _format_research_question(topic: str) -> str:
 
 def _resolve_project_path(path_str: str | Path) -> Path:
     """Resolve a user-provided path relative to the project root when needed."""
-    path = Path(path_str)
-    return path if path.is_absolute() else PROJECT_ROOT / path
+    return resolve_project_path(path_str)
 
 
 def _normalize_dataset_row(row: dict[str, str]) -> dict[str, str]:

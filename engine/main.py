@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from langchain_core.language_models.chat_models import BaseChatModel
 
 from core.logging import logger
+from deepfishy.infra.config.paths import OUTPUTS_DIR, PROJECT_ROOT, resolve_project_path
 from engine.orchestrators.writer import create_writer_orchestrator
 from engine.orchestrators.builder import create_builder_orchestrator
 from engine.tools.validate_drafts import validate_drafts
@@ -31,8 +32,7 @@ from graph_rag.graphiti_service import (
 load_dotenv()
 
 ENABLE_DISK_BACKEND = "true"
-OUTPUT_BASE_PATH = "outputs"
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+OUTPUT_BASE_PATH = str(OUTPUTS_DIR.relative_to(PROJECT_ROOT))
 DEFAULT_TOPIC = "Ngân hàng TMCP Quân đội (MBBank – MBB) trong giai đoạn 2025–2026"
 INPUT_TEMPLATE = "Hãy giúp tôi viết một báo cáo nghiên cứu chi tiết về tài chính doanh nghiệp của {topic}. Báo cáo cần phong phú cả về nội dung văn bản lẫn các biểu đồ minh họa. Đồng thời, hãy cung cấp danh mục trích dẫn tài liệu tham khảo theo chuẩn ở cuối báo cáo (bao gồm số thứ tự và các nguồn tài liệu tương ứng). Bắt đầu viết báo cáo ngay và trả về toàn bộ nội dung."
 DATASET_OUTPUT_DIR = PROJECT_ROOT / "benchmark" / "generated_reports" / "deepfishy"
@@ -45,8 +45,7 @@ def _format_user_input(topic: str) -> str:
 
 def _resolve_input_path(path_str: str) -> Path:
     """Resolve a user-provided path relative to the project root when needed."""
-    path = Path(path_str)
-    return path if path.is_absolute() else PROJECT_ROOT / path
+    return resolve_project_path(path_str)
 
 
 def _normalize_row_keys(row: dict[str, str]) -> dict[str, str]:
