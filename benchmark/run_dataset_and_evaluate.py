@@ -52,10 +52,12 @@ def main() -> None:
         )
 
     try:
-        from engine.main import run_dataset_generation
         from benchmark.evaluate import (
             load_config as load_benchmark_config,
             run_dataset_benchmark,
+        )
+        from deepfishy.features.reports.application.generate_dataset_reports import (
+            run_dataset_generation,
         )
     except Exception as exc:
         raise SystemExit(

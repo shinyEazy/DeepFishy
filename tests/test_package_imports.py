@@ -17,3 +17,16 @@ def test_deepfishy_package_imports() -> None:
 
 def test_logging_module_imports() -> None:
     assert import_module("deepfishy.shared.logging") is not None
+
+
+def test_report_application_modules_import() -> None:
+    assert (
+        import_module("deepfishy.features.reports.application.generate_report")
+        is not None
+    )
+    assert (
+        import_module(
+            "deepfishy.features.reports.application.generate_dataset_reports"
+        )
+        is not None
+    )
