@@ -13,7 +13,7 @@ from api.schemas.session import (
     SessionListResponse,
     SessionMessage,
 )
-from services.chat import ChatService, DEFAULT_CONVERSATION_TITLE
+from deepfishy.features.chat.service import ChatService, DEFAULT_CONVERSATION_TITLE
 from core.logging import logger
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])

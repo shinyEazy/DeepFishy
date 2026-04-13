@@ -41,3 +41,8 @@ def test_core_infra_adapters_import() -> None:
     assert import_module("deepfishy.infra.storage.minio") is not None
     assert import_module("deepfishy.infra.vector.milvus") is not None
     assert import_module("deepfishy.infra.graph.neo4j") is not None
+
+
+def test_chat_feature_modules_import() -> None:
+    assert import_module("deepfishy.features.chat.service") is not None
+    assert import_module("deepfishy.features.chat.repository") is not None

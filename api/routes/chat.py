@@ -13,8 +13,8 @@ from api.schemas.chat import (
     ConversationListResponse,
     DeleteConversationResponse,
 )
-from services.chat import ChatService
 from core.logging import logger
+from deepfishy.features.chat.service import ChatService
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 

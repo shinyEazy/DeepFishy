@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from api.deps import get_db
 from core.logging import logger
-from services.chat import ChatService
+from deepfishy.features.chat.service import ChatService
 from services.response import ResponseService
 
 router = APIRouter(prefix="/responses", tags=["Responses"])
