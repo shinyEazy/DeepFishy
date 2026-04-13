@@ -40,7 +40,7 @@ def build_pdf_html(md_content: str) -> str:
     <html lang="vi">
     <head>
         <meta charset="utf-8">
-        <title>Markdown Report</title>
+        <title>Báo cáo tài chính</title>
     </head>
     <body>
         {toc_section}
