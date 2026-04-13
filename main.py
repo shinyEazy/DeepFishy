@@ -9,7 +9,7 @@ from api.routes.chat import router as chat_router
 from api.routes.response import router as response_router
 from api.routes.session import router as session_router
 from db.session import close_db, init_db
-from core.logging import logger
+from deepfishy.shared.logging import logger
 
 
 @asynccontextmanager

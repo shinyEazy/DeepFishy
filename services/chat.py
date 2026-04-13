@@ -7,7 +7,7 @@ from sqlalchemy import func
 import json
 
 from db.models.conversation import Conversation, Message
-from core.logging import logger
+from deepfishy.shared.logging import logger
 
 DEFAULT_CONVERSATION_TITLE = "Cuộc trò chuyện mới"
 

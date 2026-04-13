@@ -24,8 +24,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from dotenv import load_dotenv
-from core.logging import logger
 from deepfishy.infra.config.paths import PROJECT_ROOT, resolve_project_path
+from deepfishy.shared.logging import logger
 from utils.model_factory import create_llm_client
 from utils.load_config import get_deepfishy_defaults
 from utils.pdf_helpers import load_report_as_pdf

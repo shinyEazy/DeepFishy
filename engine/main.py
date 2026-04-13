@@ -12,8 +12,8 @@ from dotenv import load_dotenv
 
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from core.logging import logger
 from deepfishy.infra.config.paths import OUTPUTS_DIR, PROJECT_ROOT, resolve_project_path
+from deepfishy.shared.logging import logger
 from engine.orchestrators.writer import create_writer_orchestrator
 from engine.orchestrators.builder import create_builder_orchestrator
 from engine.tools.validate_drafts import validate_drafts
