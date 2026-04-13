@@ -52,3 +52,8 @@ def test_app_entrypoint_modules_import() -> None:
     assert import_module("deepfishy.app.api.factory") is not None
     assert import_module("deepfishy.app.api.deps") is not None
     assert import_module("deepfishy.app.workers.celery_app") is not None
+
+
+def test_db_package_modules_import() -> None:
+    assert import_module("deepfishy.infra.db.base") is not None
+    assert import_module("deepfishy.infra.db.session") is not None

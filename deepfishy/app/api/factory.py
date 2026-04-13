@@ -15,7 +15,7 @@ from deepfishy.shared.logging import logger
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
-    from db.session import close_db, init_db
+    from deepfishy.infra.db.session import close_db, init_db
 
     logger.info("Starting DeepFishy application...")
     init_db()

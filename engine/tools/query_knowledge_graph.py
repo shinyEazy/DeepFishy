@@ -31,7 +31,7 @@ def _load_article_metadata(urls: List[str]) -> Dict[str, Dict[str, Any]]:
 
     try:
         from db.models.article import Article
-        from db.session import SessionLocal
+        from deepfishy.infra.db.session import SessionLocal
 
         db = SessionLocal()
     except Exception as e:
