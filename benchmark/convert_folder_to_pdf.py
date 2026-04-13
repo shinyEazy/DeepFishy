@@ -1,3 +1,5 @@
+# python benchmark/convert_folder_to_pdf.py --folder "benchmark/generated_reports/deepfishy_v3"
+
 import sys
 import argparse
 from pathlib import Path
