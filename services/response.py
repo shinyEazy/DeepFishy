@@ -5,8 +5,8 @@ from typing import Any
 
 from core.logging import logger
 from deepfishy.infra.config.settings import settings
+from deepfishy.infra.llm.chat_factory import create_llm_client
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 
 class ResponseService:
@@ -69,21 +69,12 @@ class ResponseService:
             if fallback:
                 yield fallback
 
-    def _create_llm(self) -> ChatGoogleGenerativeAI:
-        """Create a LangChain Gemini client with the configured settings."""
-        llm_kwargs: dict[str, Any] = {
-            "model": self.model_name,
-            "location": self.location,
-            "temperature": 1,
-            "top_p": 0.95,
-            "max_tokens": 32768,
-            "vertexai": True,
-        }
-        if self.project:
-            llm_kwargs["project"] = self.project
-        if self.api_key:
-            llm_kwargs["api_key"] = self.api_key
-        return ChatGoogleGenerativeAI(**llm_kwargs)
+    def _create_llm(self):
+        """Create a LangChain client with the configured settings."""
+        llm = create_llm_client(self.model_name)
+        if llm is None:
+            raise ValueError(f"Unable to create response model client: {self.model_name}")
+        return llm
 
     @staticmethod
     def _extract_text(response: Any) -> str:

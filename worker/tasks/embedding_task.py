@@ -1,7 +1,10 @@
 from typing import List, Dict, Any
 
 from celery import shared_task
-from services.embedding_factory import get_embedding_provider, get_embedding_dim
+from deepfishy.infra.llm.embedding_factory import (
+    get_embedding_dim,
+    get_embedding_provider,
+)
 from services.milvus import MilvusService
 from services.minio import MinioService
 from ingestion.embedding_pipeline import EmbeddingPipeline

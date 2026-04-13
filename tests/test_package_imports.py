@@ -30,3 +30,8 @@ def test_report_application_modules_import() -> None:
         )
         is not None
     )
+
+
+def test_infra_llm_modules_import() -> None:
+    assert import_module("deepfishy.infra.llm.chat_factory") is not None
+    assert import_module("deepfishy.infra.llm.embedding_factory") is not None
