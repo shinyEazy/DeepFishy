@@ -5,8 +5,8 @@ from deepfishy.infra.llm.embedding_factory import (
     get_embedding_dim,
     get_embedding_provider,
 )
-from services.milvus import MilvusService
-from services.minio import MinioService
+from deepfishy.infra.storage.minio import MinioService
+from deepfishy.infra.vector.milvus import MilvusService
 from ingestion.embedding_pipeline import EmbeddingPipeline
 from core.logging import logger
 from core.config import settings

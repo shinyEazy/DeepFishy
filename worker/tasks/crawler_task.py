@@ -6,7 +6,7 @@ from datetime import datetime
 
 from celery import chain, shared_task
 from ingestion.crawler.spiders import ArticleURLSpider, ArticleContentSpider
-from services.minio import MinioService
+from deepfishy.infra.storage.minio import MinioService
 from core.logging import logger
 from core.constants import (
     CRAWLER_BASE_URL,

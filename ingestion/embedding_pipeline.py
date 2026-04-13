@@ -3,7 +3,7 @@ from typing import List, Dict, Tuple
 from core.logging import logger
 from embedding.base_embedding import BaseEmbedding
 from services.embeddings import ChunkedArticle
-from services.milvus import MilvusService
+from deepfishy.infra.vector.milvus import MilvusService
 
 
 class EmbeddingPipeline:

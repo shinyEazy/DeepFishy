@@ -8,7 +8,7 @@ from core.logging import logger
 
 def _get_milvus_service():
     """Lazy import to avoid circular imports."""
-    from services.milvus import MilvusService
+    from deepfishy.infra.vector.milvus import MilvusService
 
     return MilvusService()
 

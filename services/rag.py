@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
 from core.logging import logger
-from services.milvus import MilvusService
+from deepfishy.infra.vector.milvus import MilvusService
 from services.embedding_factory import get_embedding_provider, get_embedding_dim
 from embedding.base_embedding import BaseEmbedding
 
