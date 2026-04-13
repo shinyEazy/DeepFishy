@@ -1,10 +1,10 @@
 """LLM-backed response service."""
 
-import os
 from collections.abc import Iterator
 from typing import Any
 
 from core.logging import logger
+from deepfishy.infra.config.settings import settings
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -13,13 +13,13 @@ class ResponseService:
     """Generate simple chat responses with Gemini via LangChain."""
 
     def __init__(self) -> None:
-        self.model_name = os.getenv("RESPONSE_MODEL", "gemini-3.1-flash-lite-preview")
-        self.location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
-        self.project = os.getenv("GOOGLE_CLOUD_PROJECT")
+        self.model_name = settings.RESPONSE_MODEL
+        self.location = settings.GOOGLE_CLOUD_LOCATION
+        self.project = settings.GOOGLE_CLOUD_PROJECT
         self.api_key = (
-            os.getenv("GOOGLE_API_KEY")
-            or os.getenv("GEMINI_API_KEY")
-            or os.getenv("GOOGLE_CLOUD_API_KEY")
+            settings.GOOGLE_API_KEY
+            or settings.GEMINI_API_KEY
+            or settings.GOOGLE_CLOUD_API_KEY
         )
 
     def generate_response(self, contents: list[dict[str, Any]]) -> str:

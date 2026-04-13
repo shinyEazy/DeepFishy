@@ -7,6 +7,7 @@ from typing import Optional
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 
+from deepfishy.infra.config.settings import settings
 from utils.load_config import get_llm_config, get_vlm_config
 from core.logging import logger
 
@@ -44,8 +45,8 @@ def _build_google_ai_studio_kwargs(config: dict) -> dict:
 
     api_key = (
         config.get("api_key")
-        or os.getenv("GOOGLE_API_KEY")
-        or os.getenv("GEMINI_API_KEY")
+        or settings.GOOGLE_API_KEY
+        or settings.GEMINI_API_KEY
     )
     if not api_key:
         raise ValueError(
@@ -63,14 +64,14 @@ def _build_google_vertex_ai_express_kwargs(config: dict) -> dict:
         "model": config.get("model"),
         "vertexai": True,
         "location": config.get("location")
-        or os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"),
+        or settings.GOOGLE_CLOUD_LOCATION,
     }
 
     api_key = (
         config.get("api_key")
-        or os.getenv("GOOGLE_CLOUD_API_KEY")
-        or os.getenv("GOOGLE_API_KEY")
-        or os.getenv("GEMINI_API_KEY")
+        or settings.GOOGLE_CLOUD_API_KEY
+        or settings.GOOGLE_API_KEY
+        or settings.GEMINI_API_KEY
     )
     if not api_key:
         raise ValueError(
@@ -81,7 +82,7 @@ def _build_google_vertex_ai_express_kwargs(config: dict) -> dict:
 
     model_kwargs["api_key"] = api_key
 
-    project = config.get("project") or os.getenv("GOOGLE_CLOUD_PROJECT")
+    project = config.get("project") or settings.GOOGLE_CLOUD_PROJECT
     if project:
         model_kwargs["project"] = project
 
@@ -94,10 +95,10 @@ def _build_google_vertex_ai_kwargs(config: dict) -> dict:
         "model": config.get("model"),
         "vertexai": True,
         "location": config.get("location")
-        or os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"),
+        or settings.GOOGLE_CLOUD_LOCATION,
     }
 
-    project = config.get("project") or os.getenv("GOOGLE_CLOUD_PROJECT")
+    project = config.get("project") or settings.GOOGLE_CLOUD_PROJECT
     if not project:
         raise ValueError(
             "Vertex AI requires a project in config['project'] or the "
@@ -106,7 +107,7 @@ def _build_google_vertex_ai_kwargs(config: dict) -> dict:
     model_kwargs["project"] = project
 
     # Deliberately do not fall back to AI Studio keys here.
-    vertex_api_key = config.get("api_key") or os.getenv("GOOGLE_CLOUD_API_KEY")
+    vertex_api_key = config.get("api_key") or settings.GOOGLE_CLOUD_API_KEY
     if vertex_api_key:
         model_kwargs["api_key"] = vertex_api_key
 
