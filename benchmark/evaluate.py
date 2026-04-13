@@ -7,7 +7,7 @@ Supports batch evaluation for a whole benchmark dataset via --dataset and
 and --golden_report.
 
 python benchmark/evaluate.py --dataset benchmark/dataset/dataset.csv --report_dir benchmark/generated_reports/deepfishy
-python benchmark/evaluate.py --topic "Ngân hàng TMCP Quân đội (MBBank – MBB) trong giai đoạn 2025–2026" --generated_report outputs/test.pdf --golden_report benchmark/golden_reports/mbb.pdf
+python benchmark/evaluate.py --topic "Ngân hàng TMCP Quân đội (MBBank – MBB) trong giai đoạn 2025–2026" --generated_report benchmark/generated_reports/deepfishy_v3/topic_1.pdf --golden_report benchmark/golden_reports/mbb.pdf --judge_model gpt-5-nano
 """
 
 import csv
@@ -17,6 +17,11 @@ import yaml
 import argparse
 from pathlib import Path
 from datetime import datetime
+
+# Setup path first so local packages resolve when running the script directly
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from dotenv import load_dotenv
 from core.logging import logger
@@ -32,23 +37,7 @@ from benchmark.prompt import (
     GOLDEN_REPORT_RELEVANT_METRICS_SYSTEM_PROMPT,
 )
 
-# Setup path and encoding first
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
-# Force UTF-8 for stdout/stderr to handle Vietnamese characters on Windows
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
-
 load_dotenv()
-
-MODEL_PRICING = {
-    "gemini-2.5-flash": {"input": 0.30, "output": 2.50},
-    "gemini-2.5-flash-lite": {"input": 0.10, "output": 0.40},
-    "gemini-2.0-flash": {"input": 0.10, "output": 0.40},
-    "gemini-3-flash-preview": {"input": 0.30, "output": 2.50},
-}
 
 BENCHMARK_SCORE_DIMENSIONS = [
     "cons",
@@ -115,7 +104,7 @@ def load_dataset(csv_path: str) -> list[dict]:
 
 def _extract_text(resp) -> str:
     """Extract text content from an LLM response."""
-    response_text = resp.content
+    response_text = getattr(resp, "text", None) or getattr(resp, "content", "")
     if isinstance(response_text, list):
         response_text = "\n".join(
             block.get("text", "") if isinstance(block, dict) else str(block)
@@ -126,8 +115,19 @@ def _extract_text(resp) -> str:
 
 def _extract_usage(resp) -> tuple[int, int]:
     """Extract input and output token usage from an LLM response."""
-    usage = resp.usage_metadata or {}
-    return usage.get("input_tokens", 0), usage.get("output_tokens", 0)
+    usage = getattr(resp, "usage_metadata", None) or {}
+
+    if isinstance(usage, dict):
+        return usage.get("input_tokens", 0), usage.get("output_tokens", 0)
+
+    return (
+        getattr(usage, "input_tokens", 0)
+        or getattr(usage, "prompt_token_count", 0)
+        or 0,
+        getattr(usage, "output_tokens", 0)
+        or getattr(usage, "candidates_token_count", 0)
+        or 0,
+    )
 
 
 def evaluate_generated_report(
@@ -204,19 +204,9 @@ def evaluate_generated_report(
 
     input_tok_irr, output_tok_irr = _extract_usage(response_irrelevant)
     input_tok_rel, output_tok_rel = _extract_usage(response_relevant)
+    total_tokens = input_tok_irr + output_tok_irr + input_tok_rel + output_tok_rel
 
-    input_tokens = input_tok_irr + input_tok_rel
-    output_tokens = output_tok_irr + output_tok_rel
-    total_tokens = input_tokens + output_tokens
-
-    pricing = MODEL_PRICING.get(model_name, {"input": 0, "output": 0})
-    total_cost = (input_tokens / 1_000_000) * pricing["input"] + (
-        output_tokens / 1_000_000
-    ) * pricing["output"]
-
-    logger.info(
-        f"  Time: {llm_duration:.2f}s | Tokens: {total_tokens:,} | Cost: ${total_cost:.4f}"
-    )
+    logger.info(f"  Time: {llm_duration:.2f}s | Total tokens: {total_tokens:,}")
 
     # Parse JSONs
     results_irrelevant = parse_json_response(text_irrelevant)
@@ -355,10 +345,12 @@ def _save_benchmark_csv(
     return str(output_path)
 
 
-def run_dataset_benchmark(config: dict, dataset_path: str, report_dir: str):
+def run_dataset_benchmark(
+    config: dict, dataset_path: str, report_dir: str, judge_model: str | None = None
+):
     """Evaluate a full benchmark dataset against reports in a directory."""
     defaults = get_deepfishy_defaults()
-    model_name = defaults.get("judge", "gemini-2.5-flash")
+    model_name = judge_model or defaults.get("judge", "gemini-2.5-flash")
     golden_reports_dir = config.get("golden_reports_dir", "benchmark/golden_reports")
     results_dir = config.get("results_dir", "benchmark/results")
     report_dir_path = _resolve_project_path(report_dir)
@@ -524,10 +516,16 @@ def run_dataset_benchmark(config: dict, dataset_path: str, report_dir: str):
     logger.info(f"Benchmark CSV saved to: {csv_output_path}")
 
 
-def run_direct_benchmark(config: dict, topic: str, report_path: str, golden_path: str):
+def run_direct_benchmark(
+    config: dict,
+    topic: str,
+    report_path: str,
+    golden_path: str,
+    judge_model: str | None = None,
+):
     """Run benchmark for a single manually specified report."""
     defaults = get_deepfishy_defaults()
-    model_name = defaults.get("judge", "gemini-2.5-flash")
+    model_name = judge_model or defaults.get("judge", "gemini-2.5-flash")
     results_dir = config.get("results_dir", "benchmark/results")
 
     research_question = _format_research_question(topic)
@@ -590,6 +588,11 @@ def main():
         default="benchmark/golden_reports/mbb.pdf",
         help="Path to golden standard (.pdf)",
     )
+    parser.add_argument(
+        "--judge_model",
+        type=str,
+        help="Optional judge model override from configs/config.yaml, e.g. gpt-5-nano or gemini-2.5-flash.",
+    )
 
     args = parser.parse_args()
     config = load_config()
@@ -601,12 +604,21 @@ def main():
                 "--dataset requires --report_dir so each dataset row can be matched "
                 "to topic_{n}.pdf or topic_{n}.md."
             )
-        run_dataset_benchmark(config, args.dataset, args.report_dir)
+        run_dataset_benchmark(
+            config,
+            args.dataset,
+            args.report_dir,
+            judge_model=args.judge_model,
+        )
     else:
         if args.report_dir:
             parser.error("--report_dir can only be used together with --dataset.")
         run_direct_benchmark(
-            config, args.topic, args.generated_report, args.golden_report
+            config,
+            args.topic,
+            args.generated_report,
+            args.golden_report,
+            judge_model=args.judge_model,
         )
 
 

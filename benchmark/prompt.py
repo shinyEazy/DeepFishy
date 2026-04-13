@@ -1,4 +1,5 @@
 import base64
+
 from langchain_core.messages import SystemMessage, HumanMessage
 
 TOPIC = "CTCP Tập đoàn Hòa Phát (HPG) trong quý 3 năm 2025"
@@ -217,13 +218,55 @@ Now start your evaluation of the given reports. Carefully read each report and g
 """
 
 
-def _pdf_content_block(pdf_bytes: bytes) -> dict:
-    """Create a multimodal content block for a PDF file."""
-    b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
-    return {
-        "type": "image_url",
-        "image_url": {"url": f"data:application/pdf;base64,{b64}"},
-    }
+def _import_pymupdf():
+    """Import PyMuPDF with a helpful error for the common wrong `fitz` package."""
+    try:
+        import pymupdf as fitz
+
+        return fitz
+    except ImportError:
+        pass
+
+    try:
+        import fitz
+
+        if not hasattr(fitz, "open") or not hasattr(fitz, "Matrix"):
+            raise ImportError("Installed `fitz` is not PyMuPDF.")
+        return fitz
+    except Exception as exc:
+        raise ImportError(
+            "PDF page rendering requires PyMuPDF. Install `pymupdf` and remove the "
+            "unrelated `fitz` package if it is installed."
+        ) from exc
+
+
+def _pdf_content_blocks(pdf_bytes: bytes, label: str) -> list[dict]:
+    """Render a PDF into image blocks that multimodal models can consume."""
+    blocks: list[dict] = []
+    fitz = _import_pymupdf()
+
+    pdf = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        for page_index, page in enumerate(pdf, start=1):
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
+            image_bytes = pixmap.tobytes("jpeg")
+            b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+            blocks.append(
+                {
+                    "type": "text",
+                    "text": f"{label} - page {page_index}",
+                }
+            )
+            blocks.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
+                }
+            )
+    finally:
+        pdf.close()
+
+    return blocks
 
 
 def format_evaluation_prompt(
@@ -253,7 +296,9 @@ def format_evaluation_prompt(
             "text": "# [GOLDEN STANDARD REPORT]\nThe following PDF is the Golden Standard Report:",
         }
     )
-    content_blocks.append(_pdf_content_block(golden_pdf))
+    content_blocks.extend(
+        _pdf_content_blocks(golden_pdf, "GOLDEN STANDARD REPORT")
+    )
 
     # Separator
     content_blocks.append({"type": "text", "text": "\n---\n\n# [REPORTS TO EVALUATE]"})
@@ -266,7 +311,9 @@ def format_evaluation_prompt(
                 "text": f"\n## Report: `{report['filename']}`\nThe following PDF is this report:",
             }
         )
-        content_blocks.append(_pdf_content_block(report["pdf_bytes"]))
+        content_blocks.extend(
+            _pdf_content_blocks(report["pdf_bytes"], f"REPORT {report['filename']}")
+        )
 
     human_msg = HumanMessage(content=content_blocks)
 
