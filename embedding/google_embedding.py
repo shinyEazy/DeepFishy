@@ -2,8 +2,8 @@ from typing import List
 import time
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from embedding.base_embedding import BaseEmbedding
-from utils.load_config import get_embedding_config
-from core.logging import logger
+from deepfishy.infra.config.model_registry import get_embedding_config
+from deepfishy.shared.logging import logger
 
 
 class GoogleEmbedding(BaseEmbedding):

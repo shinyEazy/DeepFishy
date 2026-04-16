@@ -2,9 +2,9 @@
 
 from celery import Celery
 
-from core.config import settings
-from worker.tasks import crawler_task  # noqa: F401
-from worker.tasks import embedding_task  # noqa: F401
+from deepfishy.infra.config.settings import settings
+from deepfishy.app.workers.tasks import crawler_task  # noqa: F401
+from deepfishy.app.workers.tasks import embedding_task  # noqa: F401
 
 
 celery_app = Celery(
@@ -13,5 +13,5 @@ celery_app = Celery(
     backend=settings.CELERY_RESULT_BACKEND,
 )
 
-celery_app.config_from_object("worker.celery_config")
-celery_app.autodiscover_tasks(["worker.tasks"])
+celery_app.config_from_object("deepfishy.app.workers.config")
+celery_app.autodiscover_tasks(["deepfishy.app.workers.tasks"])

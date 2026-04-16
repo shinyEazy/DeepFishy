@@ -4,10 +4,12 @@ This service wraps the Graphiti framework to provide session-based
 knowledge graph operations for the iterative research pipeline.
 """
 
-from dotenv import load_dotenv
+import asyncio
+import threading
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
+from dotenv import load_dotenv
 from graphiti_core import Graphiti
 from graphiti_core.nodes import EpisodeType
 from graphiti_core.llm_client.gemini_client import GeminiClient, LLMConfig
@@ -16,10 +18,10 @@ from graphiti_core.cross_encoder.gemini_reranker_client import GeminiRerankerCli
 from graphiti_core.search.search_config_recipes import NODE_HYBRID_SEARCH_RRF
 from graphiti_core.utils.bulk_utils import RawEpisode
 
-from core.logging import logger
-from core.config import settings
-from utils.load_config import get_llm_config
-from services.rag import SearchResult
+from deepfishy.shared.logging import logger
+from deepfishy.infra.config.settings import settings
+from deepfishy.infra.config.model_registry import get_llm_config
+from deepfishy.features.knowledge_graph.rag import SearchResult
 from graph_rag.entity_types import ENTITY_TYPES, EDGE_TYPES, EDGE_TYPE_MAP
 
 load_dotenv()
@@ -97,9 +99,9 @@ class GraphitiService:
     """
 
     # Default configuration
-    DEFAULT_LLM_MODEL = "gemini-2.5-flash"
+    DEFAULT_LLM_MODEL = "gemini-3.1-flash-lite-preview"
     DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
-    DEFAULT_RERANKER_MODEL = "gemini-2.5-flash"
+    DEFAULT_RERANKER_MODEL = "gemini-3.1-flash-lite-preview"
 
     def __init__(
         self,
@@ -555,44 +557,57 @@ class GraphitiService:
                 self._initialized = False
 
 
-# Singleton instance for reuse - now tracks event loop
-_graphiti_service: Optional[GraphitiService] = None
-_graphiti_loop_id: Optional[int] = None
+# Cache Graphiti services per event loop because the async Neo4j driver
+# is loop-bound and cannot be safely reused across independent asyncio.run() calls.
+_graphiti_services: Dict[int, GraphitiService] = {}
+_graphiti_services_lock = threading.Lock()
 
 
 async def get_graphiti_service() -> GraphitiService:
-    """Get or create the GraphitiService instance for the current event loop.
-
-    The Graphiti/Neo4j async driver is bound to a specific event loop.
-    If asyncio.run() creates a new loop, we must reinitialize the service.
-    """
-    global _graphiti_service, _graphiti_loop_id
-
-    import asyncio
-
+    """Get or create the GraphitiService instance for the current event loop."""
     current_loop = asyncio.get_running_loop()
     current_loop_id = id(current_loop)
 
-    # Check if we need to reinitialize due to event loop change
-    if _graphiti_service is not None and _graphiti_loop_id != current_loop_id:
-        logger.info("Event loop changed, reinitializing GraphitiService")
-        # Don't try to close old service - it's bound to the old loop
-        _graphiti_service = None
-        _graphiti_loop_id = None
+    with _graphiti_services_lock:
+        existing_service = _graphiti_services.get(current_loop_id)
+    if existing_service is not None:
+        return existing_service
 
-    if _graphiti_service is None:
-        _graphiti_service = GraphitiService()
-        await _graphiti_service.initialize()
-        _graphiti_loop_id = current_loop_id
+    logger.info("Event loop changed, initializing GraphitiService for a new loop")
+    new_service = GraphitiService()
+    await new_service.initialize()
 
-    return _graphiti_service
+    with _graphiti_services_lock:
+        existing_service = _graphiti_services.get(current_loop_id)
+        if existing_service is None:
+            _graphiti_services[current_loop_id] = new_service
+            return new_service
+
+    # Another coroutine won the race while we were initializing.
+    await new_service.close()
+    return existing_service
 
 
 def reset_graphiti_service():
-    """Reset the global GraphitiService instance.
+    """Reset cached GraphitiService instances.
 
-    Call this before asyncio.run() if you need a fresh service.
+    If called from inside a running event loop, the service for that loop is
+    closed asynchronously. Otherwise we just clear the cache so future calls
+    build fresh loop-local clients.
     """
-    global _graphiti_service, _graphiti_loop_id
-    _graphiti_service = None
-    _graphiti_loop_id = None
+    try:
+        current_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        current_loop = None
+
+    if current_loop is None:
+        with _graphiti_services_lock:
+            _graphiti_services.clear()
+        return
+
+    current_loop_id = id(current_loop)
+    with _graphiti_services_lock:
+        service = _graphiti_services.pop(current_loop_id, None)
+
+    if service is not None:
+        current_loop.create_task(service.close())

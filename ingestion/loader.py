@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
-from core.logging import logger
+from deepfishy.shared.logging import logger
 from ingestion.parsers.mineru_pdf_parser import MineruPDFParser
 
 

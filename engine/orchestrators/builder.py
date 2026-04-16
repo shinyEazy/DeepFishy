@@ -9,7 +9,7 @@ from langchain.agents import create_agent
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from core.logging import logger
+from deepfishy.shared.logging import logger
 from engine.tools.normalizer import (
     _load_staged_records,
     commit_facts_to_graph,

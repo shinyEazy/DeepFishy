@@ -183,7 +183,7 @@ class CrawlerPipeline:
         Returns:
             Statistics dictionary
         """
-        from core.logging import logger
+        from deepfishy.shared.logging import logger
 
         json_dir = Path(json_dir)
         json_files = list(json_dir.glob("*.json"))

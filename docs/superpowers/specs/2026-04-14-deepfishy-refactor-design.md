@@ -96,6 +96,8 @@ deepfishy/
 
   shared/
     logging.py
+    constants.py
+    agents.py
     serialization.py
     io/
     pdf/
@@ -163,6 +165,9 @@ Disallowed patterns:
 
 - `benchmark/evaluate.py` -> `deepfishy/features/benchmark/evaluate.py`
 - `benchmark/prompt.py` -> `deepfishy/features/benchmark/prompts.py`
+- `utils/results_io.py` -> `deepfishy/features/benchmark/results.py`
+- `utils/response_parser.py` -> `deepfishy/features/benchmark/results.py`
+- `utils/report_discovery.py` -> `deepfishy/features/benchmark/results.py`
 - `benchmark/run_dataset_and_evaluate.py` -> `deepfishy/app/cli/benchmark.py`
 - `benchmark/convert_folder_to_pdf.py` -> `scripts/convert_benchmark_folder_to_pdf.py` if still needed
 - `benchmark/dataset/*` stays as data, not package code
@@ -199,12 +204,35 @@ Disallowed patterns:
 Move only truly generic helpers:
 
 - `utils/serializers.py` -> `deepfishy/shared/serialization.py`
+- `utils/load_agents.py` -> `deepfishy/shared/agents.py`
+- `core/constants.py` -> `deepfishy/shared/constants.py`
 - `utils/pdf_helpers.py`, `utils/pdf_layout.py`, `utils/convert_md_to_pdf.py` -> `deepfishy/shared/pdf/*`
-- `utils/results_io.py` -> `deepfishy/features/benchmark/results.py` if benchmark-specific, otherwise `shared/io`
-- `utils/response_parser.py` -> `deepfishy/features/benchmark/response_parser.py` if only used there
-- `utils/report_discovery.py` -> `deepfishy/features/benchmark/report_discovery.py` if benchmark-only
 
 Do not carry over `utils/` as a destination. Every file must be assigned to a specific owning area.
+
+## Implementation Result
+
+The refactor landed in the intended direction:
+
+- `deepfishy.app` now owns API routes, API schemas, and worker task implementations.
+- `deepfishy.features.reports` owns report-generation application flows.
+- `deepfishy.features.benchmark` owns prompt, evaluator, result parsing, result output, and dataset benchmark flow logic.
+- `deepfishy.features.chat` owns chat service, chat runtime bootstrap, and response generation service.
+- `deepfishy.features.knowledge_graph` owns the active RAG service implementation.
+- `deepfishy.features.ingestion` owns article chunking/embedding preparation logic.
+- `deepfishy.infra` owns the active config/model registry, LLM factories, DB/session layer, and external service adapters.
+- `deepfishy.shared` owns logging, crawler constants, agent-loading utilities, and shared PDF helpers.
+
+The top-level `api/`, `worker/`, `benchmark/`, `services/`, `core/`, and much of `utils/` remain as compatibility layers so old imports and scripts continue to work.
+
+## Remaining Cleanup Candidates
+
+The structural migration is effectively complete, but these follow-up changes are still possible if the project later wants to remove compatibility layers:
+
+- delete wrapper-only modules once downstream callers are migrated
+- move remaining top-level data-oriented helper files only if they still contain non-wrapper runtime logic
+- add packaging/CLI entry points so wrapper scripts are no longer needed
+- update external documentation and deployment scripts to import `deepfishy.*` directly
 
 ## Key Design Decisions
 

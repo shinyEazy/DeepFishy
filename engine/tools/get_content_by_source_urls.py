@@ -3,7 +3,7 @@
 from typing import List, Dict, Any
 from langchain_core.tools import tool
 
-from core.logging import logger
+from deepfishy.shared.logging import logger
 
 
 def _get_milvus_service():

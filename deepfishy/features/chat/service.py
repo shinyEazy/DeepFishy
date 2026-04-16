@@ -8,6 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from db.models.conversation import Conversation, Message
+from deepfishy.features.chat.runtime import get_chat_agent
 from deepfishy.shared.logging import logger
 
 DEFAULT_CONVERSATION_TITLE = "Cuộc trò chuyện mới"
@@ -202,8 +203,6 @@ class ChatService:
         self, message: str, conversation_id: Optional[str] = None, stream: bool = False
     ) -> Dict[str, Any]:
         try:
-            from engine.main import agent
-
             conversation = self.get_or_create_conversation(conversation_id)
             self.save_message(
                 conversation_id=conversation.id, role="user", content=message
@@ -216,6 +215,7 @@ class ChatService:
                     "Streaming not fully supported, returning complete response"
                 )
 
+            agent = get_chat_agent()
             agent_response = agent.invoke(
                 {"messages": [{"role": "user", "content": message}]}
             )
@@ -264,8 +264,6 @@ class ChatService:
         self, message: str, conversation_id: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         try:
-            from engine.main import agent
-
             conversation = self.get_or_create_conversation(conversation_id)
             self.save_message(
                 conversation_id=conversation.id, role="user", content=message
@@ -275,6 +273,7 @@ class ChatService:
 
             yield f"data: {json.dumps({'type': 'conversation_id', 'conversation_id': conversation.id})}\n\n"
 
+            agent = get_chat_agent()
             agent_response = agent.invoke(
                 {"messages": [{"role": "user", "content": message}]}
             )

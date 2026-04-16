@@ -7,8 +7,8 @@ during the iterative research pipeline.
 from typing import List, Set
 from dataclasses import dataclass
 
-from services.rag import SearchResult
-from core.logging import logger
+from deepfishy.features.knowledge_graph.rag import SearchResult
+from deepfishy.shared.logging import logger
 
 
 @dataclass

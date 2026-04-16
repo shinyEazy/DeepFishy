@@ -5,7 +5,7 @@ import re
 import glob
 from typing import Dict, List
 
-from core.logging import logger
+from deepfishy.shared.logging import logger
 
 
 def validate_drafts(workspace_path: str) -> Dict[str, object]:

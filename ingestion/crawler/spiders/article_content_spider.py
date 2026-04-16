@@ -116,11 +116,11 @@ class ArticleContentSpider(BaseSpider):
         Returns:
             True if successful, False otherwise
         """
-        from core.logging import logger
+        from deepfishy.shared.logging import logger
         from time import sleep
 
         try:
-            from services.minio import MinioService
+            from deepfishy.infra.storage.minio import MinioService
         except ImportError:
             logger.warning(
                 f"MinIO service not available - skipping upload for {url_path}"

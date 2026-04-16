@@ -5,8 +5,8 @@ from typing import Optional
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage
 
-from utils.model_factory import create_vlm_client
-from utils.load_config import get_default_vlm_name
+from deepfishy.infra.llm.chat_factory import create_vlm_client
+from deepfishy.infra.config.model_registry import get_default_vlm_name
 from engine.tools.prompts.critique_chart_prompt import (
     CRITIQUE_CHART_SYSTEM_PROMPT,
 )

@@ -39,6 +39,11 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def create_session() -> Session:
+    """Create a standalone SQLAlchemy session bound to the shared engine."""
+    return SessionLocal(bind=_get_engine())
+
+
 def init_db() -> None:
     """Initialize database by creating all tables."""
     try:
@@ -65,4 +70,11 @@ def close_db() -> None:
         logger.warning(f"Error closing database connections: {exc}")
 
 
-__all__ = ["engine", "SessionLocal", "get_db", "init_db", "close_db"]
+__all__ = [
+    "engine",
+    "SessionLocal",
+    "create_session",
+    "get_db",
+    "init_db",
+    "close_db",
+]

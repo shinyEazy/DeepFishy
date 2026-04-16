@@ -10,6 +10,14 @@ from deepfishy.infra.config.model_registry import (
 from deepfishy.shared.logging import logger
 
 
+GOOGLE_EMBEDDING_PROVIDERS = {
+    "google",
+    "google_ai_studio",
+    "google_vertex_ai",
+    "google_vertex_ai_express",
+}
+
+
 def get_embedding_provider(model_name: str = None) -> BaseEmbedding:
     """Create an embedding provider based on model config."""
     if model_name is None:
@@ -25,7 +33,7 @@ def get_embedding_provider(model_name: str = None) -> BaseEmbedding:
 
     api_provider = config.get("api_provider", "").lower()
 
-    if api_provider == "google":
+    if api_provider in GOOGLE_EMBEDDING_PROVIDERS:
         return GoogleEmbedding(model_name=model_name)
     if api_provider == "openai":
         return OpenAIEmbedding(model_name=model_name)

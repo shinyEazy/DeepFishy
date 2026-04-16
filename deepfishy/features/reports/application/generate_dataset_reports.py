@@ -6,7 +6,7 @@ from pathlib import Path
 
 from deepfishy.infra.config.paths import PROJECT_ROOT, resolve_project_path
 from deepfishy.shared.logging import logger
-from utils.convert_md_to_pdf import convert_md_to_pdf
+from deepfishy.shared.pdf.converter import convert_md_to_pdf
 
 INPUT_TEMPLATE = "Hãy giúp tôi viết một báo cáo nghiên cứu chi tiết về tài chính doanh nghiệp của {topic}. Báo cáo cần phong phú cả về nội dung văn bản lẫn các biểu đồ minh họa. Đồng thời, hãy cung cấp danh mục trích dẫn tài liệu tham khảo theo chuẩn ở cuối báo cáo (bao gồm số thứ tự và các nguồn tài liệu tương ứng). Bắt đầu viết báo cáo ngay và trả về toàn bộ nội dung."
 DATASET_OUTPUT_DIR = PROJECT_ROOT / "benchmark" / "generated_reports" / "deepfishy"
@@ -50,9 +50,7 @@ def run_dataset_generation(dataset_path: str) -> None:
     DATASET_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Delay this import to avoid a circular dependency while engine.main still
-    # owns the single-report workflow implementation.
-    from engine.main import run_engine
+    from deepfishy.features.reports.application.generate_report import run_engine
 
     for index, row in enumerate(rows, start=1):
         row_id = (row.get("id") or "").strip() or str(index)

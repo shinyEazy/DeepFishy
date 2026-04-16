@@ -1,8 +1,8 @@
 from typing import List, Dict, Tuple
 
-from core.logging import logger
+from deepfishy.shared.logging import logger
 from embedding.base_embedding import BaseEmbedding
-from services.embeddings import ChunkedArticle
+from deepfishy.features.ingestion.embeddings import ChunkedArticle
 from deepfishy.infra.vector.milvus import MilvusService
 
 
@@ -57,7 +57,7 @@ class EmbeddingPipeline:
             if self._chunking_service:
                 chunked_articles = self._chunking_service.process_article(article)
             else:
-                from services.embeddings import EmbeddingService
+                from deepfishy.features.ingestion.embeddings import EmbeddingService
 
                 chunking_svc = EmbeddingService()
                 chunked_articles = chunking_svc.process_article(article)

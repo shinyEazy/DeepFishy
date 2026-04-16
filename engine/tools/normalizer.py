@@ -11,9 +11,9 @@ from typing import Optional, Any, Dict, List
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from core.logging import logger
-from utils.model_factory import create_llm_client
-from utils.load_config import get_default_llm_name
+from deepfishy.shared.logging import logger
+from deepfishy.infra.llm.chat_factory import create_llm_client
+from deepfishy.infra.config.model_registry import get_default_llm_name
 
 
 def _get_staging_file_path() -> Path:
@@ -231,7 +231,7 @@ def search_local_normalized(
         base, or "No relevant facts found." if no data matched.
     """
     try:
-        from services.rag import get_rag_service
+        from deepfishy.features.knowledge_graph.rag import get_rag_service
 
         rag_service = get_rag_service()
         top_k = max(1, min(top_k, 10))
@@ -471,7 +471,7 @@ def finalize_staged_facts_to_graph() -> Dict[str, Any]:
     """Ingest all staged facts for the current session in one bulk Graphiti call."""
     try:
         from engine.tools.search_and_build_graph import get_current_session_id
-        from services.rag import SearchResult
+        from deepfishy.features.knowledge_graph.rag import SearchResult
         from graph_rag.graphiti_service import (
             get_graphiti_service,
             reset_graphiti_service,

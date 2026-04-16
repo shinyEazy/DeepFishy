@@ -5,10 +5,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes.chat import router as chat_router
-from api.routes.rag import router as rag_router
-from api.routes.response import router as response_router
-from api.routes.session import router as session_router
+from deepfishy.app.api.routes.chat import router as chat_router
+from deepfishy.app.api.routes.rag import router as rag_router
+from deepfishy.app.api.routes.response import router as response_router
+from deepfishy.app.api.routes.session import router as session_router
 from deepfishy.shared.logging import logger
 
 

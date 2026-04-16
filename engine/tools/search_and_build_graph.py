@@ -2,7 +2,7 @@ import asyncio
 from typing import Optional, Dict, Any, List
 from langchain_core.tools import tool
 
-from core.logging import logger
+from deepfishy.shared.logging import logger
 
 _pending_graph_updates: List[Dict[str, Any]] = []
 
@@ -11,7 +11,7 @@ _current_session_id: Optional[str] = None
 
 def _get_rag_service():
     """Lazy import to avoid circular imports."""
-    from services.rag import get_rag_service
+    from deepfishy.features.knowledge_graph.rag import get_rag_service
 
     return get_rag_service()
 
