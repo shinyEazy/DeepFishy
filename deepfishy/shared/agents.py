@@ -38,7 +38,9 @@ def load_agents(
     agents = []
 
     if folder_path == "subagents":
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        project_root = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..")
+        )
         folder_path = os.path.join(project_root, "app", "engine", "subagents")
 
     if names is not None:

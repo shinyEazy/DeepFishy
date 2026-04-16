@@ -73,7 +73,9 @@ def print_results_table(results: dict) -> None:
 
     dim_short = ["Cons", "Faith", "T-I", "Rich", "Cover", "Ins", "Logic", "Lang", "Vis"]
     header = (
-        f"{'Report ID':<30} " + " ".join(f"{dimension:>5}" for dimension in dim_short) + f" {'AVG':>8}"
+        f"{'Report ID':<30} "
+        + " ".join(f"{dimension:>5}" for dimension in dim_short)
+        + f" {'AVG':>8}"
     )
     print("\n" + "=" * len(header))
     print("BENCHMARK EVALUATION RESULTS")

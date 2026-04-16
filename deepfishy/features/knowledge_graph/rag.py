@@ -77,7 +77,9 @@ class RAGService:
                 logger.error("Failed to generate query embedding")
                 return []
 
-            logger.debug(f"Query embedding generated. Dimension: {len(query_embedding)}")
+            logger.debug(
+                f"Query embedding generated. Dimension: {len(query_embedding)}"
+            )
             logger.info(
                 f"Searching Milvus for top {top_k} results with category_filter={repr(category)}"
             )

@@ -42,7 +42,6 @@ def main() -> None:
     run_engine(user_input=user_input, session_id=args.session, phases=phases)
 
 
-
 __all__ = ["build_parser", "main"]
 
 

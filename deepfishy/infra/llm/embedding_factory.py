@@ -9,7 +9,6 @@ from deepfishy.infra.config.model_registry import (
 )
 from deepfishy.shared.logging import logger
 
-
 GOOGLE_EMBEDDING_PROVIDERS = {
     "google",
     "google_ai_studio",

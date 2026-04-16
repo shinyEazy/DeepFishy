@@ -6,7 +6,6 @@ from deepfishy.infra.config.settings import settings
 from deepfishy.app.workers.tasks import crawler_task  # noqa: F401
 from deepfishy.app.workers.tasks import embedding_task  # noqa: F401
 
-
 celery_app = Celery(
     "deepfishy",
     broker=settings.CELERY_BROKER_URL,

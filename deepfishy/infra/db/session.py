@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session, sessionmaker
 from deepfishy.infra.config.settings import settings
 from deepfishy.shared.logging import logger
 
-
 engine = None
 SessionLocal = sessionmaker(autocommit=False, autoflush=False)
 

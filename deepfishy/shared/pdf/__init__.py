@@ -1,4 +1,5 @@
 """Shared PDF utilities."""
+
 """Shared PDF utilities for report rendering and benchmark evaluation."""
 
 from deepfishy.shared.pdf.converter import convert_md_to_pdf

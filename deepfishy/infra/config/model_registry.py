@@ -11,7 +11,11 @@ from deepfishy.infra.config.paths import CONFIGS_DIR, resolve_project_path
 @lru_cache(maxsize=1)
 def load_model_registry(config_path: str | None = None) -> dict[str, Any]:
     """Load the model registry from YAML."""
-    path = resolve_project_path(config_path) if config_path else CONFIGS_DIR / "config.yaml"
+    path = (
+        resolve_project_path(config_path)
+        if config_path
+        else CONFIGS_DIR / "config.yaml"
+    )
     with open(path, "r", encoding="utf-8") as handle:
         return yaml.safe_load(handle)
 

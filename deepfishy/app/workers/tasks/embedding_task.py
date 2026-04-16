@@ -190,7 +190,11 @@ def embed_single_article_task(
 
         chunked_articles, errors = pipeline.process_article(article_data)
         if not chunked_articles:
-            return {"status": "error", "message": "No chunks generated", "errors": errors}
+            return {
+                "status": "error",
+                "message": "No chunks generated",
+                "errors": errors,
+            }
 
         articles_with_embeddings, embedding_errors = pipeline.generate_embeddings(
             chunked_articles

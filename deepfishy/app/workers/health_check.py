@@ -27,9 +27,7 @@ def check_embedding_server_health(timeout: int = 5) -> tuple[bool, str]:
         logger.error(error_msg)
         return False, error_msg
     except requests.ConnectionError as error:
-        error_msg = (
-            f"Failed to connect to embedding server at {settings.EMBEDDING_API_URL}: {error}"
-        )
+        error_msg = f"Failed to connect to embedding server at {settings.EMBEDDING_API_URL}: {error}"
         logger.error(error_msg)
         return False, error_msg
     except Exception as error:

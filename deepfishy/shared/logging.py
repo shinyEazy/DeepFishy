@@ -3,7 +3,6 @@
 import logging
 import sys
 
-
 logger = logging.getLogger("deepfishy")
 logger.setLevel(logging.INFO)
 logger.propagate = False

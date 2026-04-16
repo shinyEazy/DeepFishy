@@ -41,7 +41,9 @@ def _apply_optional_google_params(config: dict, model_kwargs: dict) -> dict:
 def _build_google_ai_studio_kwargs(config: dict) -> dict:
     model_kwargs = {"model": config.get("model")}
 
-    api_key = config.get("api_key") or settings.GOOGLE_API_KEY or settings.GEMINI_API_KEY
+    api_key = (
+        config.get("api_key") or settings.GOOGLE_API_KEY or settings.GEMINI_API_KEY
+    )
     if not api_key:
         raise ValueError(
             "Google AI Studio requires an API key in config['api_key'] or "

@@ -19,7 +19,11 @@ def _normalize_image_paths(md_content: str, report_dir: str) -> str:
         img_path = match.group(2)
         path = Path(img_path)
 
-        if path.is_absolute() or img_path.startswith("./") or img_path.startswith("../"):
+        if (
+            path.is_absolute()
+            or img_path.startswith("./")
+            or img_path.startswith("../")
+        ):
             return match.group(0)
 
         abs_from_root = (PROJECT_ROOT / path).resolve()
@@ -47,7 +51,11 @@ def _compress_images_to_tmpdir(
     def _process_image(match):
         alt = match.group(1)
         img_path = match.group(2)
-        src = Path(img_path) if Path(img_path).is_absolute() else Path(report_dir) / img_path
+        src = (
+            Path(img_path)
+            if Path(img_path).is_absolute()
+            else Path(report_dir) / img_path
+        )
         if not src.exists():
             return match.group(0)
 
@@ -68,7 +76,9 @@ def _compress_images_to_tmpdir(
             logger.warning(f"Failed to process image {src}: {error}")
             return match.group(0)
 
-    modified_md = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", _process_image, normalized_content)
+    modified_md = re.sub(
+        r"!\[([^\]]*)\]\(([^)]+)\)", _process_image, normalized_content
+    )
     return modified_md, tmp_dir
 
 

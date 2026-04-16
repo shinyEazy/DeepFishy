@@ -1,4 +1,5 @@
 """API route modules."""
+
 """API route package for DeepFishy app entrypoints."""
 
 from deepfishy.app.api.routes.chat import router as chat_router
