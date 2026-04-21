@@ -41,7 +41,7 @@ services:
   #     context: ..
   #     dockerfile: docker/Dockerfile
   #   container_name: celery_worker
-  #   command: celery -A celery_app worker --loglevel=info --concurrency=2 -Q crawler,ingestion,celery
+  #   command: celery -A deepfishy.app.workers.celery_app:celery_app worker --loglevel=info --concurrency=2 -Q crawler,ingestion,celery
   #   environment:
   #     - PYTHONUNBUFFERED=1
   #     - PYTHONPATH=/app
@@ -66,8 +66,6 @@ services:
   #     - ../utils:/app/utils
   #     - ../worker:/app/worker
   #     - ../configs:/app/configs
-  #     - ../main.py:/app/main.py
-  #     - ../celery_app.py:/app/celery_app.py
   #     - ../outputs:/app/outputs
   #   networks:
   #     - deepfishy
@@ -77,7 +75,7 @@ services:
   #     context: ..
   #     dockerfile: docker/Dockerfile
   #   container_name: celery_beat
-  #   command: celery -A celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
+  #   command: celery -A deepfishy.app.workers.celery_app:celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
   #   environment:
   #     - PYTHONUNBUFFERED=1
   #     - PYTHONPATH=/app
@@ -102,8 +100,6 @@ services:
   #     - ../utils:/app/utils
   #     - ../worker:/app/worker
   #     - ../configs:/app/configs
-  #     - ../main.py:/app/main.py
-  #     - ../celery_app.py:/app/celery_app.py
   #   networks:
   #     - deepfishy
 
@@ -112,7 +108,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: server
-    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: python -m uvicorn deepfishy.app.api.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
@@ -136,8 +132,6 @@ services:
       - ../utils:/app/utils
       - ../worker:/app/worker
       - ../configs:/app/configs
-      - ../main.py:/app/main.py
-      - ../celery_app.py:/app/celery_app.py
       - ../graph_rag:/app/graph_rag
       - ../embedding:/app/embedding
       - ../outputs:/app/outputs
@@ -291,8 +285,6 @@ services:
   #     - ../utils:/app/utils
   #     - ../worker:/app/worker
   #     - ../configs:/app/configs
-  #     - ../main.py:/app/main.py
-  #     - ../celery_app.py:/app/celery_app.py
   #     - ../outputs:/app/outputs
   #   networks:
   #     - deepfishy
