@@ -129,8 +129,6 @@ services:
       - ../engine:/app/engine
       - ../ingestion:/app/ingestion
       - ../services:/app/services
-      - ../utils:/app/utils
-      - ../worker:/app/worker
       - ../configs:/app/configs
       - ../graph_rag:/app/graph_rag
       - ../embedding:/app/embedding

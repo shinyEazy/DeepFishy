@@ -16,6 +16,7 @@ from deepfishy.features.reports.application.finalize_report import (
 )
 from deepfishy.infra.config.paths import OUTPUTS_DIR, PROJECT_ROOT
 from deepfishy.shared.logging import logger
+from deepfishy.shared.pdf.converter import convert_md_to_pdf
 from engine.orchestrators.builder import create_builder_orchestrator
 from engine.orchestrators.classifier import classify_topic
 from engine.orchestrators.writer import create_writer_orchestrator
@@ -274,8 +275,20 @@ def run_engine(
                     final_path = concatenate_drafts_to_final(agent._workspace_path)
                     if final_path:
                         logger.info(f"Created final report: {final_path}")
-                except IOError as error:
-                    logger.warning(f"Failed to concatenate drafts: {error}")
+                        pdf_path = str(Path(final_path).with_suffix(".pdf"))
+                        with open(final_path, "r", encoding="utf-8") as file_handle:
+                            final_md_content = file_handle.read()
+                        convert_md_to_pdf(
+                            final_md_content,
+                            pdf_path,
+                            base_path=str(Path(final_path).resolve().parent),
+                        )
+                        if Path(pdf_path).exists():
+                            logger.info(f"Created final PDF: {pdf_path}")
+                        else:
+                            logger.error(f"PDF conversion did not create {pdf_path}")
+                except Exception as error:
+                    logger.warning(f"Failed to finalize report outputs: {error}")
 
             if orchestrator is not None:
                 try:
@@ -365,4 +378,3 @@ __all__ = [
     "materialize_outline_to_drafts",
     "run_engine",
 ]
-

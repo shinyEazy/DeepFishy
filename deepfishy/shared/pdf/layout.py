@@ -60,13 +60,6 @@ def build_pdf_stylesheet() -> str:
     @page {
         margin: 2cm 1.8cm 2.2cm;
         size: A4;
-        @top-center {
-            content: "";
-            display: block;
-            width: 100%;
-            border-bottom: 2px solid #1f4e8c;
-            margin-top: 0.28cm;
-        }
         @bottom-center {
             content: "";
             display: block;
