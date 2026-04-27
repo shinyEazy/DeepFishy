@@ -4,6 +4,7 @@ import argparse
 import csv
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
@@ -116,6 +117,16 @@ def extract_usage(response) -> tuple[int, int]:
     )
 
 
+def invoke_llm_judge(model_name: str, messages: list, label: str, row_id: str):
+    """Create an LLM client and invoke one benchmark judge prompt."""
+    llm = create_llm_client(model_name)
+    if llm is None:
+        raise RuntimeError(f"Failed to create LLM client: {model_name}")
+
+    logger.info(f"Row {row_id}: Calling LLM judge for {label} metrics...")
+    return llm.invoke(messages)
+
+
 def evaluate_generated_report(
     row_id: str,
     topic: str,
@@ -141,11 +152,6 @@ def evaluate_generated_report(
         logger.error(f"Row {row_id}: Failed to load golden report as PDF.")
         return None
 
-    llm = create_llm_client(model_name)
-    if llm is None:
-        logger.error(f"Row {row_id}: Failed to create LLM client: {model_name}")
-        return None
-
     report_pdfs = [{"filename": report_path, "pdf_bytes": generated_pdf}]
     system_prompt_irrelevant = GOLDEN_REPORT_IRRELEVANT_METRICS_SYSTEM_PROMPT.format(
         RESEARCH_QUESTION=research_question
@@ -161,23 +167,34 @@ def evaluate_generated_report(
         report_pdfs=report_pdfs,
     )
 
-    logger.info(f"Row {row_id}: Calling LLM judge for 6 irrelevant metrics...")
-
     llm_start = time.time()
-    try:
-        response_irrelevant = llm.invoke(messages_irrelevant)
-    except Exception as error:
-        logger.error(f"Row {row_id}: LLM irrelevant invocation failed: {error}")
-        return None
-
-    logger.info(f"Row {row_id}: Calling LLM judge for 3 relevant metrics...")
-    try:
-        response_relevant = llm.invoke(messages_relevant)
-    except Exception as error:
-        logger.error(f"Row {row_id}: LLM relevant invocation failed: {error}")
-        return None
+    judge_tasks = {
+        "irrelevant": ("6 irrelevant", messages_irrelevant),
+        "relevant": ("3 relevant", messages_relevant),
+    }
+    responses = {}
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = {
+            executor.submit(
+                invoke_llm_judge,
+                model_name,
+                messages,
+                label,
+                row_id,
+            ): task_name
+            for task_name, (label, messages) in judge_tasks.items()
+        }
+        for future in as_completed(futures):
+            task_name = futures[future]
+            try:
+                responses[task_name] = future.result()
+            except Exception as error:
+                logger.error(f"Row {row_id}: LLM {task_name} invocation failed: {error}")
+                return None
 
     llm_duration = time.time() - llm_start
+    response_irrelevant = responses["irrelevant"]
+    response_relevant = responses["relevant"]
     text_irrelevant = extract_text(response_irrelevant)
     text_relevant = extract_text(response_relevant)
 
