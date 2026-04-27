@@ -10,6 +10,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from deepfishy.shared.logging import logger
+from deepfishy.shared.tracing import wrap_with_current_tracing_context
 from engine.tools.normalizer import (
     _load_staged_records,
     commit_facts_to_graph,
@@ -560,7 +561,10 @@ class BuilderOrchestrator:
         results: List[Dict[str, str]] = []
         with ThreadPoolExecutor(max_workers=max(1, len(tasks))) as executor:
             futures = {
-                executor.submit(self._run_research_task, task): task for task in tasks
+                executor.submit(
+                    wrap_with_current_tracing_context(self._run_research_task), task
+                ): task
+                for task in tasks
             }
             for future in as_completed(futures):
                 results.append(future.result())
@@ -859,7 +863,9 @@ class BuilderOrchestrator:
         with ThreadPoolExecutor(max_workers=max(1, len(parallel_sections))) as executor:
             futures = {
                 executor.submit(
-                    self._run_section_workflow, user_request, section
+                    wrap_with_current_tracing_context(self._run_section_workflow),
+                    user_request,
+                    section,
                 ): section
                 for section in parallel_sections
             }

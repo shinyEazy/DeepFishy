@@ -10,6 +10,7 @@ from langchain.agents import create_agent
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
+from deepfishy.shared.tracing import wrap_with_current_tracing_context
 from engine.tools.critique_chart import critique_chart
 from engine.tools.execute_chart_code import execute_chart_code
 from engine.tools.get_content_by_source_urls import get_content_by_source_urls
@@ -1215,14 +1216,14 @@ class WriterOrchestrator:
         if writer_mode == "debate":
             with ThreadPoolExecutor(max_workers=2) as executor:
                 bull_future = executor.submit(
-                    self._run_stance_agent,
+                    wrap_with_current_tracing_context(self._run_stance_agent),
                     section,
                     evidence_pack,
                     "bull",
                     revision_guidance,
                 )
                 bear_future = executor.submit(
-                    self._run_stance_agent,
+                    wrap_with_current_tracing_context(self._run_stance_agent),
                     section,
                     evidence_pack,
                     "bear",
@@ -1240,7 +1241,10 @@ class WriterOrchestrator:
                 max_workers=min(len(chart_specs), self.MAX_CHARTS_PER_SECTION)
             ) as executor:
                 chart_futures = [
-                    executor.submit(self._generate_chart, spec) for spec in chart_specs
+                    executor.submit(
+                        wrap_with_current_tracing_context(self._generate_chart), spec
+                    )
+                    for spec in chart_specs
                 ]
                 for future in as_completed(chart_futures):
                     chart_path = future.result()
@@ -1294,7 +1298,9 @@ class WriterOrchestrator:
         results: List[SectionResult] = []
         with ThreadPoolExecutor(max_workers=max(1, len(sections))) as executor:
             future_map = {
-                executor.submit(self._draft_section, section): section
+                executor.submit(
+                    wrap_with_current_tracing_context(self._draft_section), section
+                ): section
                 for section in sections
             }
             for future in as_completed(future_map):
@@ -1317,7 +1323,7 @@ class WriterOrchestrator:
         with ThreadPoolExecutor(max_workers=max(1, len(results))) as executor:
             future_map = {
                 executor.submit(
-                    self._critique_section,
+                    wrap_with_current_tracing_context(self._critique_section),
                     section_by_index[result["index"]],
                     result.get("evidence_pack", ""),
                     result.get("draft", ""),
@@ -1382,7 +1388,7 @@ class WriterOrchestrator:
         with ThreadPoolExecutor(max_workers=max(1, len(revisions))) as executor:
             future_map = {
                 executor.submit(
-                    self._draft_section,
+                    wrap_with_current_tracing_context(self._draft_section),
                     section_by_index[revision["index"]],
                     revision.get("revision_guidance", ""),
                 ): revision

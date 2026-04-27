@@ -17,6 +17,7 @@ from deepfishy.features.reports.application.finalize_report import (
 from deepfishy.infra.config.paths import OUTPUTS_DIR, PROJECT_ROOT
 from deepfishy.shared.logging import logger
 from deepfishy.shared.pdf.converter import convert_md_to_pdf
+from deepfishy.shared.tracing import traceable_chain
 from engine.orchestrators.builder import create_builder_orchestrator
 from engine.orchestrators.classifier import classify_topic
 from engine.orchestrators.writer import create_writer_orchestrator
@@ -132,6 +133,7 @@ def create_agent(session_id: Optional[str] = None, phase: str = "write"):
     )
 
 
+@traceable_chain("report_generation")
 def run_engine(
     user_input: str,
     session_id: Optional[str] = None,

@@ -57,14 +57,9 @@ services:
   #     milvus:
   #       condition: service_healthy
   #   volumes:
-  #     - ../api:/app/api
-  #     - ../core:/app/core
   #     - ../db:/app/db
   #     - ../engine:/app/engine
   #     - ../ingestion:/app/ingestion
-  #     - ../services:/app/services
-  #     - ../utils:/app/utils
-  #     - ../worker:/app/worker
   #     - ../configs:/app/configs
   #     - ../outputs:/app/outputs
   #   networks:
@@ -91,14 +86,9 @@ services:
   #     milvus:
   #       condition: service_healthy
   #   volumes:
-  #     - ../api:/app/api
-  #     - ../core:/app/core
   #     - ../db:/app/db
   #     - ../engine:/app/engine
   #     - ../ingestion:/app/ingestion
-  #     - ../services:/app/services
-  #     - ../utils:/app/utils
-  #     - ../worker:/app/worker
   #     - ../configs:/app/configs
   #   networks:
   #     - deepfishy
@@ -123,12 +113,9 @@ services:
     volumes:
       - ../deepfishy:/app/deepfishy
       - ../scripts:/app/scripts
-      - ../api:/app/api
-      - ../core:/app/core
       - ../db:/app/db
       - ../engine:/app/engine
       - ../ingestion:/app/ingestion
-      - ../services:/app/services
       - ../configs:/app/configs
       - ../graph_rag:/app/graph_rag
       - ../embedding:/app/embedding
@@ -274,14 +261,9 @@ services:
   #     milvus:
   #       condition: service_healthy
   #   volumes:
-  #     - ../api:/app/api
-  #     - ../core:/app/core
   #     - ../db:/app/db
   #     - ../engine:/app/engine
   #     - ../ingestion:/app/ingestion
-  #     - ../services:/app/services
-  #     - ../utils:/app/utils
-  #     - ../worker:/app/worker
   #     - ../configs:/app/configs
   #     - ../outputs:/app/outputs
   #   networks:
