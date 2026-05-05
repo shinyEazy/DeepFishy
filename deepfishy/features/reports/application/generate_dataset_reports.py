@@ -10,6 +10,14 @@ from deepfishy.shared.pdf.converter import convert_md_to_pdf
 
 INPUT_TEMPLATE = "Hãy giúp tôi viết một báo cáo nghiên cứu chi tiết về tài chính doanh nghiệp của {topic}. Báo cáo cần phong phú cả về nội dung văn bản lẫn các biểu đồ minh họa. Đồng thời, hãy cung cấp danh mục trích dẫn tài liệu tham khảo theo chuẩn ở cuối báo cáo (bao gồm số thứ tự và các nguồn tài liệu tương ứng). Bắt đầu viết báo cáo ngay và trả về toàn bộ nội dung."
 DATASET_OUTPUT_DIR = PROJECT_ROOT / "benchmark" / "generated_reports" / "deepfishy"
+DATASET_OUTPUT_DIR_BY_WORKFLOW = {
+    "kg": PROJECT_ROOT / "benchmark" / "generated_reports" / "deepfishy_kg",
+    "no_kg": PROJECT_ROOT / "benchmark" / "generated_reports" / "deepfishy_no_kg",
+    "no_template": PROJECT_ROOT
+    / "benchmark"
+    / "generated_reports"
+    / "deepfishy_no_template",
+}
 
 
 def format_user_input(topic: str) -> str:
@@ -41,13 +49,17 @@ def load_dataset_rows(dataset_path: str) -> list[dict[str, str]]:
     return rows
 
 
-def run_dataset_generation(dataset_path: str) -> None:
+def run_dataset_generation(dataset_path: str, workflow: str = "kg") -> None:
     """Generate reports for each dataset topic and export them as PDFs."""
+    if workflow not in DATASET_OUTPUT_DIR_BY_WORKFLOW:
+        raise ValueError("workflow must be one of: 'kg', 'no_kg', 'no_template'.")
+
     rows = load_dataset_rows(dataset_path)
     if not rows:
         raise ValueError("Dataset is empty.")
 
-    DATASET_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir = DATASET_OUTPUT_DIR_BY_WORKFLOW[workflow]
+    output_dir.mkdir(parents=True, exist_ok=True)
     run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     from deepfishy.features.reports.application.generate_report import run_engine
@@ -55,7 +67,7 @@ def run_dataset_generation(dataset_path: str) -> None:
     for index, row in enumerate(rows, start=1):
         row_id = (row.get("id") or "").strip() or str(index)
         topic = (row.get("topic") or "").strip()
-        output_path = DATASET_OUTPUT_DIR / f"topic_{index}.pdf"
+        output_path = output_dir / f"topic_{index}.pdf"
 
         if not topic:
             logger.warning(
@@ -71,6 +83,8 @@ def run_dataset_generation(dataset_path: str) -> None:
         final_md_path = run_engine(
             user_input=format_user_input(topic),
             session_id=session_id,
+            use_knowledge_graph=workflow == "kg",
+            use_template_outline=workflow != "no_template",
         )
 
         if not final_md_path:
@@ -93,6 +107,7 @@ def run_dataset_generation(dataset_path: str) -> None:
 
 __all__ = [
     "DATASET_OUTPUT_DIR",
+    "DATASET_OUTPUT_DIR_BY_WORKFLOW",
     "format_user_input",
     "load_dataset_rows",
     "normalize_row_keys",

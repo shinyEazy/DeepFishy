@@ -15,6 +15,11 @@ from engine.tools.critique_chart import critique_chart
 from engine.tools.execute_chart_code import execute_chart_code
 from engine.tools.get_content_by_source_urls import get_content_by_source_urls
 from engine.tools.get_current_date import get_current_date
+from engine.tools.normalizer import (
+    get_finance_data_normalized,
+    search_local_normalized,
+    search_web_normalized,
+)
 from engine.tools.query_knowledge_graph import (
     query_graph_natural,
     query_knowledge_graph,
@@ -75,10 +80,10 @@ def _extract_frontmatter_body(markdown_text: str) -> str:
 
 
 class WriterOrchestrator:
-    MAX_CRITIQUE_ROUNDS = 2
-    MAX_CHARTS_PER_SECTION = 2
-    MAX_CHART_REVISIONS = 3
-    MAX_EVIDENCE_QUERIES = 4
+    MAX_CRITIQUE_ROUNDS = 1
+    MAX_CHARTS_PER_SECTION = 1
+    MAX_CHART_REVISIONS = 1
+    MAX_EVIDENCE_QUERIES = 1
     MAX_SECTION_EVIDENCE_RECORDS = 24
     MAX_MODEL_EVIDENCE_RECORDS = 80
 
@@ -87,10 +92,12 @@ class WriterOrchestrator:
         model: BaseChatModel,
         session_id: Optional[str] = None,
         output_base_path: str = "outputs",
+        use_knowledge_graph: bool = True,
     ):
         self.model = model
         self.session_id = session_id
         self.output_base_path = output_base_path
+        self.use_knowledge_graph = use_knowledge_graph
         self._agent = None
         self._workspace_path = None
         self._bull_prompt = self._load_prompt("bull_agent.md")
@@ -586,6 +593,15 @@ class WriterOrchestrator:
         except TypeError:
             return create_agent(prompt=system_prompt, **kwargs)
 
+    def _write_phase_search_tools(self) -> List[Any]:
+        """Tools available to no-KG write agents for direct evidence gathering."""
+        return [
+            search_local_normalized,
+            search_web_normalized,
+            get_finance_data_normalized,
+            get_content_by_source_urls,
+        ]
+
     def _extract_json_payload(self, text: str, fallback: Any) -> Any:
         candidate = text.strip()
         if candidate.startswith("```"):
@@ -629,14 +645,14 @@ class WriterOrchestrator:
         revision_guidance: str = "",
     ) -> Dict[str, str]:
         system_prompt = self._bull_prompt if stance == "bull" else self._bear_prompt
-        agent = self._create_agent_with_tools(
-            system_prompt=system_prompt,
-            tools=[
+        tools = self._write_phase_search_tools()
+        if self.use_knowledge_graph:
+            tools = [
                 query_knowledge_graph,
                 query_graph_natural,
                 get_content_by_source_urls,
-            ],
-        )
+            ]
+        agent = self._create_agent_with_tools(system_prompt=system_prompt, tools=tools)
 
         guidance_block = (
             f"\nRevision guidance:\n{revision_guidance}\n" if revision_guidance else ""
@@ -843,15 +859,53 @@ class WriterOrchestrator:
             section
         )
 
-    def _collect_section_evidence(self, section: SectionTask) -> str:
-        build_artifact = section.get("build_artifact") or {}
-        artifact_records = build_artifact.get("evidence_records", [])
-        if isinstance(artifact_records, list) and artifact_records:
-            evidence_pack = self._build_artifact_to_evidence_pack(
-                section, build_artifact
+    def _collect_direct_search_evidence(self, section: SectionTask) -> str:
+        queries = self._plan_evidence_queries(section)
+        evidence_blocks: List[str] = [
+            f"# Evidence Pack: {section['title']}",
+            "",
+            f"Section outline:\n{section['outline_chunk']}",
+            "",
+            self._source_policy_block().strip(),
+            "",
+        ]
+
+        for idx, query in enumerate(queries, start=1):
+            try:
+                local_result = search_local_normalized.invoke(
+                    {"query": query, "top_k": 8}
+                )
+            except Exception as exc:
+                local_result = f"Local search failed: {exc}"
+
+            try:
+                web_result = search_web_normalized.invoke(
+                    {"query": query, "max_results": 5}
+                )
+            except Exception as exc:
+                web_result = f"Web search failed: {exc}"
+
+            evidence_blocks.extend(
+                [
+                    f"## Query {idx}",
+                    f"Question: {query}",
+                    "",
+                    "### Local search facts",
+                    str(local_result).strip(),
+                    "",
+                    "### Web search facts",
+                    str(web_result).strip(),
+                    "",
+                ]
             )
-            self._write_file(f"{section['dir_name']}/evidence.md", evidence_pack + "\n")
-            return evidence_pack
+
+        evidence_pack = "\n".join(evidence_blocks).strip()
+        self._write_file(f"{section['dir_name']}/evidence.md", evidence_pack + "\n")
+        return evidence_pack
+
+    def _collect_section_evidence(self, section: SectionTask) -> str:
+        if not self.use_knowledge_graph:
+            return self._collect_direct_search_evidence(section)
 
         queries = self._plan_evidence_queries(section)
         evidence_blocks: List[str] = [
@@ -1145,24 +1199,33 @@ class WriterOrchestrator:
             "Use one consistent reference format: `[n] Tiêu đề: [url](url)`.\n"
             "Avoid appending generic `Key Drivers` or `Conclusion/Outlook` blocks unless the outline explicitly calls for them.\n"
         )
+        user_prompt = (
+            f"Write the final section draft in Vietnamese.\n"
+            f"Section title: {section['title']}\n"
+            f"Section heading: {section['heading']}\n"
+            f"Section outline:\n{section['outline_chunk']}\n\n"
+            f"Evidence pack:\n{evidence_pack}\n\n"
+            f"Canonical report model:\n{report_model}\n\n"
+            f"Available charts to embed:\n{chart_block or 'No charts'}\n\n"
+            f"Revision guidance:\n{revision_guidance or 'None'}\n\n"
+            f"Section-specific guidance:\n{section_guidance}\n"
+            "Return markdown only. Keep the section grounded, specific, and structurally faithful to the outline."
+        )
+
+        if not self.use_knowledge_graph:
+            agent = self._create_agent_with_tools(
+                system_prompt=system_prompt,
+                tools=self._write_phase_search_tools(),
+            )
+            result = agent.invoke(
+                {"messages": [{"role": "user", "content": user_prompt}]}
+            )
+            if result.get("messages"):
+                return self._extract_text(result["messages"][-1].content).strip()
+            return ""
+
         response = self.model.invoke(
-            [
-                SystemMessage(content=system_prompt),
-                HumanMessage(
-                    content=(
-                        f"Write the final section draft in Vietnamese.\n"
-                        f"Section title: {section['title']}\n"
-                        f"Section heading: {section['heading']}\n"
-                        f"Section outline:\n{section['outline_chunk']}\n\n"
-                        f"Evidence pack:\n{evidence_pack}\n\n"
-                        f"Canonical report model:\n{report_model}\n\n"
-                        f"Available charts to embed:\n{chart_block or 'No charts'}\n\n"
-                        f"Revision guidance:\n{revision_guidance or 'None'}\n\n"
-                        f"Section-specific guidance:\n{section_guidance}\n"
-                        "Return markdown only. Keep the section grounded, specific, and structurally faithful to the outline."
-                    )
-                ),
-            ]
+            [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
         )
         return self._extract_text(response.content).strip()
 
@@ -1475,10 +1538,12 @@ def create_writer_orchestrator(
     model: BaseChatModel,
     session_id: Optional[str] = None,
     output_base_path: str = "outputs",
+    use_knowledge_graph: bool = True,
 ):
     orchestrator = WriterOrchestrator(
         model=model,
         session_id=session_id,
         output_base_path=output_base_path,
+        use_knowledge_graph=use_knowledge_graph,
     )
     return orchestrator.create()

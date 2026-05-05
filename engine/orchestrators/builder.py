@@ -503,7 +503,7 @@ class BuilderOrchestrator:
                 search_local_normalized,
                 search_web_normalized,
                 get_finance_data_normalized,
-                commit_facts_to_graph,
+                # commit_facts_to_graph,
             ],
         }
         try:

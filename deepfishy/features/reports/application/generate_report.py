@@ -23,7 +23,6 @@ from engine.orchestrators.classifier import classify_topic
 from engine.orchestrators.writer import create_writer_orchestrator
 from engine.tools.normalizer import finalize_staged_facts_to_graph
 from engine.tools.validate_drafts import validate_drafts
-from graph_rag.graphiti_service import get_graphiti_service, reset_graphiti_service
 from deepfishy.infra.config.model_registry import get_default_llm_name
 from deepfishy.infra.llm.chat_factory import create_llm_client
 
@@ -109,7 +108,11 @@ def create_model() -> Optional[BaseChatModel]:
     return model
 
 
-def create_agent(session_id: Optional[str] = None, phase: str = "write"):
+def create_agent(
+    session_id: Optional[str] = None,
+    phase: str = "write",
+    use_knowledge_graph: bool = True,
+):
     """Create the phase-specific orchestrator and agent."""
     custom_model = create_model()
 
@@ -128,6 +131,7 @@ def create_agent(session_id: Optional[str] = None, phase: str = "write"):
             model=custom_model,
             session_id=session_id,
             output_base_path=OUTPUT_BASE_PATH,
+            use_knowledge_graph=use_knowledge_graph,
         ),
         None,
     )
@@ -138,38 +142,45 @@ def run_engine(
     user_input: str,
     session_id: Optional[str] = None,
     phases: list[str] | None = None,
+    use_knowledge_graph: bool = True,
+    use_template_outline: bool = True,
 ) -> str:
     """Run the build/write report pipeline and return the final markdown path."""
     if phases is None:
-        phases = ["build", "write"]
-    if phases == ["write"] and not session_id:
+        phases = ["build", "write"] if use_knowledge_graph else ["write"]
+    if phases == ["write"] and not session_id and use_knowledge_graph:
         raise ValueError(
             "Write-only mode requires --session so the engine can reuse outputs/{session_id}."
         )
     if session_id is None:
         session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    logger.info("Classifying topic...")
-    custom_model = create_model()
-    topic_type = classify_topic(custom_model, user_input)
+    template_path = Path("templates/company_outline.md")
+    if use_template_outline:
+        logger.info("Classifying topic...")
+        custom_model = create_model()
+        topic_type = classify_topic(custom_model, user_input)
 
-    if topic_type == "1":
-        template_path = Path("templates/company_outline.md")
-        logger.info("Topic classified as COMPANY. Using company outline template.")
-    elif topic_type == "2":
-        template_path = Path("templates/industry_outline.md")
-        logger.info("Topic classified as INDUSTRY. Using industry outline template.")
+        if topic_type == "1":
+            template_path = Path("templates/company_outline.md")
+            logger.info("Topic classified as COMPANY. Using company outline template.")
+        elif topic_type == "2":
+            template_path = Path("templates/industry_outline.md")
+            logger.info("Topic classified as INDUSTRY. Using industry outline template.")
+        else:
+            template_path = Path("templates/company_outline.md")
+            logger.info(f"Topic unknown. Falling back to default outline: {template_path}")
     else:
-        template_path = Path("templates/company_outline.md")
-        logger.info(f"Topic unknown. Falling back to default outline: {template_path}")
+        logger.info("Skipping topic classification because no_template workflow writes from scratch.")
 
     template_outline = ""
-    try:
-        template_outline = template_path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        logger.error(
-            f"Template file not found: {template_path}. Proceeding with an empty outline."
-        )
+    if use_template_outline:
+        try:
+            template_outline = template_path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            logger.error(
+                f"Template file not found: {template_path}. Proceeding with an empty outline."
+            )
 
     build_outline = None
     final_path = ""
@@ -184,18 +195,29 @@ def run_engine(
 
         logger.info("=" * 60)
         if current_phase == "build":
-            logger.info(f"PHASE 1: Build Knowledge Graph (session_id={session_id})")
-            clear_start = time.time()
+            if not use_knowledge_graph:
+                logger.info(
+                    "Skipping build phase because no_kg workflow writes directly from the selected template outline."
+                )
+                continue
+            if use_knowledge_graph:
+                from graph_rag.graphiti_service import (
+                    get_graphiti_service,
+                    reset_graphiti_service,
+                )
 
-            async def clear_graph_before_build():
-                service = await get_graphiti_service()
-                await service.clear_graph()
+                logger.info(f"PHASE 1: Build Knowledge Graph (session_id={session_id})")
+                clear_start = time.time()
 
-            reset_graphiti_service()
-            asyncio.run(clear_graph_before_build())
-            logger.info(
-                f"Cleared existing graph data in {time.time() - clear_start:.2f}s"
-            )
+                async def clear_graph_before_build():
+                    service = await get_graphiti_service()
+                    await service.clear_graph()
+
+                reset_graphiti_service()
+                asyncio.run(clear_graph_before_build())
+                logger.info(
+                    f"Cleared existing graph data in {time.time() - clear_start:.2f}s"
+                )
             user_input_for_phase = (
                 f"{user_input}\n\n"
                 "Vui lòng sử dụng template outline sau đây làm cơ sở cấu trúc khi xây dựng report outline cuối cùng:\n\n"
@@ -209,16 +231,26 @@ def run_engine(
             else:
                 workspace_path = os.path.join(OUTPUT_BASE_PATH, session_id)
                 existing_outline_path = os.path.join(workspace_path, "outline.md")
-                if os.path.exists(existing_outline_path):
+                if not use_template_outline:
+                    logger.info(
+                        "Using original request directly for no_template workflow."
+                    )
+                    outline = user_input
+                elif use_knowledge_graph and os.path.exists(existing_outline_path):
                     with open(existing_outline_path, "r", encoding="utf-8") as file_handle:
                         outline = file_handle.read()
                     logger.info(
                         f"Using existing outline from prior build run: {existing_outline_path}"
                     )
                 else:
-                    logger.warning(
-                        f"No build outline available, and no existing outline at {existing_outline_path}. Falling back to {template_path}"
-                    )
+                    if use_knowledge_graph:
+                        logger.warning(
+                            f"No build outline available, and no existing outline at {existing_outline_path}. Falling back to {template_path}"
+                        )
+                    else:
+                        logger.info(
+                            f"Using template outline directly for no_kg workflow: {template_path}"
+                        )
                     outline = template_outline
             outline_for_write = outline
 
@@ -229,16 +261,24 @@ def run_engine(
                 file_handle.write(outline)
             logger.info(f"Wrote outline ({len(outline)} chars) to {outline_path}")
 
-            user_input_for_phase = (
-                "Viết báo cáo tài chính theo outline được lưu tại `/outline.md`.\n"
-                "Đọc file đó trước khi bắt đầu. "
-                "Số lượng section trong outline xác định số lượng section_N/draft.md cần tạo."
-            )
+            if use_template_outline:
+                user_input_for_phase = (
+                    "Viết báo cáo tài chính theo outline được lưu tại `/outline.md`.\n"
+                    "Đọc file đó trước khi bắt đầu. "
+                    "Số lượng section trong outline xác định số lượng section_N/draft.md cần tạo."
+                )
+            else:
+                user_input_for_phase = (
+                    "Viết báo cáo tài chính trực tiếp từ yêu cầu được lưu tại `/outline.md`.\n"
+                    "Đọc file đó trước khi bắt đầu, tự xác định cấu trúc báo cáo phù hợp, "
+                    "và sử dụng công cụ tìm kiếm trong write phase để thu thập dữ liệu."
+                )
         logger.info("=" * 60)
 
         agent, orchestrator = create_agent(
             session_id=session_id if ENABLE_DISK_BACKEND else None,
             phase=current_phase,
+            use_knowledge_graph=use_knowledge_graph,
         )
 
         if ENABLE_DISK_BACKEND and hasattr(agent, "_workspace_path"):
@@ -292,8 +332,13 @@ def run_engine(
                 except Exception as error:
                     logger.warning(f"Failed to finalize report outputs: {error}")
 
-            if orchestrator is not None:
+            if orchestrator is not None and use_knowledge_graph:
                 try:
+                    from graph_rag.graphiti_service import (
+                        get_graphiti_service,
+                        reset_graphiti_service,
+                    )
+
                     finalize_result = finalize_staged_facts_to_graph()
                     logger.info(f"Final staged graph ingest result: {finalize_result}")
 
@@ -319,6 +364,11 @@ def run_engine(
                     logger.info(f"{'=' * 60}")
                 except Exception as error:
                     logger.warning(f"Failed to get final graph stats: {error}")
+            elif orchestrator is not None:
+                total_phase_duration = time.time() - phase_start_time
+                logger.info(
+                    f"Build phase complete without graph ingest in {total_phase_duration:.2f}s"
+                )
 
             if not result.get("messages"):
                 logger.error("No messages found in result!")
