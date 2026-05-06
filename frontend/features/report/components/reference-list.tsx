@@ -1,5 +1,3 @@
-"use client"
-
 import { useState } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
 
@@ -18,11 +16,11 @@ export function ReferenceList({
   }
 
   return (
-    <section className="mt-10 border-t border-slate-200 pt-6">
+    <section className="border-slate-200">
       <button
         type="button"
         onClick={() => setIsOpen((value) => !value)}
-        className="text-l inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 font-bold text-slate-950 transition-colors hover:bg-slate-100"
+        className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xl font-semibold text-slate-950 transition-colors hover:bg-slate-100"
         aria-expanded={isOpen}
       >
         Nguồn được dùng trong báo cáo

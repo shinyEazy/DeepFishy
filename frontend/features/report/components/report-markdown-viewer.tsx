@@ -49,7 +49,7 @@ export function ReportMarkdownViewer({
           h2: ({ className, ...props }) => (
             <h2
               className={cn(
-                "mt-8 border-t border-slate-200 pt-6 text-2xl font-bold text-slate-900",
+                "border-slate-200 text-2xl font-bold text-slate-900",
                 className
               )}
               {...props}
@@ -88,6 +88,7 @@ export function ReportMarkdownViewer({
               {...props}
             />
           ),
+          hr: () => null,
           table: ({ className, ...props }) => (
             <div className="my-5 rounded-xl border border-slate-200">
               <Table className={className} {...props} />
