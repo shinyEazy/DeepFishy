@@ -5,7 +5,7 @@ import type {
   ReportResponse,
   ReportStatusResponse,
   ReportStreamEvent,
-} from "@/features/chat/types/report"
+} from "@/features/report/types"
 
 async function assertOk(response: Response) {
   if (response.ok) {

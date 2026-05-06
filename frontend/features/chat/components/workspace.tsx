@@ -5,13 +5,13 @@ import { Menu } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { ChatMainPanel } from "@/features/chat/components/main-panel"
-import { ReportSidebar } from "@/features/chat/components/report-sidebar"
+import { ReportSidebar } from "@/features/report/components/report-sidebar"
 import {
   ChatSidebar,
   ChatSidebarDrawer,
-} from "@/features/chat/components/sidebar"
-import { newSessionId } from "@/features/chat/constants/session-defaults"
-import { useChatSession } from "@/features/chat/hooks/use-chat-session"
+} from "@/features/session/components/sidebar"
+import { newSessionId } from "@/features/session/constants/session-defaults"
+import { useChatSession } from "@/features/session/hooks/use-chat-session"
 import { cn } from "@/lib/utils"
 
 export function ChatWorkspace({

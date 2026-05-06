@@ -11,7 +11,6 @@ import {
   FileText,
   Globe,
   LoaderCircle,
-  PanelRightOpen,
   Search,
   Sparkles,
   Zap,
@@ -21,7 +20,7 @@ import type {
   ReportPhase,
   ReportStatus,
   ResearchActivity,
-} from "@/features/chat/types/report"
+} from "@/features/report/types"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 

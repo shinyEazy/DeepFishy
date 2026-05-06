@@ -1,4 +1,4 @@
-import type { ReportPhase, ReportStatus, ResearchActivity } from "@/features/chat/types/report"
+import type { ReportPhase, ReportStatus, ResearchActivity } from "@/features/report/types"
 
 export type { ResearchActivity }
 

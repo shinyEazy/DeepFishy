@@ -11,13 +11,13 @@ import {
 import {
   getSession,
   listSessions,
-} from "@/features/chat/api/sessions"
+} from "@/features/session/api/sessions"
 import {
   defaultInputPlaceholder,
   defaultSessionMode,
   defaultSessionTitle,
   newSessionId,
-} from "@/features/chat/constants/session-defaults"
+} from "@/features/session/constants/session-defaults"
 import { mapSessionMessageToTranscript } from "@/features/chat/lib/messages"
 import type {
   SessionContent,

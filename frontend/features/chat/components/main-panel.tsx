@@ -14,8 +14,8 @@ import { streamChatResponse } from "@/features/chat/api/responses"
 import {
   getReportStatus,
   streamReportGeneration,
-} from "@/features/chat/api/reports"
-import { DeepResearchProgress } from "@/features/chat/components/deep-research-progress"
+} from "@/features/report/api/reports"
+import { DeepResearchProgress } from "@/features/report/components/deep-research-progress"
 import { TranscriptCard } from "@/features/chat/components/transcript-card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -34,7 +34,7 @@ import type {
   SessionContent,
   TranscriptMessage,
 } from "@/features/chat/types"
-import type { ReportPhase } from "@/features/chat/types/report"
+import type { ReportPhase } from "@/features/report/types"
 import { cn } from "@/lib/utils"
 
 let activityIdCounter = 0

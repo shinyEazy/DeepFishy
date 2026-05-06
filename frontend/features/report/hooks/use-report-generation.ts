@@ -2,13 +2,13 @@
 
 import { useCallback, useState } from "react"
 
-import { streamReportGeneration } from "@/features/chat/api/reports"
+import { streamReportGeneration } from "@/features/report/api/reports"
 import type {
   ResearchActivity,
   ReportGenerationState,
   ReportPhase,
   ReportRequest,
-} from "@/features/chat/types/report"
+} from "@/features/report/types"
 
 const initialState: ReportGenerationState = {
   status: "idle",

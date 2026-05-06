@@ -34,7 +34,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { getReportContent } from "@/features/chat/api/reports"
+import { getReportContent } from "@/features/report/api/reports"
 import { cn } from "@/lib/utils"
 
 function downloadMarkdown(sessionId: string, content: string) {
