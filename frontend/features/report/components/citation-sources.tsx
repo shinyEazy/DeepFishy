@@ -59,7 +59,7 @@ export function CitationSources({
       </TooltipProvider>
 
       <span
-        className={`grid w-full max-w-[min(36rem,calc(100vw-3rem))] transition-[grid-template-rows,opacity,transform,margin] duration-300 ease-out ${
+        className={`grid w-full transition-[grid-template-rows,opacity,transform,margin] duration-300 ease-out ${
           isOpen
             ? "mt-2 translate-y-0 grid-rows-[1fr] opacity-100"
             : "mt-0 -translate-y-1 grid-rows-[0fr] opacity-0"
