@@ -1,4 +1,20 @@
+import type { ReportPhase, ReportStatus, ResearchActivity } from "@/features/chat/types/report"
+
+export type { ResearchActivity }
+
 export type Mode = "deep" | "normal"
+
+export type DeepResearchState = {
+  status: ReportStatus
+  topic: string
+  phases: ReportPhase[]
+  currentPhase: ReportPhase | null
+  currentStage: string | null
+  phasesCompleted: ReportPhase[]
+  sessionId: string | null
+  activities: ResearchActivity[]
+  message: string | null
+}
 
 export type SessionSummary = {
   id: string
@@ -33,6 +49,7 @@ export type TranscriptMessage = {
   meta: string
   bullets?: readonly string[]
   references?: readonly string[]
+  deepResearch?: DeepResearchState
 }
 
 export type SessionContent = {

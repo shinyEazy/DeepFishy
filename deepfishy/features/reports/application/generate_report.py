@@ -153,15 +153,15 @@ def run_engine(
     custom_model = create_model()
     topic_type = classify_topic(custom_model, user_input)
 
-    if topic_type == "1":
+    if topic_type == 1:
         template_path = Path("templates/company_outline.md")
         logger.info("Topic classified as COMPANY. Using company outline template.")
-    elif topic_type == "2":
+    elif topic_type == 2:
         template_path = Path("templates/industry_outline.md")
         logger.info("Topic classified as INDUSTRY. Using industry outline template.")
     else:
-        template_path = Path("templates/company_outline.md")
-        logger.info(f"Topic unknown. Falling back to default outline: {template_path}")
+        logger.info("Topic unknown. Rejecting report generation because the topic could not be classified.")
+        raise ValueError("Cannot classify topic. Please provide a specific company, industry, sector, or macroeconomic topic.")
 
     template_outline = ""
     try:

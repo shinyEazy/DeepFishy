@@ -122,6 +122,7 @@ services:
       - ../outputs:/app/outputs
       - ../benchmark:/app/benchmark
       - ../templates:/app/templates
+      - ../logs:/app/logs
       - ${GOOGLE_APPLICATION_CREDENTIALS_FILE}:/run/secrets/gcp-service-account.json:ro
     networks:
       - deepfishy

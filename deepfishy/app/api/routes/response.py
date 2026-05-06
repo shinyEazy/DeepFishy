@@ -34,6 +34,14 @@ class ResponseRequest(BaseModel):
     stream: bool = Field(
         default=False, description="Whether to stream the response using SSE"
     )
+    system_instruction: Optional[str] = Field(
+        default=None,
+        description="Optional system instruction used for generation but not persisted.",
+    )
+    persist_user_message: bool = Field(
+        default=True,
+        description="Whether to persist the request message as a user message.",
+    )
 
 
 class ResponsePayload(BaseModel):
@@ -68,13 +76,19 @@ async def create_response(
         chat_service = ChatService(db)
         conversation = chat_service.get_or_create_conversation(request.conversation_id)
         chat_service.ensure_conversation_title(conversation, request.message)
-        chat_service.save_message(
-            conversation_id=conversation.id,
-            role="user",
-            content=request.message,
-            metadata={"source": "responses_api"},
-        )
+        if request.persist_user_message:
+            chat_service.save_message(
+                conversation_id=conversation.id,
+                role="user",
+                content=request.message,
+                metadata={"source": "responses_api"},
+            )
         contents = _build_contents(chat_service.get_messages(conversation.id, limit=10))
+        if request.system_instruction:
+            contents = [
+                {"role": "system", "parts": [{"text": request.system_instruction}]},
+                *contents,
+            ]
 
         if request.stream:
 

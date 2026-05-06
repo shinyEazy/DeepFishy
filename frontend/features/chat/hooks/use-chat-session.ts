@@ -17,7 +17,7 @@ import {
   defaultSessionMode,
   defaultSessionTitle,
   newSessionId,
-} from "@/features/chat/data/session-defaults"
+} from "@/features/chat/constants/session-defaults"
 import { mapSessionMessageToTranscript } from "@/features/chat/lib/messages"
 import type {
   SessionContent,

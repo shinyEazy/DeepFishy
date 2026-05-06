@@ -4,10 +4,25 @@ type StreamEvent =
   | { type: "done"; conversation_id: string; message_id: string }
   | { type: "error"; error: string }
 
+function parseErrorMessage(text: string): string {
+  try {
+    const parsed = JSON.parse(text)
+    if (parsed.detail) return parsed.detail
+    if (parsed.error?.message) return parsed.error.message
+    if (parsed.message) return parsed.message
+    if (typeof parsed.error === "string") return parsed.error
+  } catch {
+    // Not JSON, use raw text
+  }
+  return text || "Unknown error"
+}
+
 export async function streamChatResponse(
   request: {
     message: string
     conversationId?: string
+    systemInstruction?: string
+    persistUserMessage?: boolean
   },
   handlers: {
     onChunk: (chunk: string) => void
@@ -26,12 +41,14 @@ export async function streamChatResponse(
       message: request.message,
       conversation_id: request.conversationId,
       stream: true,
+      system_instruction: request.systemInstruction,
+      persist_user_message: request.persistUserMessage ?? true,
     }),
   })
 
   if (!response.ok) {
     const errorText = await response.text()
-    throw new Error(errorText || `Request failed with status ${response.status}`)
+    throw new Error(parseErrorMessage(errorText))
   }
 
   if (!response.body) {
@@ -41,6 +58,7 @@ export async function streamChatResponse(
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ""
+  let lastError: string | null = null
 
   while (true) {
     const { done, value } = await reader.read()
@@ -72,8 +90,10 @@ export async function streamChatResponse(
       }
 
       if (parsed.type === "error") {
-        handlers.onError?.(parsed.error)
-        throw new Error(parsed.error)
+        // Don't throw - backend is retrying internally
+        // Just track the error in case stream ends without success
+        lastError = parsed.error
+        continue
       }
 
       if (parsed.type === "done") {
@@ -99,11 +119,16 @@ export async function streamChatResponse(
               conversationId: parsed.conversation_id,
               messageId: parsed.message_id,
             })
+            return
           } else if (parsed.type === "error") {
-            handlers.onError?.(parsed.error)
-            throw new Error(parsed.error)
+            lastError = parsed.error
           }
         }
+      }
+
+      // Only throw if we had errors AND never got a done event
+      if (lastError) {
+        throw new Error(lastError)
       }
       return
     }

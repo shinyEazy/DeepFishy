@@ -235,11 +235,96 @@ The Corporate Trust aesthetic stands out through deliberate, sophisticated desig
 - **Horizontal Scrolling**: Never required; all content fits viewport width
 - **Visual Hierarchy Preserved**: Even on mobile, clear distinction between heading levels maintained
 
+### Chat Interface Mobile Pattern
+
+- **Breakpoint**: Sidebar hidden below `xl` (1280px), shown as overlay drawer on mobile
+- **Hamburger Trigger**: Fixed position top-left, `size-10` with `rounded-full`, glass-panel background, icon `Menu` from lucide-react
+- **Drawer Behavior**:
+  - Slides in from left with `translate-x` transition (`duration-300 ease-out`)
+  - Semi-transparent backdrop overlay (`bg-black/30 backdrop-blur-sm`)
+  - Tap backdrop or swipe left to close
+  - Drawer width: `w-[min(85vw,380px)]`
+- **Mobile Header Bar**:
+  - Fixed top bar with hamburger button + session title (truncated)
+  - Height: `h-14`, glass-panel background
+  - Z-index above drawer backdrop
+- **Input Area**:
+  - Reduce padding: `px-4` on mobile vs `px-6` on desktop
+  - Textarea max-height reduced to `max-h-24`
+  - Submit button size maintained at `size-9` for touch targets
+- **Transcript Area**:
+  - Reduce card max-width: `max-w-[95%]` on mobile
+  - Reduce gap between messages: `gap-3` on mobile vs `gap-5` on desktop
+- **Background Orbs**: Hidden on mobile (`hidden xl:block`) to reduce visual noise
+
+## 10. Implementation Notes for Chat Interface
+
+The chat interface components (sidebar, main panel, transcript cards, deep research progress) have been refactored to align with the Corporate Trust design system using Tailwind CSS exclusively. Key improvements:
+
+### Icon Styling
+- All lucide-react icons now use `stroke-2` for consistent visual weight
+- Icons inherit colors from parent containers (text-indigo-600, text-emerald-600, etc.)
+- Icon sizes: `size-4` for body icons, `size-5` for header icons, `size-6` for activity circles
+
+### Button & Interactive Elements
+- Primary buttons: `bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-[0_4px_14px_0_rgba(79,70,229,0.3)]`
+- Hover lift effect: `hover:-translate-y-0.5`
+- All buttons use `transition-all duration-200` for smooth interactions
+- Icon buttons use `rounded-lg` (not full), sized `size-10` with subtle shadows
+
+### Card Shadows (Inline)
+- Default card: `shadow-[0_4px_20px_-2px_rgba(79,70,229,0.1)]`
+- Hover card: `hover:shadow-[0_10px_25px_-5px_rgba(79,70,229,0.15)]`
+- Button shadow: `shadow-[0_4px_14px_0_rgba(79,70,229,0.3)]`
+- These blue-tinted shadows replace neutral grays for brand cohesion
+
+### Gradient Text
+- Use: `bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent`
+- Applied to section titles and emphasis text for visual hierarchy
+
+### Status Badges
+- In-progress: `bg-indigo-100/80 text-indigo-700` with animated spinner
+- Completed: `bg-emerald-100/80 text-emerald-700` with checkmark
+- Padding: `px-2.5 py-1` with `rounded-full`
+
+### Sidebar Session Buttons
+- Active state: gradient background with shadow inset border
+- Inactive state: subtle hover effects with text color change
+- Icon container: `size-8` with gradient backgrounds on active state
+
+### Transcript Message Cards
+- Assistant messages: White background with rounded-2xl corners and subtle shadow
+- User messages: Gradient background with white text and button shadow
+- Padding: `p-4` for comfortable message spacing
+- Border: Subtle for assistant (slate-200/60), transparent for user messages
+
+### Deep Research Component
+- Header icon: `size-11` in white container with ring border
+- Phase indicators: Grid layout with color-coded status (emerald, indigo, slate)
+- Activity stream: Scrollable with hover effects on individual items
+- Current stage box: Uses gradient background `from-slate-50/50 to-indigo-50/40`
+
+### Typography
+- All headers use font-bold (not font-semibold) for stronger hierarchy
+- Section titles: text-sm font-bold with tracking-widest
+- Labels: text-xs font-bold with uppercase
+- Body text: text-sm with leading-6 for comfortable reading
+
+### Spacing
+- Session list gap: `gap-1` (tighter spacing)
+- Button/element padding: `px-3 py-2.5` or `px-4 py-2.5` depending on role
+- Icon-text gap in buttons: `gap-2.5` (slightly larger)
+
+### Mobile Adaptations
+- Drawer uses `bg-white/98` with `backdrop-blur-lg` for enhanced glass effect
+- Mobile header buttons: `size-10` with `rounded-lg` (not full)
+- Drawer panel shadow: `shadow-[12px_0_32px_-8px_rgba(79,70,229,0.15)]` (stronger)
+
 ## 9. Accessibility & Best Practices
 
 - **Color Contrast**: All text meets WCAG AA standards
   - Slate 900 on Slate 50 background: AAA compliant
-  - White text on Indigo 900 background: AAA compliant
+  - White text on Indigo 600-700 background: AAA compliant
   - Link colors tested for 4.5:1 minimum ratio
 - **Focus States**:
   - Visible ring on all interactive elements: `focus-visible:ring-2 focus-visible:ring-indigo-500`
@@ -252,9 +337,10 @@ The Corporate Trust aesthetic stands out through deliberate, sophisticated desig
   - Details/summary for FAQ accordions
 - **Image Alt Text**: Descriptive alternatives for all images
 - **Interactive States**:
-  - Hover: Visual feedback on all clickable elements
+  - Hover: Visual feedback on all clickable elements via shadows and transforms
   - Active: Subtle state change on click
   - Disabled: Reduced opacity with `pointer-events-none`
 - **Motion Preferences**: Consider `prefers-reduced-motion` for users sensitive to animation
 - **Screen Reader Support**: Proper ARIA labels where semantic HTML insufficient
   </design-system>
+

@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from deepfishy.app.api.routes.chat import router as chat_router
 from deepfishy.app.api.routes.rag import router as rag_router
+from deepfishy.app.api.routes.report import router as report_router
 from deepfishy.app.api.routes.response import router as response_router
 from deepfishy.app.api.routes.session import router as session_router
 from deepfishy.shared.logging import logger
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
 
     app.include_router(chat_router, prefix="/api")
     app.include_router(rag_router, prefix="/api")
+    app.include_router(report_router, prefix="/api")
     app.include_router(response_router, prefix="/api")
     app.include_router(session_router, prefix="/api")
 
