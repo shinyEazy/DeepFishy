@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 import time
 from datetime import datetime
 from typing import Any, Optional
@@ -768,6 +769,86 @@ async def get_report_status(session_id: str, db: Session = Depends(get_db)):
     )
 
 
+def _reference_domain(url: str) -> str:
+    try:
+        from urllib.parse import urlparse
+
+        return urlparse(url).hostname.replace("www.", "")
+    except Exception:
+        return url
+
+
+def _normalize_reference_url(url: str) -> str:
+    return url.strip().rstrip("),.;]")
+
+
+def _extract_reference_candidates(markdown: str) -> list[dict[str, str]]:
+    references: list[dict[str, str]] = []
+    for match in re.finditer(r"\[([^\]]+)\]\((https?://[^)]+)\)", markdown):
+        url = _normalize_reference_url(match.group(2))
+        title = match.group(1).strip() or _reference_domain(url)
+        references.append({"title": title, "url": url, "domain": _reference_domain(url)})
+
+    for match in re.finditer(r"https?://\S+", markdown):
+        url = _normalize_reference_url(match.group(0))
+        if any(item["url"] == url for item in references):
+            continue
+        line_start = markdown.rfind("\n", 0, match.start()) + 1
+        line_end = markdown.find("\n", match.end())
+        line = markdown[line_start : line_end if line_end != -1 else len(markdown)]
+        title = line.replace(match.group(0), "").strip(" -:[]0123456789")
+        domain = _reference_domain(url)
+        references.append({"title": title or domain, "url": url, "domain": domain})
+
+    return references
+
+
+def _dedupe_references(references: list[dict[str, str]]) -> list[dict[str, str]]:
+    deduped: dict[str, dict[str, str]] = {}
+    for reference in references:
+        url = reference["url"]
+        if url not in deduped:
+            deduped[url] = reference
+    return list(deduped.values())
+
+
+def _final_reference_block(markdown: str) -> str:
+    matches = list(re.finditer(r"(^|\n)(#{1,6}\s*)?References\s*\n", markdown, re.IGNORECASE))
+    if not matches:
+        return markdown
+    match = matches[-1]
+    return markdown[match.end() :].strip()
+
+
+def _unused_writer_references(workspace_path) -> list[dict[str, str]]:
+    final_md_path = workspace_path / "final.md"
+    final_content = final_md_path.read_text(encoding="utf-8")
+    used_urls = {
+        reference["url"]
+        for reference in _extract_reference_candidates(_final_reference_block(final_content))
+    }
+    used_urls.update(
+        reference["url"] for reference in _extract_reference_candidates(final_content)
+    )
+
+    writer_references: list[dict[str, str]] = []
+    for evidence_path in sorted(workspace_path.glob("section_*/evidence.md")):
+        writer_references.extend(
+            _extract_reference_candidates(evidence_path.read_text(encoding="utf-8"))
+        )
+
+    unused = [
+        reference
+        for reference in _dedupe_references(writer_references)
+        if reference["url"] not in used_urls
+    ]
+
+    return [
+        {"id": f"u{index}", **reference}
+        for index, reference in enumerate(unused, start=1)
+    ]
+
+
 @router.get("/{session_id}/content")
 async def get_report_content(session_id: str):
     """Get the markdown content of a generated report."""
@@ -780,7 +861,12 @@ async def get_report_content(session_id: str):
         raise HTTPException(status_code=404, detail="Report not found")
 
     content = final_md_path.read_text(encoding="utf-8")
-    return {"session_id": session_id, "content": content, "format": "markdown"}
+    return {
+        "session_id": session_id,
+        "content": content,
+        "format": "markdown",
+        "unused_references": _unused_writer_references(workspace_path),
+    }
 
 
 @router.get("/{session_id}/pdf")

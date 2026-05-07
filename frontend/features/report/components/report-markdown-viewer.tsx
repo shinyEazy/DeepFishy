@@ -20,10 +20,12 @@ import { cn } from "@/lib/utils"
 export function ReportMarkdownViewer({
   body,
   references,
+  unusedReferences = [],
   activities = [],
 }: {
   body: string
   references: ReportReference[]
+  unusedReferences?: ReportReference[]
   activities?: ResearchActivity[]
 }) {
   const referencesById = new Map(
@@ -147,6 +149,10 @@ export function ReportMarkdownViewer({
       </ReactMarkdown>
       <div className="mt-8 space-y-4">
         <ReferenceList references={references} />
+      <ReferenceList
+        references={unusedReferences}
+        title="Nguồn tham khảo nhưng không được dùng trong báo cáo"
+      />
         <ThinkingProcessSection
           activities={activities}
           status="completed"

@@ -7,8 +7,10 @@ import type { ReportReference } from "@/features/report/lib/report-markdown"
 
 export function ReferenceList({
   references,
+  title = "Nguồn được dùng trong báo cáo",
 }: {
   references: ReportReference[]
+  title?: string
 }) {
   const [isOpen, setIsOpen] = useState(false)
 
@@ -24,7 +26,7 @@ export function ReferenceList({
         onClick={() => setIsOpen((value) => !value)}
         className="inline-flex h-auto items-center gap-2 rounded-full bg-white px-4 py-2 text-xl font-semibold text-slate-950 transition-colors hover:bg-slate-100"
       >
-        Nguồn được dùng trong báo cáo
+        {title}
         {isOpen ? (
           <ChevronUp className="size-4" />
         ) : (

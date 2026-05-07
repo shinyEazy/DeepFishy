@@ -11,6 +11,7 @@ import {
   getReportStatus,
 } from "@/features/report/api/reports"
 import { ReportMarkdownViewer } from "@/features/report/components/report-markdown-viewer"
+import type { ReportReference } from "@/features/report/lib/report-markdown"
 import type { ResearchActivity } from "@/features/report/types"
 import { ReportSidebarHeader } from "@/features/report/components/report-sidebar-header"
 import {
@@ -31,6 +32,7 @@ export function ReportSidebar({
 }) {
   const [content, setContent] = useState<string | null>(null)
   const [activities, setActivities] = useState<ResearchActivity[]>([])
+  const [unusedReferences, setUnusedReferences] = useState<ReportReference[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isMounted, setIsMounted] = useState(isOpen)
@@ -63,6 +65,7 @@ export function ReportSidebar({
       .then(([report, status]) => {
         if (!cancelled) {
           setContent(report.content)
+          setUnusedReferences(report.unused_references ?? [])
           setActivities(status.activities ?? [])
         }
       })
@@ -127,6 +130,7 @@ export function ReportSidebar({
             <ReportMarkdownViewer
               body={renderedBody}
               references={parsedContent.references}
+              unusedReferences={unusedReferences}
               activities={activities}
             />
           ) : null}

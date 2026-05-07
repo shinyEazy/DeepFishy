@@ -7,6 +7,7 @@ import type {
   ReportStatusResponse,
   ReportStreamEvent,
 } from "@/features/report/types"
+import type { ReportReference } from "@/features/report/lib/report-markdown"
 
 async function assertOk(response: Response) {
   if (response.ok) {
@@ -205,7 +206,12 @@ export async function getReportStatus(
 
 export async function getReportContent(
   sessionId: string
-): Promise<{ session_id: string; content: string; format: string }> {
+): Promise<{
+  session_id: string
+  content: string
+  format: string
+  unused_references?: ReportReference[]
+}> {
   const response = await fetch(
     `/api/reports/${encodeURIComponent(sessionId)}/content`,
     { cache: "no-store" }
