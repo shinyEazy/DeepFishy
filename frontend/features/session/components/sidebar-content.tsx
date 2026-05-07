@@ -1,27 +1,35 @@
 import { ScrollArea } from "@/components/ui/scroll-area"
+import type { ChatModelOption } from "@/features/chat/lib/model-options"
 import type { SessionSummary } from "@/features/chat/types"
 import { cn } from "@/lib/utils"
 
+import { ModelSelector } from "./model-selector"
 import { NewSessionButton } from "./new-session-button"
 import { SessionList } from "./session-list"
 import { SidebarHeader } from "./sidebar-header"
 
 export function SidebarContent({
   sessions,
+  modelOptions,
+  selectedModel,
   activeSessionId,
   isLoading,
   collapsed,
   onToggle,
+  onModelChange,
   onCreateSession,
   onSelectSession,
   isMobile = false,
   onCloseMobile,
 }: {
   sessions: SessionSummary[]
+  modelOptions: ChatModelOption[]
+  selectedModel: string
   activeSessionId: string
   isLoading?: boolean
   collapsed?: boolean
   onToggle?: () => void
+  onModelChange: (model: string) => void
   onCreateSession?: () => void
   onSelectSession?: (sessionId: string) => void
   isMobile?: boolean
@@ -53,6 +61,11 @@ export function SidebarContent({
           <NewSessionButton
             onCreateSession={onCreateSession}
             onCloseMobile={onCloseMobile}
+          />
+          <ModelSelector
+            options={modelOptions}
+            selectedModel={selectedModel}
+            onModelChange={onModelChange}
           />
           <SessionList
             sessions={sessions}

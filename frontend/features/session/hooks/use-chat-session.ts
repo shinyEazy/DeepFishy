@@ -18,11 +18,13 @@ import {
   defaultSessionTitle,
   newSessionId,
 } from "@/features/session/constants/session-defaults"
-import { mapSessionMessageToTranscript } from "@/features/chat/lib/messages"
+import {
+  mapSessionMessageToTranscript,
+  mapTranscriptToSessionMessage,
+} from "@/features/chat/lib/messages"
 import type {
   SessionContent,
   SessionDetail,
-  SessionMessage,
   SessionSummary,
   TranscriptMessage,
 } from "@/features/chat/types"
@@ -38,19 +40,6 @@ function buildSessionTitle(seedText: string, maxLength = 80) {
   }
 
   return `${normalized.slice(0, maxLength - 1).trimEnd()}…`
-}
-
-function mapTranscriptToSessionMessage(
-  message: TranscriptMessage,
-  index: number
-): SessionMessage {
-  return {
-    id: `local-${index}`,
-    role: message.role,
-    content: message.body,
-    createdAt: new Date().toISOString(),
-    metadata: null,
-  }
 }
 
 export function useChatSession(activeSessionId?: string) {
@@ -114,18 +103,21 @@ export function useChatSession(activeSessionId?: string) {
   }, [])
 
   const promoteDraftSession = useCallback(
-    (sessionId: string) => {
-      if (!draftTranscript.length) {
+    (sessionId: string, transcriptOverride?: TranscriptMessage[]) => {
+      const transcriptToPromote = transcriptOverride ?? draftTranscript
+      if (!transcriptToPromote.length) {
         return
       }
 
       const timestamp = new Date().toISOString()
-      const firstUserMessage = draftTranscript.find((message) => message.role === "user")
+      const firstUserMessage = transcriptToPromote.find(
+        (message) => message.role === "user"
+      )
       const title = buildSessionTitle(firstUserMessage?.body ?? "")
 
       setSessionTranscripts((current) => ({
         ...current,
-        [sessionId]: draftTranscript,
+        [sessionId]: transcriptToPromote,
       }))
       setSessionDetails((current) => ({
         ...current,
@@ -134,7 +126,7 @@ export function useChatSession(activeSessionId?: string) {
           title,
           createdAt: timestamp,
           updatedAt: timestamp,
-          messages: draftTranscript.map(mapTranscriptToSessionMessage),
+          messages: transcriptToPromote.map(mapTranscriptToSessionMessage),
         },
       }))
       setSessions((current) => {
@@ -144,7 +136,7 @@ export function useChatSession(activeSessionId?: string) {
           title: existing?.title ?? title,
           createdAt: existing?.createdAt ?? timestamp,
           updatedAt: timestamp,
-          messageCount: draftTranscript.length,
+          messageCount: transcriptToPromote.length,
         }
 
         return [

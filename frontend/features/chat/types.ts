@@ -40,6 +40,14 @@ export type SessionDetail = {
   messages: SessionMessage[]
 }
 
+export type ResearchPlan = {
+  topic: string
+  steps: readonly string[]
+  readyMessage: string
+  awaitingConfirmation: boolean
+  startLabel?: string
+}
+
 export type TranscriptMessage = {
   role: "user" | "assistant"
   mode: Mode
@@ -49,6 +57,8 @@ export type TranscriptMessage = {
   meta: string
   bullets?: readonly string[]
   references?: readonly string[]
+  isLoading?: boolean
+  researchPlan?: ResearchPlan
   deepResearch?: DeepResearchState
 }
 

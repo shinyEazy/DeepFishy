@@ -1,5 +1,3 @@
-"""Single-report generation workflow for DeepFishy reports."""
-
 import argparse
 import asyncio
 import os
@@ -24,7 +22,7 @@ from engine.orchestrators.writer import create_writer_orchestrator
 from engine.tools.normalizer import finalize_staged_facts_to_graph
 from engine.tools.validate_drafts import validate_drafts
 from graph_rag.graphiti_service import get_graphiti_service, reset_graphiti_service
-from deepfishy.infra.config.model_registry import get_default_llm_name
+from deepfishy.infra.config.model_registry import get_default_llm_name, get_llm_config
 from deepfishy.infra.llm.chat_factory import create_llm_client
 
 load_dotenv()
@@ -93,9 +91,9 @@ def extract_text_from_content(content) -> str:
     return str(content)
 
 
-def create_model() -> Optional[BaseChatModel]:
-    """Initialize the default chat model from the shared model registry."""
-    default_model_name = get_default_llm_name()
+def create_model(model_name: str | None = None) -> Optional[BaseChatModel]:
+    """Initialize a chat model from the shared model registry."""
+    default_model_name = model_name or get_default_llm_name()
 
     if not default_model_name:
         logger.warning(
@@ -103,6 +101,9 @@ def create_model() -> Optional[BaseChatModel]:
             "Please check your configs/config.yaml file."
         )
         return None
+
+    if not get_llm_config(default_model_name):
+        raise ValueError(f"Unknown report model: {default_model_name}")
 
     model = create_llm_client(default_model_name)
 
@@ -115,9 +116,13 @@ def create_model() -> Optional[BaseChatModel]:
     return model
 
 
-def create_agent(session_id: Optional[str] = None, phase: str = "write"):
+def create_agent(
+    session_id: Optional[str] = None,
+    phase: str = "write",
+    model_name: str | None = None,
+):
     """Create the phase-specific orchestrator and agent."""
-    custom_model = create_model()
+    custom_model = create_model(model_name)
 
     if phase == "build":
         logger.info("Creating Builder Orchestrator")
@@ -144,6 +149,7 @@ def run_engine(
     user_input: str,
     session_id: Optional[str] = None,
     phases: list[str] | None = None,
+    model_name: str | None = None,
 ) -> str:
     """Run the build/write report pipeline and return the final markdown path."""
     if phases is None:
@@ -156,7 +162,7 @@ def run_engine(
         session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     logger.info("Classifying topic...")
-    custom_model = create_model()
+    custom_model = create_model(model_name)
     topic_type = classify_topic(custom_model, user_input)
 
     if topic_type == 1:
@@ -251,6 +257,7 @@ def run_engine(
         agent, orchestrator = create_agent(
             session_id=session_id if ENABLE_DISK_BACKEND else None,
             phase=current_phase,
+            model_name=model_name,
         )
 
         if ENABLE_DISK_BACKEND and hasattr(agent, "_workspace_path"):

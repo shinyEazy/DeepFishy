@@ -9,9 +9,9 @@ import {
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import type { ReportStatus, ResearchActivity } from "@/features/report/types"
 import { cn } from "@/lib/utils"
-import { write } from "node:fs"
 
 const ACTIVITY_TITLES: Record<ResearchActivity["type"], string> = {
   web: "Tìm kiếm web",
@@ -192,18 +192,20 @@ export function ThinkingProcessSection({
         )}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="border-slate-100 px-4 pt-4 pb-1">
-            <div className="relative border-slate-100 pl-4">
-              {visibleActivities.map((activity) => (
-                <ThinkingActivity
-                  key={activity.id}
-                  activity={activity}
-                  isLatest={activity.id === latestActivityId}
-                  status={status}
-                />
-              ))}
+          <ScrollArea className="mt-3 h-[360px] rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="px-4 pt-4 pb-1">
+              <div className="relative border-slate-100 pl-4">
+                {visibleActivities.map((activity) => (
+                  <ThinkingActivity
+                    key={activity.id}
+                    activity={activity}
+                    isLatest={activity.id === latestActivityId}
+                    status={status}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
+          </ScrollArea>
         </div>
       </div>
     </section>

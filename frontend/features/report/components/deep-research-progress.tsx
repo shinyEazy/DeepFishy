@@ -381,57 +381,18 @@ export function DeepResearchProgress({
   const visibleActivities = [...activities].reverse().slice(0, 12)
 
   return (
-    <div className="w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_4px_24px_-4px_rgba(79,70,229,0.12)]">
-      {/* ── Gradient header ─────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden bg-[image:linear-gradient(135deg,#4f46e5_0%,#7c3aed_60%,#6d28d9_100%)] p-5">
-        {/* Decorative blobs */}
-        <div className="absolute -top-8 -right-8 size-32 rounded-full bg-white/10 blur-2xl" />
-        <div className="absolute right-16 -bottom-4 size-20 rounded-full bg-violet-300/20 blur-xl" />
+    <div className="w-full min-w-0 space-y-4">
+      <ThinkingProcessSection activities={activities} status={status} />
 
-        <div className="relative flex min-w-0 items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 backdrop-blur-sm">
-              <Search className="size-5 stroke-2 text-white" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-white">Nghiên cứu sâu</p>
-              <p className="mt-0.5 line-clamp-1 text-xs text-indigo-200">
-                {topic}
-              </p>
-            </div>
-          </div>
-          <StatusBadge status={status} />
-        </div>
-
-        {/* Phase stepper */}
-        <div className="relative mt-5 flex items-start gap-0">
-          {phases.map((phase, i) => (
-            <PhaseStep
-              key={phase}
-              phase={phase}
-              index={i}
-              total={phases.length}
-              status={getPhaseStatus(phase)}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* ── Body ────────────────────────────────────────────────────────── */}
-      <div className="space-y-4 p-4 sm:p-5">
-        <ThinkingProcessSection activities={activities} status={status} />
-
-        {/* Completion CTA */}
-        {status === "completed" && sessionId && (
-          <Button
-            size="lg"
-            onClick={() => onOpenReport?.(sessionId)}
-            className="w-full gap-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-3 font-bold text-white shadow-[0_4px_14px_0_rgba(79,70,229,0.35)] hover:-translate-y-0.5 hover:from-indigo-500 hover:to-violet-500"
-          >
-            Mở
-          </Button>
-        )}
-      </div>
+      {status === "completed" && sessionId && (
+        <Button
+          size="lg"
+          onClick={() => onOpenReport?.(sessionId)}
+          className="w-full gap-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-3 font-bold text-white shadow-[0_4px_14px_0_rgba(79,70,229,0.35)] hover:-translate-y-0.5 hover:from-indigo-500 hover:to-violet-500"
+        >
+          Mở
+        </Button>
+      )}
     </div>
   )
 }

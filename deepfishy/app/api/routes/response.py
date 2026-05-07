@@ -42,6 +42,10 @@ class ResponseRequest(BaseModel):
         default=True,
         description="Whether to persist the request message as a user message.",
     )
+    model_name: Optional[str] = Field(
+        default=None,
+        description="Optional configured LLM model name for this response.",
+    )
 
 
 class ResponsePayload(BaseModel):
@@ -72,7 +76,7 @@ async def create_response(
 ) -> Any:
     """Generate a response and persist it inside a conversation."""
     try:
-        response_service = ResponseService()
+        response_service = ResponseService(model_name=request.model_name)
         chat_service = ChatService(db)
         conversation = chat_service.get_or_create_conversation(request.conversation_id)
         chat_service.ensure_conversation_title(conversation, request.message)
@@ -147,6 +151,7 @@ async def create_response(
                             "source": "responses_api",
                             "streamed": True,
                             "interrupted": True,
+                            "model_name": response_service.model_name,
                         },
                     )
 
@@ -165,7 +170,11 @@ async def create_response(
             conversation_id=conversation.id,
             role="assistant",
             content=response_text,
-            metadata={"source": "responses_api", "streamed": False},
+            metadata={
+                "source": "responses_api",
+                "streamed": False,
+                "model_name": response_service.model_name,
+            },
         )
         return ResponsePayload(
             conversation_id=conversation.id,
@@ -174,7 +183,9 @@ async def create_response(
             parts=[ContentPart(text=response_text)],
             created_at=assistant_message.created_at.isoformat(),
         )
-    except (ValueError, RuntimeError) as exc:
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:
         logger.error(f"Response generation error: {exc}", exc_info=True)
@@ -185,7 +196,7 @@ async def create_response(
 async def response_health_check() -> Dict[str, str]:
     """Basic health check for the responses router."""
     location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
-    model_name = os.getenv("RESPONSE_MODEL", "gemini-3.1-flash-lite-preview")
+    model_name = os.getenv("RESPONSE_MODEL", "xiaomi-mimo-v2.5")
     project = os.getenv("GOOGLE_CLOUD_PROJECT")
     return {
         "status": "healthy",

@@ -99,9 +99,9 @@ class GraphitiService:
     """
 
     # Default configuration
-    DEFAULT_LLM_MODEL = "gemini-3.1-flash-lite-preview"
+    DEFAULT_LLM_MODEL = "xiaomi-mimo-v2.5"
     DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
-    DEFAULT_RERANKER_MODEL = "gemini-3.1-flash-lite-preview"
+    DEFAULT_RERANKER_MODEL = "xiaomi-mimo-v2.5"
 
     def __init__(
         self,

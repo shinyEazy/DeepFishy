@@ -14,6 +14,8 @@ export type ReportRequest = {
   use_knowledge_graph?: boolean
   stream?: boolean
   conversation_id?: string | null
+  classify_only?: boolean
+  model_name?: string
 }
 
 export type ReportResponse = {
@@ -22,6 +24,8 @@ export type ReportResponse = {
   topic: string
   phases: ReportPhase[]
   message: string
+  action?: "plan" | "answer"
+  conversation_id?: string
 }
 
 export type ReportStatusResponse = {

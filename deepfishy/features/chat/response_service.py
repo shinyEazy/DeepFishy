@@ -5,6 +5,7 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
+from deepfishy.infra.config.model_registry import get_llm_config
 from deepfishy.infra.config.settings import settings
 from deepfishy.infra.llm.chat_factory import create_llm_client
 from deepfishy.shared.logging import logger
@@ -13,15 +14,10 @@ from deepfishy.shared.logging import logger
 class ResponseService:
     """Generate simple chat responses with the configured LLM."""
 
-    def __init__(self) -> None:
-        self.model_name = settings.RESPONSE_MODEL
-        self.location = settings.GOOGLE_CLOUD_LOCATION
-        self.project = settings.GOOGLE_CLOUD_PROJECT
-        self.api_key = (
-            settings.GOOGLE_API_KEY
-            or settings.GEMINI_API_KEY
-            or settings.GOOGLE_CLOUD_API_KEY
-        )
+    def __init__(self, model_name: str | None = None) -> None:
+        self.model_name = model_name or settings.RESPONSE_MODEL
+        if not get_llm_config(self.model_name):
+            raise ValueError(f"Unknown response model: {self.model_name}")
 
     def generate_response(self, contents: list[dict[str, Any]]) -> str:
         """Generate a text response from conversational contents."""
@@ -40,7 +36,7 @@ class ResponseService:
         if response_text and response_text.strip():
             return response_text.strip()
 
-        logger.warning("Gemini returned an empty response payload")
+        logger.warning("LLM returned an empty response payload")
         return "I couldn't generate a response right now."
 
     def stream_response(self, contents: list[dict[str, Any]]) -> Iterator[str]:
@@ -53,6 +49,12 @@ class ResponseService:
         ]
 
         saw_content = False
+        if not hasattr(llm, "stream"):
+            fallback = self.generate_response(contents)
+            if fallback:
+                yield fallback
+            return
+
         for chunk in llm.stream(messages):
             chunk_text = self._extract_text(chunk)
             if not chunk_text:
@@ -63,7 +65,7 @@ class ResponseService:
 
         if not saw_content:
             logger.warning(
-                "Gemini stream returned no content; falling back to full invoke"
+                "LLM stream returned no content; falling back to full invoke"
             )
             fallback = self.generate_response(contents)
             if fallback:

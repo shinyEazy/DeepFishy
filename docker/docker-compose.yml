@@ -105,7 +105,7 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcp-service-account.json
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
       - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-us-central1}
-      - RESPONSE_MODEL=${RESPONSE_MODEL:-gemini-3.1-flash-lite-preview}
+      - RESPONSE_MODEL=${RESPONSE_MODEL:-xiaomi-mimo-v2.5}
     env_file:
       - .env
     ports:

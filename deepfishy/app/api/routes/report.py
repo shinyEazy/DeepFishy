@@ -5,6 +5,11 @@ from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+
+from engine.orchestrators.classifier import classify_topic
+
+from deepfishy.features.chat.response_service import ResponseService
+from deepfishy.features.reports.application.generate_report import create_model
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import desc
@@ -137,6 +142,14 @@ class ReportRequest(BaseModel):
         default=None,
         description="Optional chat conversation ID for persisting the deep research transcript",
     )
+    classify_only: bool = Field(
+        default=False,
+        description="Whether to classify the topic first and return plan-or-answer guidance without starting generation",
+    )
+    model_name: Optional[str] = Field(
+        default=None,
+        description="Optional configured LLM model name for report generation",
+    )
 
 
 class ReportResponse(BaseModel):
@@ -147,6 +160,8 @@ class ReportResponse(BaseModel):
     topic: str
     phases: list[str]
     message: str
+    action: Optional[str] = None
+    conversation_id: Optional[str] = None
 
 
 class ReportStatusResponse(BaseModel):
@@ -187,6 +202,7 @@ def _run_report_generation_with_progress(
     phases: list[str],
     use_knowledge_graph: bool,
     callback_queue: asyncio.Queue,
+    model_name: str | None = None,
 ) -> dict:
     """Run report generation synchronously with progress callbacks."""
     import asyncio as _asyncio
@@ -401,7 +417,12 @@ def _run_report_generation_with_progress(
         deepfishy_logger.addHandler(progress_handler)
 
         try:
-            run_engine(user_input=user_input, session_id=session_id, phases=phases)
+            run_engine(
+                user_input=user_input,
+                session_id=session_id,
+                phases=phases,
+                model_name=model_name,
+            )
         finally:
             deepfishy_logger.removeHandler(progress_handler)
 
@@ -461,6 +482,67 @@ async def generate_report(request: ReportRequest, db: Session = Depends(get_db))
     chat_service = ChatService(db)
     conversation = chat_service.get_or_create_conversation(request.conversation_id)
     chat_service.ensure_conversation_title(conversation, request.topic)
+
+    if request.classify_only:
+        chat_service.save_message(
+            conversation_id=conversation.id,
+            role="user",
+            content=request.topic,
+            metadata={
+                "source": "reports_api",
+                "mode": "deep",
+                "classification_only": True,
+            },
+        )
+
+        model = create_model(request.model_name)
+        topic_type = classify_topic(model, request.topic)
+
+        if topic_type in {1, 2}:
+            return ReportResponse(
+                session_id=session_id,
+                status="idle",
+                topic=request.topic,
+                phases=phases,
+                message="Đây là kế hoạch tôi đã chuẩn bị. Nếu bạn cần chỉnh sửa gì, hãy cho tôi biết trước khi tôi bắt đầu nghiên cứu.",
+                action="plan",
+                conversation_id=conversation.id,
+            )
+
+        response_service = ResponseService(model_name=request.model_name)
+        system_instruction = (
+            "Answer conversationally in the user's language. "
+            "Explain that deep research needs a clearer research target, ask what they want to search about, "
+            "and give a few examples such as a company, an industry/sector, or a macroeconomic topic. "
+            "If the message is a greeting or casual chat, respond naturally and invite them to provide a research topic when ready."
+        )
+        contents = [
+            {"role": "system", "parts": [{"text": system_instruction}]},
+            {"role": "user", "parts": [{"text": request.topic}]},
+        ]
+        answer = response_service.generate_response(contents)
+        chat_service.save_message(
+            conversation_id=conversation.id,
+            role="assistant",
+            content=answer,
+            metadata={
+                "source": "reports_api",
+                "mode": "deep",
+                "classification_only": True,
+                "classification_result": "answer",
+                "model_name": response_service.model_name,
+            },
+        )
+        return ReportResponse(
+            session_id=session_id,
+            status="completed",
+            topic=request.topic,
+            phases=phases,
+            message=answer,
+            action="answer",
+            conversation_id=conversation.id,
+        )
+
     chat_service.save_message(
         conversation_id=conversation.id,
         role="user",
@@ -487,6 +569,7 @@ async def generate_report(request: ReportRequest, db: Session = Depends(get_db))
                 phases,
                 request.use_knowledge_graph,
                 callback_queue,
+                request.model_name,
             )
 
             # Forward events from queue
@@ -524,6 +607,7 @@ async def generate_report(request: ReportRequest, db: Session = Depends(get_db))
                                     "report_status": "completed",
                                     "topic": request.topic,
                                     "phases": phases,
+                                    "model_name": request.model_name,
                                     **_report_thinking_metadata(session_id),
                                 },
                             )
@@ -569,6 +653,7 @@ async def generate_report(request: ReportRequest, db: Session = Depends(get_db))
         phases,
         request.use_knowledge_graph,
         callback_queue,
+        request.model_name,
     )
 
     if not result["success"]:

@@ -12,6 +12,7 @@ import { ArrowUp, Fish, Globe, RefreshCw, X } from "lucide-react"
 
 import { streamChatResponse } from "@/features/chat/api/responses"
 import {
+  generateReport,
   getReportStatus,
   streamReportGeneration,
 } from "@/features/report/api/reports"
@@ -26,6 +27,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import {
   createAssistantMessage,
+  createResearchPlanMessage,
   createUserMessage,
 } from "@/features/chat/lib/messages"
 import type {
@@ -68,14 +70,19 @@ export function ChatMainPanel({
   onModeChange,
   onSessionChange,
   onConversationUpdated,
+  selectedModel,
   onOpenReport,
 }: {
   className?: string
   session: SessionContent
   transcript: TranscriptMessage[]
   onTranscriptChange: Dispatch<SetStateAction<TranscriptMessage[]>>
+  selectedModel: string
   onModeChange?: Dispatch<SetStateAction<Mode>>
-  onSessionChange?: (sessionId: string) => void
+  onSessionChange?: (
+    sessionId: string,
+    transcriptOverride?: TranscriptMessage[]
+  ) => void
   onConversationUpdated?: () => void
   onOpenReport?: (sessionId: string) => void
 }) {
@@ -99,10 +106,10 @@ export function ChatMainPanel({
     textarea.style.height = `${textarea.scrollHeight}px`
   }, [draft])
 
-  // Deep research submission
   const handleDeepResearch = useCallback(
-    async (topic: string) => {
+    async (topic: string, options?: { appendUserMessage?: boolean }) => {
       const phases: ReportPhase[] = ["build", "write"]
+      const shouldAppendUserMessage = options?.appendUserMessage ?? true
 
       const userMessage = createUserMessage(topic, "deep")
       userMessage.title = "Nghiên cứu sâu"
@@ -136,7 +143,7 @@ export function ChatMainPanel({
 
       onTranscriptChange((current) => [
         ...current,
-        userMessage,
+        ...(shouldAppendUserMessage ? [userMessage] : []),
         assistantMessage,
       ])
 
@@ -212,6 +219,7 @@ Answer conversationally in the user's language. Explain that deep research needs
           {
             message: topic,
             conversationId: conversationId ?? session.id,
+            modelName: selectedModel,
             systemInstruction: fallbackInstruction,
             persistUserMessage: false,
           },
@@ -267,7 +275,12 @@ Answer conversationally in the user's language. Explain that deep research needs
 
       try {
         await streamReportGeneration(
-          { topic, stream: true, conversation_id: session.id ?? null },
+          {
+            topic,
+            stream: true,
+            conversation_id: session.id ?? null,
+            model_name: selectedModel,
+          },
           {
             onDisconnected: (sessionId) => {
               void pollReportStatus(sessionId)
@@ -335,16 +348,13 @@ Answer conversationally in the user's language. Explain that deep research needs
                     filename: event.filename,
                   }
 
-                  // Update currentPhase if phase info is present
                   let newPhase = prev.currentPhase
                   if (event.phase === "build") {
                     newPhase = "build"
-                    // Mark build as in progress, write as pending
                   } else if (event.phase === "write") {
                     newPhase = "write"
                   }
 
-                  // Update phasesCompleted based on stage
                   const newPhasesCompleted = [...prev.phasesCompleted]
                   if (
                     event.stage === "build_complete" &&
@@ -368,7 +378,7 @@ Answer conversationally in the user's language. Explain that deep research needs
                 return updated
               })
             },
-            onCompleted: (sessionId, outputFiles, message, conversationId) => {
+            onCompleted: (sessionId, _outputFiles, message, conversationId) => {
               reportConversationId = conversationId ?? reportConversationId
               onTranscriptChange((current) => {
                 const updated = [...current]
@@ -449,10 +459,50 @@ Answer conversationally in the user's language. Explain that deep research needs
         })
       }
     },
-    [onSessionChange, onTranscriptChange, session.id]
+    [onSessionChange, onTranscriptChange, selectedModel, session.id]
   )
 
-  // Normal chat submission
+  const handleStartResearch = useCallback(
+    async (topic: string) => {
+      if (isSubmitting) {
+        return
+      }
+
+      onTranscriptChange((current) => {
+        const updated = [...current]
+        const planIndex = [...updated]
+          .reverse()
+          .findIndex(
+            (message) =>
+              message.role === "assistant" &&
+              message.researchPlan?.awaitingConfirmation &&
+              message.researchPlan.topic === topic
+          )
+
+        if (planIndex === -1) {
+          return current
+        }
+
+        updated.splice(updated.length - 1 - planIndex, 1)
+        return updated
+      })
+
+      setIsSubmitting(true)
+      try {
+        await handleDeepResearch(topic, { appendUserMessage: false })
+      } finally {
+        setIsSubmitting(false)
+        onConversationUpdated?.()
+      }
+    },
+    [
+      handleDeepResearch,
+      isSubmitting,
+      onConversationUpdated,
+      onTranscriptChange,
+    ]
+  )
+
   const handleSubmit = useCallback(
     async (retryMessage?: string) => {
       const trimmedDraft = retryMessage ?? draft.trim()
@@ -461,11 +511,65 @@ Answer conversationally in the user's language. Explain that deep research needs
       }
 
       if (session.mode === "deep") {
+        const userMessage = createUserMessage(trimmedDraft, "deep")
+        userMessage.title = "Nghiên cứu sâu"
+
+        const pendingAssistantMessage: TranscriptMessage = {
+          role: "assistant",
+          mode: "deep",
+          label: "DeepFishy",
+          title: "Đang chuẩn bị kế hoạch",
+          body: "Đang chuẩn bị kế hoạch nghiên cứu...",
+          meta: "Đang xử lý...",
+          isLoading: true,
+        }
+
+        const pendingTranscript = [
+          ...transcript,
+          userMessage,
+          pendingAssistantMessage,
+        ]
+
+        onTranscriptChange(pendingTranscript)
         setDraft("")
         setIsSubmitting(true)
-        await handleDeepResearch(trimmedDraft)
-        setIsSubmitting(false)
-        onConversationUpdated?.()
+
+        try {
+          const result = await generateReport({
+            topic: trimmedDraft,
+            conversation_id: session.id,
+            classify_only: true,
+            model_name: selectedModel,
+          })
+
+          const resolvedAssistantMessage =
+            result.action === "plan"
+              ? createResearchPlanMessage(result.topic)
+              : createAssistantMessage(result.message, "deep")
+
+          const nextTranscript = [
+            ...transcript,
+            userMessage,
+            resolvedAssistantMessage,
+          ]
+
+          if (result.conversation_id && result.conversation_id !== session.id) {
+            onSessionChange?.(result.conversation_id, nextTranscript)
+          }
+
+          onTranscriptChange(nextTranscript)
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Unknown error"
+          onTranscriptChange([
+            ...transcript,
+            userMessage,
+            createAssistantMessage(`Request failed: ${message}`, "deep"),
+          ])
+        } finally {
+          setIsSubmitting(false)
+          onConversationUpdated?.()
+        }
         return
       }
 
@@ -484,6 +588,7 @@ Answer conversationally in the user's language. Explain that deep research needs
           {
             message: trimmedDraft,
             conversationId: session.id,
+            modelName: selectedModel,
           },
           {
             onConversationId: (conversationId) => {
@@ -583,12 +688,13 @@ Answer conversationally in the user's language. Explain that deep research needs
     [
       draft,
       isSubmitting,
-      session.mode,
-      session.id,
-      handleDeepResearch,
-      onTranscriptChange,
-      onSessionChange,
       onConversationUpdated,
+      onSessionChange,
+      onTranscriptChange,
+      selectedModel,
+      session.id,
+      session.mode,
+      transcript,
     ]
   )
 
@@ -630,7 +736,6 @@ Answer conversationally in the user's language. Explain that deep research needs
           isNewSession ? "justify-center" : ""
         )}
       >
-        {/* Transcript area */}
         <ScrollArea
           className={cn(
             "min-h-0 flex-1 px-4 py-4 xl:px-6 xl:py-5",
@@ -651,19 +756,13 @@ Answer conversationally in the user's language. Explain that deep research needs
                 {message.deepResearch ? (
                   <div className="flex min-w-0 justify-start overflow-hidden">
                     <div className="flex w-full max-w-[95%] min-w-0 flex-col gap-1 xl:max-w-[min(80%,48rem)]">
-                      <div className="flex items-center gap-1.5 px-1">
-                        <Badge
-                          variant="ghost"
-                          className="h-auto px-1 py-0 text-[0.7rem] text-slate-400"
-                        >
-                          {message.label}
-                        </Badge>
-                        <Badge
-                          variant="ghost"
-                          className="h-auto px-1 py-0 text-[0.7rem] text-slate-300"
-                        >
-                          {message.meta}
-                        </Badge>
+                      <div className="flex items-center gap-2 px-1 text-[0.7rem] font-medium text-slate-500">
+                        <Avatar className="size-5 rounded-md">
+                          <AvatarFallback className="rounded-md bg-gradient-to-br from-indigo-500 to-violet-600">
+                            <Fish className="size-3 text-white" />
+                          </AvatarFallback>
+                        </Avatar>
+                        <span>{message.label}</span>
                       </div>
                       <DeepResearchProgress
                         {...message.deepResearch}
@@ -672,7 +771,11 @@ Answer conversationally in the user's language. Explain that deep research needs
                     </div>
                   </div>
                 ) : (
-                  <TranscriptCard {...message} />
+                  <TranscriptCard
+                    {...message}
+                    onStartResearch={handleStartResearch}
+                    isStartingResearch={isSubmitting}
+                  />
                 )}
               </div>
             ))}
@@ -680,7 +783,6 @@ Answer conversationally in the user's language. Explain that deep research needs
           </div>
         </ScrollArea>
 
-        {/* Retry button */}
         {isError && !isSubmitting && (
           <div className="flex justify-center px-4 pb-2">
             <Button
@@ -696,7 +798,6 @@ Answer conversationally in the user's language. Explain that deep research needs
           </div>
         )}
 
-        {/* Input area */}
         <div
           className={cn(
             "bg-transparent px-4 xl:px-6",

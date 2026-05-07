@@ -23,6 +23,7 @@ export async function streamChatResponse(
     conversationId?: string
     systemInstruction?: string
     persistUserMessage?: boolean
+    modelName?: string
   },
   handlers: {
     onChunk: (chunk: string) => void
@@ -43,6 +44,7 @@ export async function streamChatResponse(
       stream: true,
       system_instruction: request.systemInstruction,
       persist_user_message: request.persistUserMessage ?? true,
+      model_name: request.modelName,
     }),
   })
 

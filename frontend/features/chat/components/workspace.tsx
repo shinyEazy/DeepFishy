@@ -5,6 +5,11 @@ import { Menu } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { ChatMainPanel } from "@/features/chat/components/main-panel"
+import {
+  chatModelOptions,
+  chatModelStorageKey,
+  defaultChatModel,
+} from "@/features/chat/lib/model-options"
 import { ReportSidebar } from "@/features/report/components/report-sidebar"
 import {
   ChatSidebar,
@@ -25,6 +30,7 @@ export function ChatWorkspace({
     null
   )
   const [selectedSessionId, setSelectedSessionId] = useState(activeSessionId)
+  const [selectedModel, setSelectedModel] = useState(defaultChatModel)
   const {
     sessions,
     resolvedSessionId,
@@ -40,6 +46,17 @@ export function ChatWorkspace({
   useEffect(() => {
     setSelectedSessionId(activeSessionId)
   }, [activeSessionId])
+
+  useEffect(() => {
+    const storedModel = window.localStorage.getItem(chatModelStorageKey)
+    if (storedModel && chatModelOptions.some((option) => option.id === storedModel)) {
+      setSelectedModel(storedModel)
+    }
+  }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem(chatModelStorageKey, selectedModel)
+  }, [selectedModel])
 
   useEffect(() => {
     const handlePopState = () => {
@@ -162,6 +179,9 @@ export function ChatWorkspace({
         activeSessionId={resolvedSessionId ?? ""}
         isLoading={isLoadingSessions}
         isOpen={isMobileDrawerOpen}
+        modelOptions={chatModelOptions}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
         onClose={() => setIsMobileDrawerOpen(false)}
         onCreateSession={handleNewSession}
         onSelectSession={handleSelectSession}
@@ -187,6 +207,9 @@ export function ChatWorkspace({
             activeSessionId={resolvedSessionId ?? ""}
             isLoading={isLoadingSessions}
             collapsed={isSidebarCollapsed}
+            modelOptions={chatModelOptions}
+            selectedModel={selectedModel}
+            onModelChange={setSelectedModel}
             onToggle={() => setIsSidebarCollapsed((value) => !value)}
             onCreateSession={handleNewSession}
             onSelectSession={handleSelectSession}
@@ -198,10 +221,11 @@ export function ChatWorkspace({
             transcript={transcript}
             onTranscriptChange={setTranscript}
             onModeChange={setSessionMode}
+            selectedModel={selectedModel}
             onOpenReport={setOpenReportSessionId}
-            onSessionChange={(sessionId) => {
+            onSessionChange={(sessionId, transcriptOverride) => {
               if (selectedSessionId === newSessionId) {
-                promoteDraftSession(sessionId)
+                promoteDraftSession(sessionId, transcriptOverride)
               }
               if (sessionId === selectedSessionId) {
                 return

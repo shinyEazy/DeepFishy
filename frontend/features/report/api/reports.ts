@@ -43,6 +43,8 @@ export async function generateReport(
       conversation_id: request.conversation_id ?? null,
       use_knowledge_graph: request.use_knowledge_graph ?? true,
       stream: false,
+      classify_only: request.classify_only ?? false,
+      model_name: request.model_name,
     }),
   })
 
@@ -87,6 +89,7 @@ export async function streamReportGeneration(
       conversation_id: request.conversation_id ?? null,
       use_knowledge_graph: request.use_knowledge_graph ?? true,
       stream: true,
+      model_name: request.model_name,
     }),
   })
 

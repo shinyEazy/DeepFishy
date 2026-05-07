@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str | None = None
     GOOGLE_CLOUD_PROJECT: str | None = None
     GOOGLE_CLOUD_LOCATION: str = "us-central1"
-    RESPONSE_MODEL: str = "gemini-3.1-flash-lite-preview"
+    RESPONSE_MODEL: str = "xiaomi-mimo-v2.5"
 
 
 settings = Settings()

@@ -5,6 +5,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import type { ChatModelOption } from "@/features/chat/lib/model-options"
 import type { SessionSummary } from "@/features/chat/types"
 import { cn } from "@/lib/utils"
 
@@ -12,20 +13,26 @@ import { SidebarContent } from "./sidebar-content"
 
 export function ChatSidebar({
   sessions,
+  modelOptions,
+  selectedModel,
   className,
   activeSessionId,
   isLoading = false,
   collapsed = false,
   onToggle,
+  onModelChange,
   onCreateSession,
   onSelectSession,
 }: {
   sessions: SessionSummary[]
+  modelOptions: ChatModelOption[]
+  selectedModel: string
   className?: string
   activeSessionId: string
   isLoading?: boolean
   collapsed?: boolean
   onToggle?: () => void
+  onModelChange: (model: string) => void
   onCreateSession?: () => void
   onSelectSession?: (sessionId: string) => void
 }) {
@@ -39,10 +46,13 @@ export function ChatSidebar({
     >
       <SidebarContent
         sessions={sessions}
+        modelOptions={modelOptions}
+        selectedModel={selectedModel}
         activeSessionId={activeSessionId}
         isLoading={isLoading}
         collapsed={collapsed}
         onToggle={onToggle}
+        onModelChange={onModelChange}
         onCreateSession={onCreateSession}
         onSelectSession={onSelectSession}
       />
@@ -52,18 +62,24 @@ export function ChatSidebar({
 
 export function ChatSidebarDrawer({
   sessions,
+  modelOptions,
+  selectedModel,
   activeSessionId,
   isLoading = false,
   isOpen = false,
   onClose,
+  onModelChange,
   onCreateSession,
   onSelectSession,
 }: {
   sessions: SessionSummary[]
+  modelOptions: ChatModelOption[]
+  selectedModel: string
   activeSessionId: string
   isLoading?: boolean
   isOpen?: boolean
   onClose?: () => void
+  onModelChange: (model: string) => void
   onCreateSession?: () => void
   onSelectSession?: (sessionId: string) => void
 }) {
@@ -82,10 +98,13 @@ export function ChatSidebarDrawer({
         </SheetHeader>
         <SidebarContent
           sessions={sessions}
+          modelOptions={modelOptions}
+          selectedModel={selectedModel}
           activeSessionId={activeSessionId}
           isLoading={isLoading}
           isMobile
           onCloseMobile={onClose}
+          onModelChange={onModelChange}
           onCreateSession={onCreateSession}
           onSelectSession={onSelectSession}
         />
