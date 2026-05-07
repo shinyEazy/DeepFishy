@@ -95,7 +95,6 @@ export function ReportSidebarHeader({
         size="icon-lg"
         onClick={onClose}
         className="rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-        aria-label="Đóng báo cáo"
       >
         <X className="xl" />
       </Button>

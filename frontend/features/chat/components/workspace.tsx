@@ -144,7 +144,6 @@ export function ChatWorkspace({
           size="icon-lg"
           onClick={() => setIsMobileDrawerOpen(true)}
           className="size-10 bg-white/90 text-slate-600 shadow-[0_2px_8px_rgba(79,70,229,0.1)] hover:bg-white hover:text-indigo-600"
-          aria-label="Mở thanh bên"
         >
           <Menu className="stroke-2" />
         </Button>
@@ -170,7 +169,7 @@ export function ChatWorkspace({
       <div className="relative z-10 flex h-full flex-col px-3 py-3 pt-14 xl:px-4 xl:py-3 xl:pt-3">
         <div
           className={cn(
-            "grid min-h-0 flex-1 gap-3 xl:gap-4 xl:pt-2",
+            "grid min-h-0 flex-1 gap-3 transition-[grid-template-columns] duration-300 xl:gap-4 xl:pt-2",
             openReportSessionId
               ? isSidebarCollapsed
                 ? "xl:grid-cols-[88px_minmax(420px,0.8fr)_minmax(520px,1.2fr)]"

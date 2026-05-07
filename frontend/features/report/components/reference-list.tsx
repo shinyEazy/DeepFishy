@@ -23,7 +23,6 @@ export function ReferenceList({
         variant="ghost"
         onClick={() => setIsOpen((value) => !value)}
         className="inline-flex h-auto items-center gap-2 rounded-full bg-white px-4 py-2 text-xl font-semibold text-slate-950 transition-colors hover:bg-slate-100"
-        aria-expanded={isOpen}
       >
         Nguồn được dùng trong báo cáo
         {isOpen ? (

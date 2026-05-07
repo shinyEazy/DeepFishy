@@ -43,8 +43,6 @@ export function CitationSources({
                 setIsOpen((value) => !value)
               }}
               className="pointer-events-auto relative z-10 size-6 rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-950"
-              aria-expanded={isOpen}
-              aria-label={isOpen ? "Thu gọn" : "Tìm hiểu thêm"}
             >
               {isOpen ? (
                 <ChevronUp className="size-3" />

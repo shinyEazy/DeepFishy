@@ -39,8 +39,6 @@ export function LinkDetails({
               size="xs"
               onClick={() => setIsOpen((value) => !value)}
               className="h-auto gap-1 p-0 font-medium text-indigo-700 underline underline-offset-3 hover:text-indigo-900"
-              aria-expanded={isOpen}
-              aria-label={isOpen ? "Thu gọn" : "Xem chi tiết liên kết"}
             >
               <span>{children}</span>
               {isOpen ? (

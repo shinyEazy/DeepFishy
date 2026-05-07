@@ -30,7 +30,14 @@ type ActivityType = ResearchActivity["type"]
 
 const ACTIVITY_CONFIG: Record<
   ActivityType,
-  { label: string; icon: React.ReactNode; color: string; bg: string; border: string; colorDot: string }
+  {
+    label: string
+    icon: React.ReactNode
+    color: string
+    bg: string
+    border: string
+    colorDot: string
+  }
 > = {
   web: {
     label: "Web",
@@ -82,7 +89,13 @@ const ACTIVITY_CONFIG: Record<
   },
 }
 
-const STAT_TYPES: ActivityType[] = ["web", "local", "finance", "facts", "output"]
+const STAT_TYPES: ActivityType[] = [
+  "web",
+  "local",
+  "finance",
+  "facts",
+  "output",
+]
 
 function phaseLabel(phase: ReportPhase) {
   return phase === "build" ? "Xây dựng tri thức" : "Viết báo cáo"
@@ -163,8 +176,8 @@ function PhaseStep({
               phaseStatus === "completed"
                 ? "border-emerald-400 bg-emerald-400 text-white shadow-[0_0_0_4px_rgba(52,211,153,0.15)]"
                 : phaseStatus === "active"
-                ? "border-indigo-500 bg-indigo-500 text-white shadow-[0_0_0_4px_rgba(99,102,241,0.2)]"
-                : "border-slate-200 bg-white text-slate-300"
+                  ? "border-indigo-500 bg-indigo-500 text-white shadow-[0_0_0_4px_rgba(99,102,241,0.2)]"
+                  : "border-slate-200 bg-white text-slate-300"
             )}
           >
             {phaseStatus === "completed" ? (
@@ -198,8 +211,8 @@ function PhaseStep({
             phaseStatus === "completed"
               ? "text-emerald-600"
               : phaseStatus === "active"
-              ? "text-indigo-700"
-              : "text-slate-400"
+                ? "text-indigo-700"
+                : "text-slate-400"
           )}
         >
           {phaseLabel(phase)}
@@ -217,13 +230,7 @@ function PhaseStep({
   )
 }
 
-function StatCard({
-  type,
-  count,
-}: {
-  type: ActivityType
-  count: number
-}) {
+function StatCard({ type, count }: { type: ActivityType; count: number }) {
   const cfg = ACTIVITY_CONFIG[type]
   const hasActivity = count > 0
 
@@ -246,13 +253,13 @@ function StatCard({
       </div>
       <p
         className={cn(
-          "text-base font-bold leading-none transition-colors duration-300",
+          "text-base leading-none font-bold transition-colors duration-300",
           hasActivity ? cfg.color : "text-slate-300"
         )}
       >
         {count}
       </p>
-      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
+      <p className="text-[9px] font-bold tracking-widest text-slate-400 uppercase">
         {cfg.label}
       </p>
     </div>
@@ -274,7 +281,7 @@ function ActivityItem({ activity }: { activity: ResearchActivity }) {
         <div className="flex items-center gap-2">
           <span
             className={cn(
-              "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider",
+              "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase",
               cfg.bg,
               cfg.color
             )}
@@ -283,7 +290,7 @@ function ActivityItem({ activity }: { activity: ResearchActivity }) {
             {cfg.label}
           </span>
         </div>
-        <p className="mt-1 break-words text-xs leading-5 text-slate-600">
+        <p className="mt-1 text-xs leading-5 break-words text-slate-600">
           {activity.message}
         </p>
       </div>
@@ -342,7 +349,9 @@ export function DeepResearchProgress({
     if (latestActivity && currentStage !== "classify") {
       return latestActivity.message
     }
-    return message ?? latestActivity?.message ?? "Đang chuẩn bị nghiên cứu sâu..."
+    return (
+      message ?? latestActivity?.message ?? "Đang chuẩn bị nghiên cứu sâu..."
+    )
   }, [currentStage, latestActivity, message])
 
   const counts = useMemo(() => {
@@ -355,7 +364,9 @@ export function DeepResearchProgress({
     )
   }, [activities])
 
-  const getPhaseStatus = (phase: ReportPhase): "pending" | "active" | "completed" => {
+  const getPhaseStatus = (
+    phase: ReportPhase
+  ): "pending" | "active" | "completed" => {
     if (phasesCompleted.includes(phase)) return "completed"
     if (currentPhase === phase) return "active"
     return "pending"
@@ -370,21 +381,22 @@ export function DeepResearchProgress({
 
   return (
     <div className="w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_4px_24px_-4px_rgba(79,70,229,0.12)]">
-
       {/* ── Gradient header ─────────────────────────────────────────────── */}
       <div className="relative overflow-hidden bg-[image:linear-gradient(135deg,#4f46e5_0%,#7c3aed_60%,#6d28d9_100%)] p-5">
         {/* Decorative blobs */}
-        <div className="absolute -right-8 -top-8 size-32 rounded-full bg-white/10 blur-2xl" />
-        <div className="absolute -bottom-4 right-16 size-20 rounded-full bg-violet-300/20 blur-xl" />
+        <div className="absolute -top-8 -right-8 size-32 rounded-full bg-white/10 blur-2xl" />
+        <div className="absolute right-16 -bottom-4 size-20 rounded-full bg-violet-300/20 blur-xl" />
 
         <div className="relative flex min-w-0 items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm ring-1 ring-white/25">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 backdrop-blur-sm">
               <Search className="size-5 stroke-2 text-white" />
             </div>
             <div className="min-w-0">
               <p className="text-sm font-bold text-white">Nghiên cứu sâu</p>
-              <p className="mt-0.5 line-clamp-1 text-xs text-indigo-200">{topic}</p>
+              <p className="mt-0.5 line-clamp-1 text-xs text-indigo-200">
+                {topic}
+              </p>
             </div>
           </div>
           <StatusBadge status={status} />
@@ -406,7 +418,6 @@ export function DeepResearchProgress({
 
       {/* ── Body ────────────────────────────────────────────────────────── */}
       <div className="space-y-4 p-4 sm:p-5">
-
         {/* Current stage indicator */}
         <div className="relative overflow-hidden rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/60 to-violet-50/40 p-4">
           <div className="flex items-start gap-3">
@@ -421,20 +432,20 @@ export function DeepResearchProgress({
                   status === "in_progress"
                     ? "bg-indigo-500"
                     : status === "completed"
-                    ? "bg-emerald-500"
-                    : "bg-slate-300"
+                      ? "bg-emerald-500"
+                      : "bg-slate-300"
                 )}
               />
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">
+              <p className="text-[10px] font-bold tracking-widest text-indigo-400 uppercase">
                 Bước hiện tại
               </p>
               <p className="mt-1 text-sm font-bold text-slate-900">
                 {currentStageLabel}
               </p>
-              <p className="mt-1.5 break-words text-xs leading-5 text-slate-500">
+              <p className="mt-1.5 text-xs leading-5 break-words text-slate-500">
                 {displayMessage}
               </p>
             </div>
@@ -455,7 +466,9 @@ export function DeepResearchProgress({
             <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-4 py-2.5">
               <div className="flex items-center gap-2">
                 <Zap className="size-3.5 stroke-2 text-indigo-500" />
-                <p className="text-xs font-bold text-slate-700">Dòng hoạt động</p>
+                <p className="text-xs font-bold text-slate-700">
+                  Dòng hoạt động
+                </p>
               </div>
               <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-600">
                 {activities.length}
@@ -465,7 +478,7 @@ export function DeepResearchProgress({
             {/* Scrollable timeline */}
             <div
               ref={activitiesRef}
-              className="max-h-52 overflow-y-auto px-4 pt-3 pb-1 [scrollbar-width:thin] [scrollbar-color:#e2e8f0_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200"
+              className="max-h-52 overflow-y-auto px-4 pt-3 pb-1 [scrollbar-color:#e2e8f0_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-track]:bg-transparent"
             >
               <div className="relative border-l-2 border-slate-100 pl-4">
                 {visibleActivities.map((activity) => (
@@ -483,9 +496,7 @@ export function DeepResearchProgress({
             onClick={() => onOpenReport?.(sessionId)}
             className="w-full gap-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-3 font-bold text-white shadow-[0_4px_14px_0_rgba(79,70,229,0.35)] hover:-translate-y-0.5 hover:from-indigo-500 hover:to-violet-500"
           >
-            <BookOpen className="size-4 stroke-2 transition-transform duration-200 group-hover/button:scale-110" />
-            Xem báo cáo đầy đủ
-            <ExternalLink className="size-3.5 stroke-2 opacity-70" />
+            Mở
           </Button>
         )}
       </div>
