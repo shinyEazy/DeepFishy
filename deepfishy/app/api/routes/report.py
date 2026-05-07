@@ -782,12 +782,35 @@ def _normalize_reference_url(url: str) -> str:
     return url.strip().rstrip("),.;]")
 
 
+def _clean_reference_title(title: str, url: str) -> str:
+    cleaned = re.sub(r"\[[^\]]+\]\([^)]*\)", "", title)
+    cleaned = re.sub(r"https?://\S+", "", cleaned)
+    cleaned = cleaned.strip(" -:;[]0123456789")
+    if cleaned.lower() in {"sources", "source", "supporting urls", "supporting url"}:
+        cleaned = ""
+    return cleaned or _reference_domain(url)
+
+
+def _title_before_url(line: str, url_start: int) -> str:
+    prefix = line[:url_start]
+    prefix = re.split(r";|,", prefix)[-1]
+    return prefix.strip()
+
+
 def _extract_reference_candidates(markdown: str) -> list[dict[str, str]]:
     references: list[dict[str, str]] = []
     for match in re.finditer(r"\[([^\]]+)\]\((https?://[^)]+)\)", markdown):
         url = _normalize_reference_url(match.group(2))
-        title = match.group(1).strip() or _reference_domain(url)
-        references.append({"title": title, "url": url, "domain": _reference_domain(url)})
+        line_start = markdown.rfind("\n", 0, match.start()) + 1
+        title = match.group(1).strip()
+        if title.startswith("http://") or title.startswith("https://"):
+            title = _title_before_url(
+                markdown[line_start : match.start()], match.start() - line_start
+            )
+        title = _clean_reference_title(title, url)
+        references.append(
+            {"title": title, "url": url, "domain": _reference_domain(url)}
+        )
 
     for match in re.finditer(r"https?://\S+", markdown):
         url = _normalize_reference_url(match.group(0))
@@ -796,9 +819,12 @@ def _extract_reference_candidates(markdown: str) -> list[dict[str, str]]:
         line_start = markdown.rfind("\n", 0, match.start()) + 1
         line_end = markdown.find("\n", match.end())
         line = markdown[line_start : line_end if line_end != -1 else len(markdown)]
-        title = line.replace(match.group(0), "").strip(" -:[]0123456789")
-        domain = _reference_domain(url)
-        references.append({"title": title or domain, "url": url, "domain": domain})
+        title = _clean_reference_title(
+            _title_before_url(line, match.start() - line_start), url
+        )
+        references.append(
+            {"title": title, "url": url, "domain": _reference_domain(url)}
+        )
 
     return references
 
@@ -813,7 +839,9 @@ def _dedupe_references(references: list[dict[str, str]]) -> list[dict[str, str]]
 
 
 def _final_reference_block(markdown: str) -> str:
-    matches = list(re.finditer(r"(^|\n)(#{1,6}\s*)?References\s*\n", markdown, re.IGNORECASE))
+    matches = list(
+        re.finditer(r"(^|\n)(#{1,6}\s*)?References\s*\n", markdown, re.IGNORECASE)
+    )
     if not matches:
         return markdown
     match = matches[-1]
@@ -825,7 +853,9 @@ def _unused_writer_references(workspace_path) -> list[dict[str, str]]:
     final_content = final_md_path.read_text(encoding="utf-8")
     used_urls = {
         reference["url"]
-        for reference in _extract_reference_candidates(_final_reference_block(final_content))
+        for reference in _extract_reference_candidates(
+            _final_reference_block(final_content)
+        )
     }
     used_urls.update(
         reference["url"] for reference in _extract_reference_candidates(final_content)

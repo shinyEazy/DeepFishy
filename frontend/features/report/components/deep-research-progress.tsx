@@ -388,7 +388,7 @@ export function DeepResearchProgress({
         <Button
           size="lg"
           onClick={() => onOpenReport?.(sessionId)}
-          className="w-full gap-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-3 font-bold text-white shadow-[0_4px_14px_0_rgba(79,70,229,0.35)] hover:-translate-y-0.5 hover:from-indigo-500 hover:to-violet-500"
+          className="w-full gap-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-3 font-bold text-white hover:from-indigo-500 hover:to-violet-500"
         >
           Mở
         </Button>

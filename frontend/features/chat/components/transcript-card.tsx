@@ -67,7 +67,7 @@ export function TranscriptCard({
             "inline-flex max-w-full flex-col rounded-2xl border p-4 transition-all duration-300",
             isAssistant
               ? "border-slate-200/60 bg-white shadow-[0_4px_20px_-2px_rgba(79,70,229,0.1)]"
-              : "border-transparent bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-[0_4px_14px_0_rgba(79,70,229,0.3)]"
+              : "border-transparent bg-gradient-to-br from-indigo-600 to-violet-600 text-white"
           )}
         >
           <div className="flex flex-col gap-3">
