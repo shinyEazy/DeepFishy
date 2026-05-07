@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -480,6 +480,23 @@ async def get_report_content(session_id: str):
 
     content = final_md_path.read_text(encoding="utf-8")
     return {"session_id": session_id, "content": content, "format": "markdown"}
+
+
+@router.get("/{session_id}/pdf")
+async def get_report_pdf(session_id: str):
+    from deepfishy.infra.config.paths import OUTPUTS_DIR
+
+    final_pdf_path = OUTPUTS_DIR / session_id / "final.pdf"
+
+    if not final_pdf_path.exists():
+        raise HTTPException(status_code=404, detail="Report PDF not found")
+
+    return FileResponse(
+        final_pdf_path,
+        media_type="application/pdf",
+        filename=f"report-{session_id}.pdf",
+        headers={"Content-Disposition": "inline"},
+    )
 
 
 __all__ = ["router", "ReportRequest", "ReportResponse"]

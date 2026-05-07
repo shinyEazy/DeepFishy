@@ -1,9 +1,8 @@
-"use client"
-
 import { useState } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import {
   Tooltip,
   TooltipContent,
@@ -34,14 +33,16 @@ export function CitationSources({
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               onClick={(event) => {
                 event.preventDefault()
                 event.stopPropagation()
                 setIsOpen((value) => !value)
               }}
-              className="pointer-events-auto relative z-10 inline-flex size-6 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-950"
+              className="pointer-events-auto relative z-10 size-6 rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-950"
               aria-expanded={isOpen}
               aria-label={isOpen ? "Thu gọn" : "Tìm hiểu thêm"}
             >
@@ -50,7 +51,7 @@ export function CitationSources({
               ) : (
                 <ChevronDown className="size-3" />
               )}
-            </button>
+            </Button>
           </TooltipTrigger>
           <TooltipContent sideOffset={6}>
             {isOpen ? "Thu gọn" : "Tìm hiểu thêm"}

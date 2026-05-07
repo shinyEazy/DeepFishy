@@ -1,9 +1,8 @@
-"use client"
-
 import { useState } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import {
   Tooltip,
   TooltipContent,
@@ -34,10 +33,12 @@ export function LinkDetails({
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
+            <Button
               type="button"
+              variant="link"
+              size="xs"
               onClick={() => setIsOpen((value) => !value)}
-              className="inline-flex items-center gap-1 font-medium text-indigo-700 underline underline-offset-3 hover:text-indigo-900"
+              className="h-auto gap-1 p-0 font-medium text-indigo-700 underline underline-offset-3 hover:text-indigo-900"
               aria-expanded={isOpen}
               aria-label={isOpen ? "Thu gọn" : "Xem chi tiết liên kết"}
             >
@@ -47,7 +48,7 @@ export function LinkDetails({
               ) : (
                 <ChevronDown className="size-3" />
               )}
-            </button>
+            </Button>
           </TooltipTrigger>
           <TooltipContent sideOffset={6}>
             {isOpen ? "Thu gọn" : "Xem chi tiết liên kết"}

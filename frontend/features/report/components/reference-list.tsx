@@ -2,6 +2,7 @@ import { useState } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import type { ReportReference } from "@/features/report/lib/report-markdown"
 
 export function ReferenceList({
@@ -17,10 +18,11 @@ export function ReferenceList({
 
   return (
     <section className="border-slate-200">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={() => setIsOpen((value) => !value)}
-        className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xl font-semibold text-slate-950 transition-colors hover:bg-slate-100"
+        className="inline-flex h-auto items-center gap-2 rounded-full bg-white px-4 py-2 text-xl font-semibold text-slate-950 transition-colors hover:bg-slate-100"
         aria-expanded={isOpen}
       >
         Nguồn được dùng trong báo cáo
@@ -29,7 +31,7 @@ export function ReferenceList({
         ) : (
           <ChevronDown className="size-4" />
         )}
-      </button>
+      </Button>
 
       <div
         className={`grid transition-[grid-template-rows,opacity,transform,margin] duration-300 ease-out ${

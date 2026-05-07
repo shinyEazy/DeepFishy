@@ -1,21 +1,32 @@
-import { Download, FileText, PanelRightClose, Printer, X } from "lucide-react"
+import { useState } from "react"
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  FileText,
+  PanelRightClose,
+  X,
+} from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
-function downloadMarkdown(sessionId: string, content: string) {
-  const blob = new Blob([content], { type: "text/markdown" })
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement("a")
-  anchor.href = url
-  anchor.download = `report-${sessionId}.md`
-  anchor.click()
-  URL.revokeObjectURL(url)
+function openPdf(sessionId: string) {
+  window.open(
+    `/api/reports/${encodeURIComponent(sessionId)}/pdf`,
+    "_blank",
+    "noopener,noreferrer"
+  )
 }
 
-function downloadPdf() {
-  window.print()
+async function copyContent(content: string) {
+  await navigator.clipboard.writeText(content)
 }
 
 export function ReportSidebarHeader({
@@ -29,40 +40,55 @@ export function ReportSidebarHeader({
   content: string | null
   onClose: () => void
 }) {
+  const [copied, setCopied] = useState(false)
+
+  async function handleCopy() {
+    if (!content) {
+      return
+    }
+
+    await copyContent(content)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1600)
+  }
+
   return (
     <header className="flex shrink-0 items-center gap-3 px-4 py-3">
-      <Avatar className="size-10 rounded-2xl">
+      <Avatar className="size-6 rounded-2xl">
         <AvatarFallback className="rounded-2xl bg-slate-950 text-white">
           <FileText />
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-slate-950">{title}</p>
-        <Badge variant="secondary" className="mt-1">
-          Markdown report preview
-        </Badge>
       </div>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => content && downloadMarkdown(sessionId, content)}
-        disabled={!content}
-        className="text-xs"
-      >
-        <Download data-icon="inline-start" />
-        MD
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        onClick={downloadPdf}
-        disabled={!content}
-        className="bg-slate-950 text-xs text-white hover:bg-indigo-700"
-      >
-        <Printer data-icon="inline-start" />
-        PDF
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            size="sm"
+            disabled={!content}
+            className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-slate-100"
+          >
+            Chia sẻ và xuất
+            <ChevronDown data-icon="inline-end" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuItem onSelect={() => openPdf(sessionId)}>
+            <FileText className="size-4" />
+            Xuất sang Tài liệu
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={handleCopy}>
+            {copied ? (
+              <Check className="size-4" />
+            ) : (
+              <Copy className="size-4" />
+            )}
+            Sao chép nội dung
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <Button
         type="button"
         variant="ghost"
@@ -71,8 +97,7 @@ export function ReportSidebarHeader({
         className="rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900"
         aria-label="Đóng báo cáo"
       >
-        <X className="xl:hidden" />
-        <PanelRightClose className="hidden xl:block" />
+        <X className="xl" />
       </Button>
     </header>
   )
