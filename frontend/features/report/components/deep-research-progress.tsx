@@ -22,6 +22,7 @@ import type {
   ResearchActivity,
 } from "@/features/report/types"
 import { Button } from "@/components/ui/button"
+import { ThinkingProcessSection } from "@/features/report/components/thinking-process-section"
 import { cn } from "@/lib/utils"
 
 // ─── Type config ────────────────────────────────────────────────────────────
@@ -418,76 +419,7 @@ export function DeepResearchProgress({
 
       {/* ── Body ────────────────────────────────────────────────────────── */}
       <div className="space-y-4 p-4 sm:p-5">
-        {/* Current stage indicator */}
-        <div className="relative overflow-hidden rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/60 to-violet-50/40 p-4">
-          <div className="flex items-start gap-3">
-            {/* Pulsing indicator dot */}
-            <div className="relative mt-1 shrink-0">
-              {status === "in_progress" && (
-                <div className="absolute inset-0 animate-ping rounded-full bg-indigo-400 opacity-40" />
-              )}
-              <div
-                className={cn(
-                  "size-3 rounded-full",
-                  status === "in_progress"
-                    ? "bg-indigo-500"
-                    : status === "completed"
-                      ? "bg-emerald-500"
-                      : "bg-slate-300"
-                )}
-              />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold tracking-widest text-indigo-400 uppercase">
-                Bước hiện tại
-              </p>
-              <p className="mt-1 text-sm font-bold text-slate-900">
-                {currentStageLabel}
-              </p>
-              <p className="mt-1.5 text-xs leading-5 break-words text-slate-500">
-                {displayMessage}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Stats bar */}
-        <div className="grid grid-cols-5 gap-2">
-          {STAT_TYPES.map((type) => (
-            <StatCard key={type} type={type} count={counts[type] ?? 0} />
-          ))}
-        </div>
-
-        {/* Activity feed */}
-        {activities.length > 0 && (
-          <div className="overflow-hidden rounded-xl border border-slate-100 bg-white">
-            {/* Feed header */}
-            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-4 py-2.5">
-              <div className="flex items-center gap-2">
-                <Zap className="size-3.5 stroke-2 text-indigo-500" />
-                <p className="text-xs font-bold text-slate-700">
-                  Dòng hoạt động
-                </p>
-              </div>
-              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-600">
-                {activities.length}
-              </span>
-            </div>
-
-            {/* Scrollable timeline */}
-            <div
-              ref={activitiesRef}
-              className="max-h-52 overflow-y-auto px-4 pt-3 pb-1 [scrollbar-color:#e2e8f0_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-track]:bg-transparent"
-            >
-              <div className="relative border-l-2 border-slate-100 pl-4">
-                {visibleActivities.map((activity) => (
-                  <ActivityItem key={activity.id} activity={activity} />
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+        <ThinkingProcessSection activities={activities} status={status} />
 
         {/* Completion CTA */}
         {status === "completed" && sessionId && (

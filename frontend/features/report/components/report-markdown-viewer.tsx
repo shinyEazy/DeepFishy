@@ -12,15 +12,19 @@ import {
 import { CitationSources } from "@/features/report/components/citation-sources"
 import { LinkDetails } from "@/features/report/components/link-details"
 import { ReferenceList } from "@/features/report/components/reference-list"
+import { ThinkingProcessSection } from "@/features/report/components/thinking-process-section"
 import type { ReportReference } from "@/features/report/lib/report-markdown"
+import type { ResearchActivity } from "@/features/report/types"
 import { cn } from "@/lib/utils"
 
 export function ReportMarkdownViewer({
   body,
   references,
+  activities = [],
 }: {
   body: string
   references: ReportReference[]
+  activities?: ResearchActivity[]
 }) {
   const referencesById = new Map(
     references.map((reference) => [reference.id, reference])
@@ -141,7 +145,10 @@ export function ReportMarkdownViewer({
       >
         {body}
       </ReactMarkdown>
-      <ReferenceList references={references} />
+      <div className="mt-8 space-y-4">
+        <ReferenceList references={references} />
+        <ThinkingProcessSection activities={activities} status="completed" />
+      </div>
     </article>
   )
 }

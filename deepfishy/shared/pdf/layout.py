@@ -1,5 +1,3 @@
-"""Shared HTML and CSS builders for PDF report rendering."""
-
 import re
 
 import markdown
@@ -42,7 +40,7 @@ def build_pdf_html(md_content: str) -> str:
     <html lang="vi">
     <head>
         <meta charset="utf-8">
-        <title>Financial Report</title>
+        <title>Báo cáo nghiên cứu</title>
     </head>
     <body>
         {toc_section}

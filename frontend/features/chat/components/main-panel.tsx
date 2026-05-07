@@ -39,6 +39,27 @@ import { cn } from "@/lib/utils"
 
 let activityIdCounter = 0
 
+function appendActivity(
+  activities: ResearchActivity[],
+  activity: ResearchActivity
+) {
+  if (activities.some((item) => item.id === activity.id)) {
+    return activities
+  }
+  return [...activities, activity]
+}
+
+function mergeActivities(
+  current: ResearchActivity[],
+  incoming?: ResearchActivity[]
+) {
+  if (!incoming?.length) {
+    return current
+  }
+
+  return incoming.reduce(appendActivity, current)
+}
+
 export function ChatMainPanel({
   className,
   session,
@@ -133,6 +154,7 @@ export function ChatMainPanel({
             const lastIndex = updated.length - 1
             if (lastIndex >= 0 && updated[lastIndex]?.deepResearch) {
               const done = status.phases_completed ?? []
+              const prev = updated[lastIndex].deepResearch!
               updated[lastIndex] = {
                 ...updated[lastIndex],
                 meta:
@@ -140,7 +162,7 @@ export function ChatMainPanel({
                     ? "Hoàn thành"
                     : "Đang xử lý...",
                 deepResearch: {
-                  ...updated[lastIndex].deepResearch!,
+                  ...prev,
                   status:
                     status.status === "completed" ? "completed" : "in_progress",
                   sessionId,
@@ -155,6 +177,10 @@ export function ChatMainPanel({
                       ? null
                       : (status.current_stage ??
                         (done.includes("build") ? "write_start" : "research")),
+                  activities: mergeActivities(
+                    prev.activities,
+                    status.activities
+                  ),
                   message:
                     status.status === "completed"
                       ? "Hoàn thành báo cáo."
@@ -198,7 +224,10 @@ Answer conversationally in the user's language. Explain that deep research needs
               onTranscriptChange((current) => {
                 const updated = [...current]
                 const lastIndex = updated.length - 1
-                if (lastIndex >= 0 && updated[lastIndex]?.role === "assistant") {
+                if (
+                  lastIndex >= 0 &&
+                  updated[lastIndex]?.role === "assistant"
+                ) {
                   updated[lastIndex] = {
                     ...updated[lastIndex],
                     body: streamedText,
@@ -284,17 +313,26 @@ Answer conversationally in the user's language. Explain that deep research needs
                 return updated
               })
             },
-            onProgress: (event) => {
+            onProgress: (event, serverActivity) => {
               onTranscriptChange((current) => {
                 const updated = [...current]
                 const lastIndex = updated.length - 1
                 if (lastIndex >= 0 && updated[lastIndex]?.deepResearch) {
                   const prev = updated[lastIndex].deepResearch!
-                  const newActivity: ResearchActivity = {
+                  const timestamp = Date.now()
+                  const newActivity: ResearchActivity = serverActivity ?? {
                     id: `activity-${++activityIdCounter}`,
                     type: (event.type as ResearchActivity["type"]) ?? "info",
                     message: event.message,
-                    timestamp: Date.now(),
+                    timestamp,
+                    stage: event.stage,
+                    phase: event.phase,
+                    query: event.query,
+                    results: event.results,
+                    ticker: event.ticker,
+                    count: event.count,
+                    section: event.section,
+                    filename: event.filename,
                   }
 
                   // Update currentPhase if phase info is present
@@ -322,7 +360,7 @@ Answer conversationally in the user's language. Explain that deep research needs
                       currentPhase: newPhase,
                       currentStage: event.stage,
                       phasesCompleted: newPhasesCompleted,
-                      activities: [...prev.activities, newActivity],
+                      activities: appendActivity(prev.activities, newActivity),
                       message: event.message,
                     },
                   }

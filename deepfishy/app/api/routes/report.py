@@ -1,11 +1,8 @@
-"""Report generation API endpoints."""
-
 import asyncio
 import json
-import os
-import uuid
+import time
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -19,6 +16,53 @@ from deepfishy.shared.logging import logger
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
 REPORT_STATES: dict[str, dict] = {}
+
+
+def _initial_report_state(phases: list[str]) -> dict[str, Any]:
+    return {
+        "status": "in_progress",
+        "phases_completed": [],
+        "output_files": [],
+        "current_phase": phases[0] if phases else None,
+        "current_stage": "classify",
+        "message": "Đang phân loại chủ đề...",
+        "created_at": datetime.now().isoformat(),
+        "activities": [],
+        "activity_sequence": 0,
+        "updated_at": int(time.time() * 1000),
+    }
+
+
+def _normalize_progress_activity(
+    session_id: str,
+    event_data: dict[str, Any],
+    sequence: int,
+) -> dict[str, Any]:
+    activity_type = event_data.get("type") or event_data.get("stage") or "info"
+    activity = {
+        "id": f"{session_id}-{sequence}",
+        "type": activity_type,
+        "message": event_data.get("message") or "",
+        "timestamp": int(time.time() * 1000),
+        "stage": event_data.get("stage"),
+        "phase": event_data.get("phase"),
+        "query": event_data.get("query"),
+        "results": event_data.get("results"),
+        "result_count": event_data.get("result_count"),
+        "ticker": event_data.get("ticker"),
+        "count": event_data.get("count"),
+        "section": event_data.get("section"),
+        "filename": event_data.get("filename"),
+    }
+    return {key: value for key, value in activity.items() if value is not None}
+
+
+def _report_thinking_metadata(session_id: str) -> dict[str, Any]:
+    activities = REPORT_STATES.get(session_id, {}).get("activities", [])
+    return {
+        "thinking_process": activities,
+        "activity_count": len(activities),
+    }
 
 
 class ReportRequest(BaseModel):
@@ -72,6 +116,9 @@ class ReportStatusResponse(BaseModel):
     current_phase: Optional[str] = None
     current_stage: Optional[str] = None
     message: Optional[str] = None
+    activities: list[dict[str, Any]] = Field(default_factory=list)
+    activity_count: int = 0
+    updated_at: Optional[int] = None
 
 
 class ProgressCallback:
@@ -118,6 +165,7 @@ def _run_report_generation_with_progress(
         class ProgressHandler(logging.Handler):
             def emit(self, record):
                 msg = record.getMessage()
+                progress_data = getattr(record, "progress_data", None) or {}
 
                 # Parse log messages and emit progress events
                 event_data = None
@@ -140,13 +188,14 @@ def _run_report_generation_with_progress(
                     event_data = {"stage": "plan", "phase": "build", "message": msg}
                 elif "Web search:" in msg:
                     query = msg.split("Web search: '")[1].split("'")[0] if "'" in msg else ""
-                    results = msg.split("→ ")[1].split(" results")[0] if "→ " in msg else "0"
+                    result_count = msg.split("→ ")[1].split(" results")[0] if "→ " in msg else "0"
                     event_data = {
                         "stage": "research",
                         "type": "web",
-                        "query": query,
-                        "results": int(results) if results.isdigit() else 0,
-                        "message": f"🔍 Web: {query[:50]}... → {results} kết quả",
+                        "query": progress_data.get("query") or query,
+                        "results": progress_data.get("results", []),
+                        "result_count": int(result_count) if result_count.isdigit() else 0,
+                        "message": f"🔍 Web: {query[:50]}... → {result_count} kết quả",
                     }
                 elif "Local search:" in msg:
                     query = msg.split("Local search: '")[1].split("'")[0] if "'" in msg else ""
@@ -174,15 +223,15 @@ def _run_report_generation_with_progress(
                     event_data = {"stage": "write_start", "phase": "write", "message": "Khởi tạo Writer..."}
 
                 if event_data:
-                    state = REPORT_STATES.setdefault(session_id, {
-                        "status": "in_progress",
-                        "phases_completed": [],
-                        "output_files": [],
-                        "current_phase": "build",
-                        "current_stage": "classify",
-                        "message": "Đang phân loại chủ đề...",
-                        "created_at": datetime.now().isoformat(),
-                    })
+                    state = REPORT_STATES.setdefault(session_id, _initial_report_state(phases))
+                    state["activity_sequence"] = state.get("activity_sequence", 0) + 1
+                    activity = _normalize_progress_activity(
+                        session_id,
+                        event_data,
+                        state["activity_sequence"],
+                    )
+                    state.setdefault("activities", []).append(activity)
+                    state["updated_at"] = activity["timestamp"]
                     state["status"] = "in_progress"
                     state["current_stage"] = event_data.get("stage")
                     state["message"] = event_data.get("message")
@@ -199,7 +248,7 @@ def _run_report_generation_with_progress(
                     try:
                         loop.call_soon_threadsafe(
                             callback_queue.put_nowait,
-                            {"type": "progress", "data": event_data}
+                            {"type": "progress", "data": event_data, "activity": activity}
                         )
                     except Exception:
                         pass
@@ -234,6 +283,7 @@ def _run_report_generation_with_progress(
             "current_phase": None,
             "current_stage": None,
             "message": f"Report generation completed for topic: {topic}",
+            "updated_at": int(time.time() * 1000),
         }
 
         return {
@@ -250,6 +300,7 @@ def _run_report_generation_with_progress(
             "current_phase": None,
             "current_stage": None,
             "message": f"Report generation failed: {str(e)}",
+            "updated_at": int(time.time() * 1000),
         }
 
         return {
@@ -276,15 +327,7 @@ async def generate_report(request: ReportRequest, db: Session = Depends(get_db))
         content=request.topic,
         metadata={"source": "reports_api", "mode": "deep"},
     )
-    REPORT_STATES[session_id] = {
-        "status": "in_progress",
-        "phases_completed": [],
-        "output_files": [],
-        "current_phase": phases[0] if phases else None,
-        "current_stage": "classify",
-        "message": "Đang phân loại chủ đề...",
-        "created_at": datetime.now().isoformat(),
-    }
+    REPORT_STATES[session_id] = _initial_report_state(phases)
 
     if request.stream:
         callback_queue: asyncio.Queue = asyncio.Queue()
@@ -341,6 +384,7 @@ async def generate_report(request: ReportRequest, db: Session = Depends(get_db))
                                     "report_status": "completed",
                                     "topic": request.topic,
                                     "phases": phases,
+                                    **_report_thinking_metadata(session_id),
                                 },
                             )
                             yield f"data: {json.dumps({'type': 'completed', 'session_id': session_id, 'conversation_id': conversation.id, 'output_files': result['output_files'], 'message': result['message']})}\n\n"
@@ -357,6 +401,7 @@ async def generate_report(request: ReportRequest, db: Session = Depends(get_db))
                                     "topic": request.topic,
                                     "phases": phases,
                                     "error": result.get("error", "Unknown"),
+                                    **_report_thinking_metadata(session_id),
                                 },
                             )
                             yield f"data: {json.dumps({'type': 'error', 'session_id': session_id, 'conversation_id': conversation.id, 'error': result.get('error', 'Unknown'), 'message': result['message']})}\n\n"
@@ -399,6 +444,7 @@ async def generate_report(request: ReportRequest, db: Session = Depends(get_db))
                 "topic": request.topic,
                 "phases": phases,
                 "error": result.get("error", "Unknown"),
+                **_report_thinking_metadata(session_id),
             },
         )
         raise HTTPException(status_code=500, detail=result["message"])
@@ -414,6 +460,7 @@ async def generate_report(request: ReportRequest, db: Session = Depends(get_db))
             "report_status": "completed",
             "topic": request.topic,
             "phases": phases,
+            **_report_thinking_metadata(session_id),
         },
     )
 
@@ -455,6 +502,8 @@ async def get_report_status(session_id: str):
     if has_final_md:
         phases_completed = ["build", "write"]
 
+    activities = live_state.get("activities", [])
+
     return ReportStatusResponse(
         session_id=session_id,
         status=status,
@@ -464,6 +513,9 @@ async def get_report_status(session_id: str):
         current_phase=None if has_final_md else live_state.get("current_phase"),
         current_stage=None if has_final_md else live_state.get("current_stage"),
         message=live_state.get("message"),
+        activities=activities,
+        activity_count=len(activities),
+        updated_at=live_state.get("updated_at"),
     )
 
 

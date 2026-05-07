@@ -289,8 +289,24 @@ def search_web_normalized(
             country="vietnam",
         )
 
+        search_results = raw_result.get("results", [])
+        compact_results = [
+            {
+                "title": (item.get("title") or "").strip(),
+                "url": item.get("url") or "",
+            }
+            for item in search_results
+            if item.get("url")
+        ]
+
         logger.info(
-            f"Web search: '{vi_query}' → {len(raw_result.get('results', []))} results, normalizing..."
+            f"Web search: '{vi_query}' → {len(search_results)} results, normalizing...",
+            extra={
+                "progress_data": {
+                    "query": vi_query,
+                    "results": compact_results,
+                }
+            },
         )
         normalized = normalize_raw_data(raw_result, vi_query)
         return normalized

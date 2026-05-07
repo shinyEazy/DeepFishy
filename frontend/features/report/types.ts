@@ -1,6 +1,11 @@
 export type ReportPhase = "build" | "write"
 
-export type ReportStatus = "idle" | "started" | "in_progress" | "completed" | "failed"
+export type ReportStatus =
+  | "idle"
+  | "started"
+  | "in_progress"
+  | "completed"
+  | "failed"
 
 export type ReportRequest = {
   topic: string
@@ -28,6 +33,30 @@ export type ReportStatusResponse = {
   current_phase?: ReportPhase | null
   current_stage?: string | null
   message?: string | null
+  activities?: ResearchActivity[]
+  activity_count?: number
+  updated_at?: number | null
+}
+
+export type SearchResultItem = {
+  title: string
+  url: string
+}
+
+export type ResearchActivity = {
+  id: string
+  type: "web" | "local" | "finance" | "facts" | "output" | "info" | string
+  message: string
+  timestamp: number
+  stage?: string
+  phase?: ReportPhase
+  query?: string
+  results?: SearchResultItem[]
+  result_count?: number
+  ticker?: string
+  count?: number
+  section?: string
+  filename?: string
 }
 
 export type ProgressEvent = {
@@ -36,7 +65,8 @@ export type ProgressEvent = {
   phase?: ReportPhase
   type?: string
   query?: string
-  results?: number
+  results?: SearchResultItem[]
+  result_count?: number
   ticker?: string
   count?: number
   section?: string
@@ -51,7 +81,7 @@ export type ReportStreamEvent =
       conversation_id?: string
     }
   | { type: "heartbeat"; session_id: string }
-  | { type: "progress"; data: ProgressEvent }
+  | { type: "progress"; data: ProgressEvent; activity?: ResearchActivity }
   | {
       type: "completed"
       session_id: string
@@ -66,13 +96,6 @@ export type ReportStreamEvent =
       message: string
       conversation_id?: string
     }
-
-export type ResearchActivity = {
-  id: string
-  type: "web" | "local" | "finance" | "facts" | "output" | "info"
-  message: string
-  timestamp: number
-}
 
 export type ReportGenerationState = {
   status: ReportStatus

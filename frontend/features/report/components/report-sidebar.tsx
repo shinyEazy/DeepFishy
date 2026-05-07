@@ -6,8 +6,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
-import { getReportContent } from "@/features/report/api/reports"
+import {
+  getReportContent,
+  getReportStatus,
+} from "@/features/report/api/reports"
 import { ReportMarkdownViewer } from "@/features/report/components/report-markdown-viewer"
+import type { ResearchActivity } from "@/features/report/types"
 import { ReportSidebarHeader } from "@/features/report/components/report-sidebar-header"
 import {
   addCitationLinks,
@@ -26,6 +30,7 @@ export function ReportSidebar({
   onClose: () => void
 }) {
   const [content, setContent] = useState<string | null>(null)
+  const [activities, setActivities] = useState<ResearchActivity[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isMounted, setIsMounted] = useState(isOpen)
@@ -54,10 +59,11 @@ export function ReportSidebar({
       }
     })
 
-    getReportContent(sessionId)
-      .then((report) => {
+    Promise.all([getReportContent(sessionId), getReportStatus(sessionId)])
+      .then(([report, status]) => {
         if (!cancelled) {
           setContent(report.content)
+          setActivities(status.activities ?? [])
         }
       })
       .catch((err) => {
@@ -121,6 +127,7 @@ export function ReportSidebar({
             <ReportMarkdownViewer
               body={renderedBody}
               references={parsedContent.references}
+              activities={activities}
             />
           ) : null}
         </div>

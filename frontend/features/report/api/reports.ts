@@ -1,5 +1,6 @@
 import type {
   ProgressEvent,
+  ResearchActivity,
   ReportPhase,
   ReportRequest,
   ReportResponse,
@@ -52,8 +53,12 @@ export async function generateReport(
 export async function streamReportGeneration(
   request: ReportRequest,
   handlers: {
-    onStarted?: (sessionId: string, phases: ReportPhase[], conversationId?: string) => void
-    onProgress?: (event: ProgressEvent) => void
+    onStarted?: (
+      sessionId: string,
+      phases: ReportPhase[],
+      conversationId?: string
+    ) => void
+    onProgress?: (event: ProgressEvent, activity?: ResearchActivity) => void
     onCompleted?: (
       sessionId: string,
       outputFiles: string[],
@@ -105,69 +110,73 @@ export async function streamReportGeneration(
   let startedSessionId: string | null = null
 
   try {
-  while (true) {
-    const { done, value } = await reader.read()
-    buffer += decoder.decode(value, { stream: !done })
+    while (true) {
+      const { done, value } = await reader.read()
+      buffer += decoder.decode(value, { stream: !done })
 
-    const events = buffer.split("\n\n")
-    buffer = events.pop() ?? ""
+      const events = buffer.split("\n\n")
+      buffer = events.pop() ?? ""
 
-    for (const event of events) {
-      const line = event
-        .split("\n")
-        .find((part) => part.trimStart().startsWith("data:"))
+      for (const event of events) {
+        const line = event
+          .split("\n")
+          .find((part) => part.trimStart().startsWith("data:"))
 
-      if (!line) {
-        continue
+        if (!line) {
+          continue
+        }
+
+        const payload = line.replace(/^data:\s*/, "")
+        const parsed = JSON.parse(payload) as ReportStreamEvent
+
+        if (parsed.type === "started") {
+          startedSessionId = parsed.session_id
+          handlers.onStarted?.(
+            parsed.session_id,
+            parsed.phases,
+            parsed.conversation_id
+          )
+          continue
+        }
+
+        if (parsed.type === "heartbeat") {
+          startedSessionId = parsed.session_id
+          continue
+        }
+
+        if (parsed.type === "progress") {
+          handlers.onProgress?.(parsed.data, parsed.activity)
+          continue
+        }
+
+        if (parsed.type === "completed") {
+          handlers.onCompleted?.(
+            parsed.session_id,
+            parsed.output_files,
+            parsed.message,
+            parsed.conversation_id
+          )
+          return
+        }
+
+        if (parsed.type === "error") {
+          handlers.onError?.(
+            parsed.session_id,
+            parsed.error,
+            parsed.message,
+            parsed.conversation_id
+          )
+          return
+        }
       }
 
-      const payload = line.replace(/^data:\s*/, "")
-      const parsed = JSON.parse(payload) as ReportStreamEvent
-
-      if (parsed.type === "started") {
-        startedSessionId = parsed.session_id
-        handlers.onStarted?.(parsed.session_id, parsed.phases, parsed.conversation_id)
-        continue
-      }
-
-      if (parsed.type === "heartbeat") {
-        startedSessionId = parsed.session_id
-        continue
-      }
-
-      if (parsed.type === "progress") {
-        handlers.onProgress?.(parsed.data)
-        continue
-      }
-
-      if (parsed.type === "completed") {
-        handlers.onCompleted?.(
-          parsed.session_id,
-          parsed.output_files,
-          parsed.message,
-          parsed.conversation_id
-        )
-        return
-      }
-
-      if (parsed.type === "error") {
-        handlers.onError?.(
-          parsed.session_id,
-          parsed.error,
-          parsed.message,
-          parsed.conversation_id
-        )
+      if (done) {
+        if (startedSessionId) {
+          handlers.onDisconnected?.(startedSessionId)
+        }
         return
       }
     }
-
-    if (done) {
-      if (startedSessionId) {
-        handlers.onDisconnected?.(startedSessionId)
-      }
-      return
-    }
-  }
   } catch (error) {
     if (startedSessionId) {
       handlers.onDisconnected?.(startedSessionId)
@@ -180,9 +189,12 @@ export async function streamReportGeneration(
 export async function getReportStatus(
   sessionId: string
 ): Promise<ReportStatusResponse> {
-  const response = await fetch(`/api/reports/${encodeURIComponent(sessionId)}`, {
-    cache: "no-store",
-  })
+  const response = await fetch(
+    `/api/reports/${encodeURIComponent(sessionId)}`,
+    {
+      cache: "no-store",
+    }
+  )
 
   await assertOk(response)
   return (await response.json()) as ReportStatusResponse

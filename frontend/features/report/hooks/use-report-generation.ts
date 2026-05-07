@@ -10,6 +10,16 @@ import type {
   ReportRequest,
 } from "@/features/report/types"
 
+function appendActivity(
+  activities: ResearchActivity[],
+  activity: ResearchActivity
+) {
+  if (activities.some((item) => item.id === activity.id)) {
+    return activities
+  }
+  return [...activities, activity]
+}
+
 const initialState: ReportGenerationState = {
   status: "idle",
   sessionId: null,
@@ -58,21 +68,31 @@ export function useReportGeneration() {
             message: `Đang chạy giai đoạn ${startedPhases[0]}...`,
           }))
         },
-        onProgress: (event) => {
-          setState((prev) => ({
-            ...prev,
-            currentStage: event.stage,
-            activities: [
-              ...prev.activities,
-              {
-                id: `activity-${Date.now()}`,
-                type: (event.type as ResearchActivity["type"]) ?? "info",
-                message: event.message,
-                timestamp: Date.now(),
-              },
-            ],
-            message: event.message,
-          }))
+        onProgress: (event, serverActivity) => {
+          setState((prev) => {
+            const timestamp = Date.now()
+            const activity = serverActivity ?? {
+              id: `activity-${timestamp}`,
+              type: (event.type as ResearchActivity["type"]) ?? "info",
+              message: event.message,
+              timestamp,
+              stage: event.stage,
+              phase: event.phase,
+              query: event.query,
+              results: event.results,
+              ticker: event.ticker,
+              count: event.count,
+              section: event.section,
+              filename: event.filename,
+            }
+
+            return {
+              ...prev,
+              currentStage: event.stage,
+              activities: appendActivity(prev.activities, activity),
+              message: event.message,
+            }
+          })
         },
         onCompleted: (sessionId, outputFiles, message) => {
           setState((prev) => ({
@@ -123,7 +143,6 @@ export function useReportGeneration() {
     generate,
     reset,
     viewReport,
-    isGenerating:
-      state.status === "started" || state.status === "in_progress",
+    isGenerating: state.status === "started" || state.status === "in_progress",
   }
 }
