@@ -22,7 +22,7 @@ export function SidebarHeader({
           collapsed && !isMobile ? "w-0 opacity-0" : "w-auto opacity-100"
         )}
       >
-        <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_2px_8px_rgba(79,70,229,0.25)]">
+        <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600">
           <Fish className="size-4 stroke-[2.5] text-white" />
         </div>
         <h2 className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-sm font-bold tracking-tight whitespace-nowrap text-transparent">

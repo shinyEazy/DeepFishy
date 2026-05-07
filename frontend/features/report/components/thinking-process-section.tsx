@@ -11,14 +11,21 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import type { ReportStatus, ResearchActivity } from "@/features/report/types"
 import { cn } from "@/lib/utils"
+import { write } from "node:fs"
 
 const ACTIVITY_TITLES: Record<ResearchActivity["type"], string> = {
   web: "Tìm kiếm web",
   local: "Đối chiếu dữ liệu nội bộ",
   finance: "Phân tích chỉ số tài chính",
-  facts: "Lưu bằng chứng nghiên cứu",
-  output: "Tổng hợp nội dung báo cáo",
-  info: "Xác định mục tiêu nghiên cứu",
+  classify: "Xác định yêu cầu",
+  build: "Tổng hợp dữ liệu",
+  plan: "Lập kế hoạch nghiên cứu",
+  facts: "Tổng hợp bằng chứng",
+  output: "Tổng hợp tài liệu",
+  info: "Xác định yêu cầu",
+  build_complete: "Hoàn thành tổng hợp dữ liệu",
+  write: "Bắt đầu viết báo cáo",
+  write_start: "Bắt đầu viết báo cáo",
 }
 
 function resultDomain(url: string) {
@@ -170,7 +177,7 @@ export function ThinkingProcessSection({
         onClick={() => setIsOpen((value) => !value)}
         className="inline-flex h-auto items-center gap-2 rounded-full bg-white px-4 py-2 text-xl font-semibold text-slate-950 transition-colors hover:bg-slate-100"
       >
-        Quá trình suy nghĩ
+        Quá trình nghiên cứu
         {isOpen ? (
           <ChevronUp className="size-4" />
         ) : (

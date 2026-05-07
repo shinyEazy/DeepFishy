@@ -147,7 +147,11 @@ export function ReportMarkdownViewer({
       </ReactMarkdown>
       <div className="mt-8 space-y-4">
         <ReferenceList references={references} />
-        <ThinkingProcessSection activities={activities} status="completed" />
+        <ThinkingProcessSection
+          activities={activities}
+          status="completed"
+          defaultOpen={false}
+        />
       </div>
     </article>
   )
