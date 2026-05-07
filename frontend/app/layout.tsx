@@ -11,7 +11,7 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 })
 
 export const metadata: Metadata = {
-  title: "DeepFishy – AI Financial Research",
+  title: "DeepFishy",
   description:
     "AI-powered financial research platform for Vietnamese companies and industries.",
   icons: {
