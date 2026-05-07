@@ -17,8 +17,10 @@ except ImportError:  # pragma: no cover - tracing is optional at runtime
 def traceable_chain(name: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorate a function as a LangSmith chain when the SDK is available."""
     if traceable is None:
+
         def _decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             return func
+
         return _decorator
 
     return traceable(name=name, run_type="chain")

@@ -189,7 +189,9 @@ def evaluate_generated_report(
             try:
                 responses[task_name] = future.result()
             except Exception as error:
-                logger.error(f"Row {row_id}: LLM {task_name} invocation failed: {error}")
+                logger.error(
+                    f"Row {row_id}: LLM {task_name} invocation failed: {error}"
+                )
                 return None
 
     llm_duration = time.time() - llm_start

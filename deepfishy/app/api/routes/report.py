@@ -68,7 +68,9 @@ def _report_thinking_metadata(session_id: str) -> dict[str, Any]:
     }
 
 
-def _persisted_report_history(session_id: str, db: Session | None = None) -> dict[str, Any]:
+def _persisted_report_history(
+    session_id: str, db: Session | None = None
+) -> dict[str, Any]:
     if db is None:
         return {"activities": [], "activity_count": 0}
 
@@ -171,10 +173,12 @@ class ProgressCallback:
 
     async def emit(self, event_type: str, data: dict):
         """Emit a progress event."""
-        await self.queue.put({
-            "type": event_type,
-            "data": data,
-        })
+        await self.queue.put(
+            {
+                "type": event_type,
+                "data": data,
+            }
+        )
 
 
 def _run_report_generation_with_progress(
@@ -213,7 +217,11 @@ def _run_report_generation_with_progress(
                 event_data = None
 
                 if "Classifying topic" in msg:
-                    event_data = {"stage": "classify", "phase": "build", "message": "Đang phân loại chủ đề..."}
+                    event_data = {
+                        "stage": "classify",
+                        "phase": "build",
+                        "message": "Đang phân loại chủ đề...",
+                    }
                 elif (
                     "PHASE 1: Build" in msg
                     or "Creating Builder Orchestrator" in msg
@@ -223,25 +231,51 @@ def _run_report_generation_with_progress(
                     or "Topic unknown" in msg
                     or "Falling back to default outline" in msg
                 ):
-                    event_data = {"stage": "build", "phase": "build", "message": "Đang tổng hợp dữ liệu nghiên cứu..."}
+                    event_data = {
+                        "stage": "build",
+                        "phase": "build",
+                        "message": "Đang tổng hợp dữ liệu nghiên cứu...",
+                    }
                 elif "PHASE 2: Write" in msg:
-                    event_data = {"stage": "write", "phase": "write", "message": "Bắt đầu soạn báo cáo..."}
+                    event_data = {
+                        "stage": "write",
+                        "phase": "write",
+                        "message": "Bắt đầu soạn báo cáo...",
+                    }
                 elif "identified" in msg and "section workflow" in msg:
-                    event_data = {"stage": "plan", "phase": "build", "message": "Đã xác định 1 luồng nghiên cứu cho báo cáo"}
+                    event_data = {
+                        "stage": "plan",
+                        "phase": "build",
+                        "message": "Đã xác định 1 luồng nghiên cứu cho báo cáo",
+                    }
                 elif "Web search:" in msg:
-                    query = msg.split("Web search: '")[1].split("'")[0] if "'" in msg else ""
-                    result_count = msg.split("→ ")[1].split(" results")[0] if "→ " in msg else "0"
+                    query = (
+                        msg.split("Web search: '")[1].split("'")[0]
+                        if "'" in msg
+                        else ""
+                    )
+                    result_count = (
+                        msg.split("→ ")[1].split(" results")[0] if "→ " in msg else "0"
+                    )
                     event_data = {
                         "stage": "research",
                         "type": "web",
                         "query": progress_data.get("query") or query,
                         "results": progress_data.get("results", []),
-                        "result_count": int(result_count) if result_count.isdigit() else 0,
+                        "result_count": (
+                            int(result_count) if result_count.isdigit() else 0
+                        ),
                         "message": f"🔍 Web: {query[:50]}... → {result_count} kết quả",
                     }
                 elif "Local search:" in msg:
-                    query = msg.split("Local search: '")[1].split("'")[0] if "'" in msg else ""
-                    results = msg.split("→ ")[1].split(" results")[0] if "→ " in msg else "0"
+                    query = (
+                        msg.split("Local search: '")[1].split("'")[0]
+                        if "'" in msg
+                        else ""
+                    )
+                    results = (
+                        msg.split("→ ")[1].split(" results")[0] if "→ " in msg else "0"
+                    )
                     event_data = {
                         "stage": "research",
                         "type": "local",
@@ -250,12 +284,33 @@ def _run_report_generation_with_progress(
                         "message": f"📚 Local: {query[:50]}... → {results} kết quả",
                     }
                 elif "Finance API: fetching" in msg:
-                    ticker = msg.split("fetching ")[1].split(" from")[0] if "fetching " in msg else ""
-                    event_data = {"stage": "research", "type": "finance", "ticker": ticker, "message": f"Đang phân tích dữ liệu tài chính {ticker}"}
+                    ticker = (
+                        msg.split("fetching ")[1].split(" from")[0]
+                        if "fetching " in msg
+                        else ""
+                    )
+                    event_data = {
+                        "stage": "research",
+                        "type": "finance",
+                        "ticker": ticker,
+                        "message": f"Đang phân tích dữ liệu tài chính {ticker}",
+                    }
                 elif "commit_facts_to_graph:" in msg and "staged" in msg:
-                    facts = msg.split("staged ")[1].split(" facts")[0] if "staged " in msg else "0"
-                    section = msg.split("section=")[1].split(" ")[0] if "section=" in msg else ""
-                    section_label = section.replace("section_", "phần ") if section else "mục hiện tại"
+                    facts = (
+                        msg.split("staged ")[1].split(" facts")[0]
+                        if "staged " in msg
+                        else "0"
+                    )
+                    section = (
+                        msg.split("section=")[1].split(" ")[0]
+                        if "section=" in msg
+                        else ""
+                    )
+                    section_label = (
+                        section.replace("section_", "phần ")
+                        if section
+                        else "mục hiện tại"
+                    )
                     event_data = {
                         "stage": "facts",
                         "count": int(facts) if facts.isdigit() else 0,
@@ -263,7 +318,11 @@ def _run_report_generation_with_progress(
                         "message": f"Đã tổng hợp {facts} bằng chứng cho {section_label}",
                     }
                 elif "Builder wrote" in msg:
-                    filename = msg.split("wrote ")[1].split(" to")[0] if "wrote " in msg else ""
+                    filename = (
+                        msg.split("wrote ")[1].split(" to")[0]
+                        if "wrote " in msg
+                        else ""
+                    )
                     filename_labels = {
                         "research_results.md": "bản tổng hợp kết quả nghiên cứu",
                         "research_plan.md": "kế hoạch nghiên cứu",
@@ -272,14 +331,28 @@ def _run_report_generation_with_progress(
                         "section_evidence_map.json": "liên kết bằng chứng với từng phần",
                     }
                     label = filename_labels.get(filename, filename)
-                    event_data = {"stage": "output", "filename": filename, "message": f"Đã tạo {label}"}
+                    event_data = {
+                        "stage": "output",
+                        "filename": filename,
+                        "message": f"Đã tạo {label}",
+                    }
                 elif "TOTAL BUILD PHASE" in msg:
-                    event_data = {"stage": "build_complete", "phase": "build", "message": "Hoàn tất tổng hợp dữ liệu"}
+                    event_data = {
+                        "stage": "build_complete",
+                        "phase": "build",
+                        "message": "Hoàn tất tổng hợp dữ liệu",
+                    }
                 elif "Creating Report Writer" in msg:
-                    event_data = {"stage": "write_start", "phase": "write", "message": "Đang chuẩn bị trình soạn báo cáo..."}
+                    event_data = {
+                        "stage": "write_start",
+                        "phase": "write",
+                        "message": "Đang chuẩn bị trình soạn báo cáo...",
+                    }
 
                 if event_data:
-                    state = REPORT_STATES.setdefault(session_id, _initial_report_state(phases))
+                    state = REPORT_STATES.setdefault(
+                        session_id, _initial_report_state(phases)
+                    )
                     state["activity_sequence"] = state.get("activity_sequence", 0) + 1
                     activity = _normalize_progress_activity(
                         session_id,
@@ -293,18 +366,28 @@ def _run_report_generation_with_progress(
                     state["message"] = event_data.get("message")
                     if event_data.get("phase"):
                         state["current_phase"] = event_data["phase"]
-                    if event_data.get("stage") == "build_complete" and "build" not in state["phases_completed"]:
+                    if (
+                        event_data.get("stage") == "build_complete"
+                        and "build" not in state["phases_completed"]
+                    ):
                         state["phases_completed"].append("build")
                         state["current_phase"] = "write" if "write" in phases else None
                     if event_data.get("stage") in ("write", "write_start"):
-                        if "build" in phases and "build" not in state["phases_completed"]:
+                        if (
+                            "build" in phases
+                            and "build" not in state["phases_completed"]
+                        ):
                             state["phases_completed"].append("build")
                         state["current_phase"] = "write"
 
                     try:
                         loop.call_soon_threadsafe(
                             callback_queue.put_nowait,
-                            {"type": "progress", "data": event_data, "activity": activity}
+                            {
+                                "type": "progress",
+                                "data": event_data,
+                                "activity": activity,
+                            },
                         )
                     except Exception:
                         pass
@@ -314,6 +397,7 @@ def _run_report_generation_with_progress(
         progress_handler.setLevel(logging.INFO)
 
         from deepfishy.shared.logging import logger as deepfishy_logger
+
         deepfishy_logger.addHandler(progress_handler)
 
         try:
@@ -559,7 +643,11 @@ async def get_report_status(session_id: str, db: Session = Depends(get_db)):
         "completed"
         if has_final_md
         else live_state.get("status")
-        or (persisted_status if persisted_status in {"completed", "failed"} else "in_progress")
+        or (
+            persisted_status
+            if persisted_status in {"completed", "failed"}
+            else "in_progress"
+        )
     )
     phases_completed = live_state.get("phases_completed") or file_phases_completed
     if has_final_md:
@@ -567,10 +655,14 @@ async def get_report_status(session_id: str, db: Session = Depends(get_db)):
     elif not phases_completed and status == "completed":
         phases = persisted.get("phases")
         if isinstance(phases, list):
-            phases_completed = [phase for phase in phases if phase in {"build", "write"}]
+            phases_completed = [
+                phase for phase in phases if phase in {"build", "write"}
+            ]
 
     activities = live_state.get("activities") or persisted["activities"]
-    activity_count = len(activities) if live_state.get("activities") else persisted["activity_count"]
+    activity_count = (
+        len(activities) if live_state.get("activities") else persisted["activity_count"]
+    )
 
     return ReportStatusResponse(
         session_id=session_id,
@@ -578,8 +670,12 @@ async def get_report_status(session_id: str, db: Session = Depends(get_db)):
         phases_completed=phases_completed,
         output_files=output_files,
         created_at=live_state.get("created_at"),
-        current_phase=None if has_final_md or not live_state else live_state.get("current_phase"),
-        current_stage=None if has_final_md or not live_state else live_state.get("current_stage"),
+        current_phase=(
+            None if has_final_md or not live_state else live_state.get("current_phase")
+        ),
+        current_stage=(
+            None if has_final_md or not live_state else live_state.get("current_stage")
+        ),
         message=live_state.get("message") or persisted.get("message"),
         activities=activities,
         activity_count=activity_count,

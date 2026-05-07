@@ -41,12 +41,18 @@ def materialize_outline_to_drafts(workspace_path: str, outline_text: str) -> int
         return 0
 
     lines = text.splitlines()
-    section_starts = [index for index, line in enumerate(lines) if line.startswith("## ")]
+    section_starts = [
+        index for index, line in enumerate(lines) if line.startswith("## ")
+    ]
 
     sections: list[str] = []
     if section_starts:
         for index, start in enumerate(section_starts):
-            end = section_starts[index + 1] if index + 1 < len(section_starts) else len(lines)
+            end = (
+                section_starts[index + 1]
+                if index + 1 < len(section_starts)
+                else len(lines)
+            )
             chunk = "\n".join(lines[start:end]).strip()
             if chunk:
                 sections.append(chunk)
@@ -160,8 +166,12 @@ def run_engine(
         template_path = Path("templates/industry_outline.md")
         logger.info("Topic classified as INDUSTRY. Using industry outline template.")
     else:
-        logger.info("Topic unknown. Rejecting report generation because the topic could not be classified.")
-        raise ValueError("Cannot classify topic. Please provide a specific company, industry, sector, or macroeconomic topic.")
+        logger.info(
+            "Topic unknown. Rejecting report generation because the topic could not be classified."
+        )
+        raise ValueError(
+            "Cannot classify topic. Please provide a specific company, industry, sector, or macroeconomic topic."
+        )
 
     template_outline = ""
     try:
@@ -210,7 +220,9 @@ def run_engine(
                 workspace_path = os.path.join(OUTPUT_BASE_PATH, session_id)
                 existing_outline_path = os.path.join(workspace_path, "outline.md")
                 if os.path.exists(existing_outline_path):
-                    with open(existing_outline_path, "r", encoding="utf-8") as file_handle:
+                    with open(
+                        existing_outline_path, "r", encoding="utf-8"
+                    ) as file_handle:
                         outline = file_handle.read()
                     logger.info(
                         f"Using existing outline from prior build run: {existing_outline_path}"
