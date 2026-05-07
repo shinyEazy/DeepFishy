@@ -4,11 +4,10 @@ import {
   ChevronDown,
   Copy,
   FileText,
-  PanelRightClose,
+  Search,
   X,
 } from "lucide-react"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -54,11 +53,7 @@ export function ReportSidebarHeader({
 
   return (
     <header className="flex shrink-0 items-center gap-3 px-4 py-3">
-      <Avatar className="size-6 rounded-2xl">
-        <AvatarFallback className="rounded-2xl bg-slate-950 text-white">
-          <FileText />
-        </AvatarFallback>
-      </Avatar>
+      <Search className="size-5 shrink-0 text-slate-950" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-slate-950">{title}</p>
       </div>

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 
+import { cn } from "@/lib/utils"
+
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
@@ -26,6 +28,18 @@ export function ReportSidebar({
   const [content, setContent] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isMounted, setIsMounted] = useState(isOpen)
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsMounted(true)
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => setIsMounted(false), 300)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [isOpen])
 
   useEffect(() => {
     if (!isOpen || !sessionId) {
@@ -70,12 +84,19 @@ export function ReportSidebar({
     ? addCitationLinks(parsedContent.body)
     : null
 
-  if (!isOpen || !sessionId) {
-    return null
+  if (!isMounted || !sessionId) {
+    return <div className="hidden min-w-0 overflow-hidden xl:block" />
   }
 
   return (
-    <aside className="report-sidebar fixed inset-y-0 right-0 z-50 flex h-full min-h-0 w-full max-w-2xl flex-col overflow-hidden border-l border-slate-200 bg-white shadow-[-24px_0_70px_rgba(15,23,42,0.16)] xl:relative xl:z-auto xl:max-w-none xl:rounded-xl xl:border xl:shadow-[0_4px_20px_-2px_rgba(79,70,229,0.10)]">
+    <aside
+      className={cn(
+        "report-sidebar fixed inset-y-0 right-0 z-50 flex h-full min-h-0 w-full max-w-2xl flex-col overflow-hidden border-l border-slate-200 bg-white shadow-[-24px_0_70px_rgba(15,23,42,0.16)] transition-[opacity,transform] duration-300 ease-out xl:relative xl:z-auto xl:max-w-none xl:rounded-xl xl:border xl:shadow-[0_4px_20px_-2px_rgba(79,70,229,0.10)]",
+        isOpen
+          ? "translate-x-0 opacity-100"
+          : "translate-x-full opacity-0 xl:translate-x-[calc(100%+1rem)]"
+      )}
+    >
       <ReportSidebarHeader
         sessionId={sessionId}
         title={title}

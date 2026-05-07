@@ -1,5 +1,3 @@
-"use client"
-
 import { useEffect, useState } from "react"
 import { Menu } from "lucide-react"
 
@@ -70,6 +68,7 @@ export function ChatWorkspace({
     nextUrl.searchParams.set("session", newSessionId)
     window.history.pushState({}, "", nextUrl)
     setSelectedSessionId(newSessionId)
+    setOpenReportSessionId(null)
   }
 
   const handleSelectSession = (sessionId: string) => {
@@ -77,6 +76,7 @@ export function ChatWorkspace({
     nextUrl.searchParams.set("session", sessionId)
     window.history.pushState({}, "", nextUrl)
     setSelectedSessionId(sessionId)
+    setOpenReportSessionId(null)
   }
 
   const openReportMessage = transcript.find(
@@ -175,8 +175,8 @@ export function ChatWorkspace({
                 ? "xl:grid-cols-[88px_minmax(420px,0.8fr)_minmax(520px,1.2fr)]"
                 : "xl:grid-cols-[380px_minmax(420px,0.8fr)_minmax(520px,1.2fr)]"
               : isSidebarCollapsed
-                ? "xl:grid-cols-[88px_minmax(0,1fr)]"
-                : "xl:grid-cols-[380px_minmax(0,1fr)]"
+                ? "xl:grid-cols-[88px_minmax(0,1fr)_minmax(0,0fr)]"
+                : "xl:grid-cols-[380px_minmax(0,1fr)_minmax(0,0fr)]"
           )}
         >
           {/* Desktop sidebar */}
