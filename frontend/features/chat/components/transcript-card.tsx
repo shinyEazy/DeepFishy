@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import type { ResearchPlan, TranscriptMessage } from "@/features/chat/types"
@@ -120,7 +121,9 @@ function serializeTemplateSections(sections: TemplateSection[]) {
       const heading = section.heading.trim() || "Phần chưa đặt tên"
       const prefix = "#".repeat(section.level || 2)
       const content = section.content.trim()
-      return content ? `${prefix} ${heading}\n\n${content}` : `${prefix} ${heading}`
+      return content
+        ? `${prefix} ${heading}\n\n${content}`
+        : `${prefix} ${heading}`
     })
     .join("\n\n")
 }
@@ -503,7 +506,9 @@ export function TranscriptCard({
                                   <span>Cấu trúc báo cáo</span>
                                 </div>
                                 <p className="text-xs leading-5 text-slate-500">
-                                  Đây là các phần sẽ được dùng để tạo báo cáo. Bạn có thể chỉnh tiêu đề, nội dung cần phân tích hoặc thêm phần mới trước khi bắt đầu.
+                                  Đây là các phần sẽ được dùng để tạo báo cáo.
+                                  Bạn có thể chỉnh tiêu đề, nội dung cần phân
+                                  tích hoặc thêm phần mới trước khi bắt đầu.
                                 </p>
                               </div>
                               <Button
@@ -519,85 +524,92 @@ export function TranscriptCard({
                             </div>
 
                             <div className="space-y-3">
-                              {editableTemplateSections.map((section, index) => (
-                                <div
-                                  key={section.id}
-                                  className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3"
-                                >
-                                  <div className="mb-3 flex items-center justify-between gap-2">
-                                    <span className="rounded-full bg-white px-2.5 py-1 text-[0.68rem] font-semibold text-slate-500 ring-1 ring-slate-200">
-                                      Phần {index + 1}
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        onClick={() =>
-                                          moveTemplateSection(section.id, -1)
-                                        }
-                                        disabled={index === 0}
-                                        className="size-7 rounded-full text-slate-500"
-                                      >
-                                        <ArrowUp className="size-3.5" />
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        onClick={() =>
-                                          moveTemplateSection(section.id, 1)
-                                        }
-                                        disabled={index === editableTemplateSections.length - 1}
-                                        className="size-7 rounded-full text-slate-500"
-                                      >
-                                        <ArrowDown className="size-3.5" />
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        onClick={() =>
-                                          removeTemplateSection(section.id)
-                                        }
-                                        disabled={editableTemplateSections.length <= 1}
-                                        className="size-7 rounded-full text-rose-500 hover:bg-rose-50 hover:text-rose-600"
-                                      >
-                                        <Trash2 className="size-3.5" />
-                                      </Button>
+                              {editableTemplateSections.map(
+                                (section, index) => (
+                                  <div
+                                    key={section.id}
+                                    className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3"
+                                  >
+                                    <div className="mb-3 flex items-center justify-between gap-2">
+                                      <span className="rounded-full bg-white px-2.5 py-1 text-[0.68rem] font-semibold text-slate-500 ring-1 ring-slate-200">
+                                        Phần {index + 1}
+                                      </span>
+                                      <div className="flex items-center gap-1">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          onClick={() =>
+                                            moveTemplateSection(section.id, -1)
+                                          }
+                                          disabled={index === 0}
+                                          className="size-7 rounded-full text-slate-500"
+                                        >
+                                          <ArrowUp className="size-3.5" />
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          onClick={() =>
+                                            moveTemplateSection(section.id, 1)
+                                          }
+                                          disabled={
+                                            index ===
+                                            editableTemplateSections.length - 1
+                                          }
+                                          className="size-7 rounded-full text-slate-500"
+                                        >
+                                          <ArrowDown className="size-3.5" />
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          onClick={() =>
+                                            removeTemplateSection(section.id)
+                                          }
+                                          disabled={
+                                            editableTemplateSections.length <= 1
+                                          }
+                                          className="size-7 rounded-full text-rose-500 hover:bg-rose-50 hover:text-rose-600"
+                                        >
+                                          <Trash2 className="size-3.5" />
+                                        </Button>
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-2.5">
+                                      <Label className="flex flex-col items-stretch gap-1.5 text-xs font-medium text-slate-600">
+                                        <span>Tiêu đề phần</span>
+                                        <Input
+                                          value={section.heading}
+                                          onChange={(event) =>
+                                            updateTemplateSection(section.id, {
+                                              heading: event.target.value,
+                                            })
+                                          }
+                                          placeholder="Ví dụ: Tổng quan doanh nghiệp"
+                                          className="rounded-xl border-slate-200 bg-white"
+                                        />
+                                      </Label>
+                                      <Label className="flex flex-col items-stretch gap-1.5 text-xs font-medium text-slate-600">
+                                        <span>Nội dung cần phân tích</span>
+                                        <Textarea
+                                          value={section.content}
+                                          onChange={(event) =>
+                                            updateTemplateSection(section.id, {
+                                              content: event.target.value,
+                                            })
+                                          }
+                                          placeholder="Mô tả các ý chính, câu hỏi nghiên cứu hoặc dữ liệu cần có trong phần này..."
+                                          className="min-h-28 resize-y rounded-xl border-slate-200 bg-white text-xs leading-5 text-slate-700"
+                                        />
+                                      </Label>
                                     </div>
                                   </div>
-
-                                  <div className="space-y-2.5">
-                                    <label className="space-y-1.5 text-xs font-medium text-slate-600">
-                                      <span>Tiêu đề phần</span>
-                                      <Input
-                                        value={section.heading}
-                                        onChange={(event) =>
-                                          updateTemplateSection(section.id, {
-                                            heading: event.target.value,
-                                          })
-                                        }
-                                        placeholder="Ví dụ: Tổng quan doanh nghiệp"
-                                        className="rounded-xl border-slate-200 bg-white"
-                                      />
-                                    </label>
-                                    <label className="space-y-1.5 text-xs font-medium text-slate-600">
-                                      <span>Nội dung cần phân tích</span>
-                                      <Textarea
-                                        value={section.content}
-                                        onChange={(event) =>
-                                          updateTemplateSection(section.id, {
-                                            content: event.target.value,
-                                          })
-                                        }
-                                        placeholder="Mô tả các ý chính, câu hỏi nghiên cứu hoặc dữ liệu cần có trong phần này..."
-                                        className="min-h-28 resize-y rounded-xl border-slate-200 bg-white text-xs leading-5 text-slate-700"
-                                      />
-                                    </label>
-                                  </div>
-                                </div>
-                              ))}
+                                )
+                              )}
                             </div>
                           </div>
                         ) : null}
@@ -609,11 +621,13 @@ export function TranscriptCard({
                                 Mức độ nghiên cứu
                               </div>
                               <p className="mt-1 text-xs leading-5 text-slate-500">
-                                Tăng các giá trị này nếu bạn muốn báo cáo tìm sâu hơn, nhưng thời gian tạo báo cáo cũng có thể lâu hơn.
+                                Tăng các giá trị này nếu bạn muốn báo cáo tìm
+                                sâu hơn, nhưng thời gian tạo báo cáo cũng có thể
+                                lâu hơn.
                               </p>
                             </div>
                             <div className="grid gap-3 sm:grid-cols-3">
-                              <label className="space-y-1.5 text-xs font-medium text-slate-600">
+                              <Label className="flex flex-col items-stretch gap-1.5 text-xs font-medium text-slate-600">
                                 <span>Độ chi tiết mỗi phần</span>
                                 <Input
                                   type="number"
@@ -633,10 +647,11 @@ export function TranscriptCard({
                                   }
                                 />
                                 <span className="block text-[0.68rem] leading-4 font-normal text-slate-400">
-                                  Càng cao thì mỗi phần được chia nhỏ để tìm kỹ hơn.
+                                  Càng cao thì mỗi phần được chia nhỏ để tìm kỹ
+                                  hơn.
                                 </span>
-                              </label>
-                              <label className="space-y-1.5 text-xs font-medium text-slate-600">
+                              </Label>
+                              <Label className="flex flex-col items-stretch gap-1.5 text-xs font-medium text-slate-600">
                                 <span>Lượt tìm bổ sung</span>
                                 <Input
                                   type="number"
@@ -658,15 +673,16 @@ export function TranscriptCard({
                                 <span className="block text-[0.68rem] leading-4 font-normal text-slate-400">
                                   Số lần tìm thêm nếu dữ liệu ban đầu chưa đủ.
                                 </span>
-                              </label>
-                              <label className="space-y-1.5 text-xs font-medium text-slate-600">
+                              </Label>
+                              <Label className="flex flex-col items-stretch gap-1.5 text-xs font-medium text-slate-600">
                                 <span>Số nguồn mỗi lượt tìm</span>
                                 <Input
                                   type="number"
                                   min={1}
                                   max={10}
                                   value={
-                                    researchPlan.researchOptions.maxSearchResults
+                                    researchPlan.researchOptions
+                                      .maxSearchResults
                                   }
                                   onChange={(event) =>
                                     updateResearchOption(
@@ -680,7 +696,7 @@ export function TranscriptCard({
                                 <span className="block text-[0.68rem] leading-4 font-normal text-slate-400">
                                   Số nguồn tham khảo lấy về cho mỗi lượt tìm.
                                 </span>
-                              </label>
+                              </Label>
                             </div>
                           </div>
                         ) : null}
