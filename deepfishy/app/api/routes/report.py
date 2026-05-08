@@ -7,10 +7,10 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from engine.orchestrators.classifier import classify_topic
-
 from deepfishy.features.chat.response_service import ResponseService
-from deepfishy.features.reports.application.generate_report import create_model
+from deepfishy.features.reports.application.generate_report import (
+    resolve_report_template,
+)
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import desc
@@ -25,6 +25,11 @@ from deepfishy.shared.logging import logger
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
 REPORT_STATES: dict[str, dict] = {}
+DEFAULT_RESEARCH_OPTIONS = {
+    "max_section_subqueries": 3,
+    "max_follow_up_queries": 0,
+    "max_search_results": 5,
+}
 
 
 def _initial_report_state(phases: list[str]) -> dict[str, Any]:
@@ -151,6 +156,28 @@ class ReportRequest(BaseModel):
         default=None,
         description="Optional configured LLM model name for report generation",
     )
+    template_content: Optional[str] = Field(
+        default=None,
+        description="Optional edited report outline template content",
+    )
+    max_section_subqueries: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=10,
+        description="Maximum research subqueries per report section",
+    )
+    max_follow_up_queries: Optional[int] = Field(
+        default=None,
+        ge=0,
+        le=5,
+        description="Maximum follow-up queries after coverage critique",
+    )
+    max_search_results: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=10,
+        description="Default number of search results per search tool call",
+    )
 
 
 class ReportResponse(BaseModel):
@@ -163,6 +190,9 @@ class ReportResponse(BaseModel):
     message: str
     action: Optional[str] = None
     conversation_id: Optional[str] = None
+    template_kind: Optional[str] = None
+    template_content: Optional[str] = None
+    research_options: Optional[dict[str, int]] = None
 
 
 class ReportStatusResponse(BaseModel):
@@ -197,6 +227,26 @@ class ProgressCallback:
         )
 
 
+def _research_options_from_request(request: ReportRequest) -> dict[str, int]:
+    return {
+        "max_section_subqueries": (
+            request.max_section_subqueries
+            if request.max_section_subqueries is not None
+            else DEFAULT_RESEARCH_OPTIONS["max_section_subqueries"]
+        ),
+        "max_follow_up_queries": (
+            request.max_follow_up_queries
+            if request.max_follow_up_queries is not None
+            else DEFAULT_RESEARCH_OPTIONS["max_follow_up_queries"]
+        ),
+        "max_search_results": (
+            request.max_search_results
+            if request.max_search_results is not None
+            else DEFAULT_RESEARCH_OPTIONS["max_search_results"]
+        ),
+    }
+
+
 def _run_report_generation_with_progress(
     topic: str,
     session_id: str,
@@ -204,6 +254,8 @@ def _run_report_generation_with_progress(
     use_knowledge_graph: bool,
     callback_queue: asyncio.Queue,
     model_name: str | None = None,
+    template_content: str | None = None,
+    research_options: dict[str, int] | None = None,
 ) -> dict:
     """Run report generation synchronously with progress callbacks."""
     import asyncio as _asyncio
@@ -423,6 +475,8 @@ def _run_report_generation_with_progress(
                 session_id=session_id,
                 phases=phases,
                 model_name=model_name,
+                template_content=template_content,
+                research_options=research_options,
             )
         finally:
             deepfishy_logger.removeHandler(progress_handler)
@@ -496,10 +550,14 @@ async def generate_report(request: ReportRequest, db: Session = Depends(get_db))
             },
         )
 
-        model = create_model(request.model_name)
-        topic_type = classify_topic(model, request.topic)
+        try:
+            template = resolve_report_template(
+                request.topic, model_name=request.model_name
+            )
+        except ValueError:
+            template = None
 
-        if topic_type in {1, 2}:
+        if template:
             return ReportResponse(
                 session_id=session_id,
                 status="idle",
@@ -508,6 +566,9 @@ async def generate_report(request: ReportRequest, db: Session = Depends(get_db))
                 message="Đây là kế hoạch tôi đã chuẩn bị. Nếu bạn cần chỉnh sửa gì, hãy cho tôi biết trước khi tôi bắt đầu nghiên cứu.",
                 action="plan",
                 conversation_id=conversation.id,
+                template_kind=template["topic_type"],
+                template_content=template["template_content"],
+                research_options=DEFAULT_RESEARCH_OPTIONS,
             )
 
         response_service = ResponseService(model_name=request.model_name)
@@ -550,6 +611,7 @@ async def generate_report(request: ReportRequest, db: Session = Depends(get_db))
         content=request.topic,
         metadata={"source": "reports_api", "mode": "deep"},
     )
+    research_options = _research_options_from_request(request)
     REPORT_STATES[session_id] = _initial_report_state(phases)
 
     if request.stream:
@@ -571,6 +633,8 @@ async def generate_report(request: ReportRequest, db: Session = Depends(get_db))
                 request.use_knowledge_graph,
                 callback_queue,
                 request.model_name,
+                request.template_content,
+                research_options,
             )
 
             # Forward events from queue
@@ -655,6 +719,8 @@ async def generate_report(request: ReportRequest, db: Session = Depends(get_db))
         request.use_knowledge_graph,
         callback_queue,
         request.model_name,
+        request.template_content,
+        research_options,
     )
 
     if not result["success"]:

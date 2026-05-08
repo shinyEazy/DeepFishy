@@ -116,10 +116,49 @@ def create_model(model_name: str | None = None) -> Optional[BaseChatModel]:
     return model
 
 
+def resolve_report_template(
+    topic: str, model_name: str | None = None
+) -> dict[str, str]:
+    """Classify a report topic and load its outline template."""
+    custom_model = create_model(model_name)
+    topic_type = classify_topic(custom_model, topic)
+
+    if topic_type == 1:
+        template_kind = "company"
+        template_path = Path("templates/company_outline.md")
+        logger.info("Topic classified as COMPANY. Using company outline template.")
+    elif topic_type == 2:
+        template_kind = "industry"
+        template_path = Path("templates/industry_outline.md")
+        logger.info("Topic classified as INDUSTRY. Using industry outline template.")
+    else:
+        logger.info(
+            "Topic unknown. Rejecting report generation because the topic could not be classified."
+        )
+        raise ValueError(
+            "Cannot classify topic. Please provide a specific company, industry, sector, or macroeconomic topic."
+        )
+
+    template_content = ""
+    try:
+        template_content = template_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        logger.error(
+            f"Template file not found: {template_path}. Proceeding with an empty outline."
+        )
+
+    return {
+        "topic_type": template_kind,
+        "template_path": str(template_path),
+        "template_content": template_content,
+    }
+
+
 def create_agent(
     session_id: Optional[str] = None,
     phase: str = "write",
     model_name: str | None = None,
+    research_options: dict[str, int] | None = None,
 ):
     """Create the phase-specific orchestrator and agent."""
     custom_model = create_model(model_name)
@@ -130,6 +169,7 @@ def create_agent(
             model=custom_model,
             session_id=session_id,
             output_base_path=OUTPUT_BASE_PATH,
+            research_options=research_options,
         )
         return orchestrator.create(), orchestrator
 
@@ -150,6 +190,8 @@ def run_engine(
     session_id: Optional[str] = None,
     phases: list[str] | None = None,
     model_name: str | None = None,
+    template_content: str | None = None,
+    research_options: dict[str, int] | None = None,
 ) -> str:
     """Run the build/write report pipeline and return the final markdown path."""
     if phases is None:
@@ -162,30 +204,11 @@ def run_engine(
         session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     logger.info("Classifying topic...")
-    custom_model = create_model(model_name)
-    topic_type = classify_topic(custom_model, user_input)
-
-    if topic_type == 1:
-        template_path = Path("templates/company_outline.md")
-        logger.info("Topic classified as COMPANY. Using company outline template.")
-    elif topic_type == 2:
-        template_path = Path("templates/industry_outline.md")
-        logger.info("Topic classified as INDUSTRY. Using industry outline template.")
-    else:
-        logger.info(
-            "Topic unknown. Rejecting report generation because the topic could not be classified."
-        )
-        raise ValueError(
-            "Cannot classify topic. Please provide a specific company, industry, sector, or macroeconomic topic."
-        )
-
-    template_outline = ""
-    try:
-        template_outline = template_path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        logger.error(
-            f"Template file not found: {template_path}. Proceeding with an empty outline."
-        )
+    resolved_template = resolve_report_template(user_input, model_name=model_name)
+    template_path = resolved_template["template_path"]
+    template_outline = template_content or resolved_template["template_content"]
+    if template_content is not None:
+        logger.info("Using edited report outline template from request.")
 
     build_outline = None
     final_path = ""
@@ -258,6 +281,7 @@ def run_engine(
             session_id=session_id if ENABLE_DISK_BACKEND else None,
             phase=current_phase,
             model_name=model_name,
+            research_options=research_options,
         )
 
         if ENABLE_DISK_BACKEND and hasattr(agent, "_workspace_path"):
@@ -397,5 +421,6 @@ __all__ = [
     "create_model",
     "extract_text_from_content",
     "materialize_outline_to_drafts",
+    "resolve_report_template",
     "run_engine",
 ]

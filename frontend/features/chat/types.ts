@@ -1,4 +1,9 @@
-import type { ReportPhase, ReportStatus, ResearchActivity } from "@/features/report/types"
+import type {
+  ReportPhase,
+  ReportStatus,
+  ResearchActivity,
+  ResearchOptions,
+} from "@/features/report/types"
 
 export type { ResearchActivity }
 
@@ -46,6 +51,9 @@ export type ResearchPlan = {
   readyMessage: string
   awaitingConfirmation: boolean
   startLabel?: string
+  templateKind?: "company" | "industry"
+  templateContent?: string
+  researchOptions?: ResearchOptions
 }
 
 export type TranscriptMessage = {

@@ -153,10 +153,28 @@ class BuilderOrchestrator:
         model: BaseChatModel,
         session_id: Optional[str] = None,
         output_base_path: str = "outputs",
+        research_options: Optional[Dict[str, int]] = None,
     ):
         self.model = model
         self.session_id = session_id
         self.output_base_path = output_base_path
+        options = research_options or {}
+        self.max_section_subqueries = max(
+            1,
+            min(
+                int(options.get("max_section_subqueries", self.MAX_SECTION_SUBQUERIES)),
+                10,
+            ),
+        )
+        self.max_follow_up_queries = max(
+            0,
+            min(
+                int(options.get("max_follow_up_queries", self.MAX_FOLLOW_UP_QUERIES)), 5
+            ),
+        )
+        self.max_search_results = max(
+            1, min(int(options.get("max_search_results", 5)), 10)
+        )
         self._agent = None
         self._workspace_path = None
 
@@ -399,7 +417,7 @@ class BuilderOrchestrator:
 
         tasks: List[ResearchTask] = []
         for idx, point in enumerate(
-            coverage_points[: self.MAX_SECTION_SUBQUERIES], start=1
+            coverage_points[: self.max_section_subqueries], start=1
         ):
             query = (
                 f"{user_request} - tim du lieu cu the de phu hop muc '{point}' "
@@ -446,7 +464,7 @@ class BuilderOrchestrator:
 
         if not tasks:
             return self._fallback_section_plan(user_request, section, prefix=prefix)
-        return tasks[: self.MAX_SECTION_SUBQUERIES]
+        return tasks[: self.max_section_subqueries]
 
     def _plan_section_queries(
         self,
@@ -465,7 +483,7 @@ class BuilderOrchestrator:
 
         planner_prompt = (
             "You are planning research for ONE report section.\n"
-            "Create 3 to 6 narrow subqueries that together cover the section template.\n"
+            f"Create 1 to {self.max_section_subqueries} narrow subqueries that together cover the section template.\n"
             "Return JSON array only.\n"
             "Each object must contain: subquery, tool_hint, rationale.\n"
             "tool_hint must be one of: local, web, finance, mixed.\n"
@@ -520,6 +538,7 @@ class BuilderOrchestrator:
             f"Section title: {task['section_title']}\n"
             f"Tool hint: {task['tool_hint']}\n"
             f"Coverage goal: {task['rationale']}\n"
+            f"Use up to {self.max_search_results} results when calling search tools that accept top_k or max_results.\n"
             "Call commit_facts_to_graph exactly once after collecting the relevant facts."
         )
 
@@ -593,7 +612,7 @@ class BuilderOrchestrator:
             "Return JSON object only with keys: sufficient, missing_points, follow_up_queries, reasoning, coverage_matrix.\n"
             "- sufficient: boolean\n"
             "- missing_points: array of uncovered outline points\n"
-            "- follow_up_queries: array of at most 3 narrow additional queries written in Vietnamese\n"
+            f"- follow_up_queries: array of at most {self.max_follow_up_queries} narrow additional queries written in Vietnamese\n"
             "- reasoning: short explanation\n\n"
             "- coverage_matrix: array of objects with keys point, status, support_count, sample_facts\n"
             "Only mark sufficient=true if every coverage point has at least one source-backed fact or is explicitly marked as partially covered with a justified reason.\n\n"
@@ -684,7 +703,7 @@ class BuilderOrchestrator:
             ],
             "follow_up_queries": [
                 str(item).strip()
-                for item in follow_up_queries[: self.MAX_FOLLOW_UP_QUERIES]
+                for item in follow_up_queries[: self.max_follow_up_queries]
                 if str(item).strip()
             ],
             "reasoning": str(parsed.get("reasoning", "")).strip()
@@ -1064,10 +1083,12 @@ def create_builder_orchestrator(
     model: BaseChatModel,
     session_id: Optional[str] = None,
     output_base_path: str = "outputs",
+    research_options: Optional[Dict[str, int]] = None,
 ) -> BuilderOrchestrator:
     orchestrator = BuilderOrchestrator(
         model=model,
         session_id=session_id,
         output_base_path=output_base_path,
+        research_options=research_options,
     )
     return orchestrator

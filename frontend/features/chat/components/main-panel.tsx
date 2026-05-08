@@ -19,7 +19,6 @@ import {
 import { DeepResearchProgress } from "@/features/report/components/deep-research-progress"
 import { TranscriptCard } from "@/features/chat/components/transcript-card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -33,6 +32,7 @@ import {
 import type {
   Mode,
   ResearchActivity,
+  ResearchPlan,
   SessionContent,
   TranscriptMessage,
 } from "@/features/chat/types"
@@ -107,9 +107,13 @@ export function ChatMainPanel({
   }, [draft])
 
   const handleDeepResearch = useCallback(
-    async (topic: string, options?: { appendUserMessage?: boolean }) => {
+    async (
+      topic: string,
+      options?: { appendUserMessage?: boolean; researchPlan?: ResearchPlan }
+    ) => {
       const phases: ReportPhase[] = ["build", "write"]
       const shouldAppendUserMessage = options?.appendUserMessage ?? true
+      const researchPlan = options?.researchPlan
 
       const userMessage = createUserMessage(topic, "deep")
       userMessage.title = "Nghiên cứu sâu"
@@ -280,6 +284,12 @@ Answer conversationally in the user's language. Explain that deep research needs
             stream: true,
             conversation_id: session.id ?? null,
             model_name: selectedModel,
+            template_content: researchPlan?.templateContent,
+            max_section_subqueries:
+              researchPlan?.researchOptions?.maxSectionSubqueries,
+            max_follow_up_queries:
+              researchPlan?.researchOptions?.maxFollowUpQueries,
+            max_search_results: researchPlan?.researchOptions?.maxSearchResults,
           },
           {
             onDisconnected: (sessionId) => {
@@ -462,11 +472,26 @@ Answer conversationally in the user's language. Explain that deep research needs
     [onSessionChange, onTranscriptChange, selectedModel, session.id]
   )
 
+  const handleResearchPlanChange = useCallback(
+    (topic: string, nextPlan: ResearchPlan) => {
+      onTranscriptChange((current) =>
+        current.map((message) =>
+          message.researchPlan?.topic === topic
+            ? { ...message, researchPlan: nextPlan }
+            : message
+        )
+      )
+    },
+    [onTranscriptChange]
+  )
+
   const handleStartResearch = useCallback(
     async (topic: string) => {
       if (isSubmitting) {
         return
       }
+
+      let selectedResearchPlan: ResearchPlan | undefined
 
       onTranscriptChange((current) => {
         const updated = [...current]
@@ -483,13 +508,18 @@ Answer conversationally in the user's language. Explain that deep research needs
           return current
         }
 
-        updated.splice(updated.length - 1 - planIndex, 1)
+        const actualIndex = updated.length - 1 - planIndex
+        selectedResearchPlan = updated[actualIndex].researchPlan
+        updated.splice(actualIndex, 1)
         return updated
       })
 
       setIsSubmitting(true)
       try {
-        await handleDeepResearch(topic, { appendUserMessage: false })
+        await handleDeepResearch(topic, {
+          appendUserMessage: false,
+          researchPlan: selectedResearchPlan,
+        })
       } finally {
         setIsSubmitting(false)
         onConversationUpdated?.()
@@ -544,7 +574,19 @@ Answer conversationally in the user's language. Explain that deep research needs
 
           const resolvedAssistantMessage =
             result.action === "plan"
-              ? createResearchPlanMessage(result.topic)
+              ? createResearchPlanMessage(result.topic, {
+                  templateKind: result.template_kind,
+                  templateContent: result.template_content,
+                  researchOptions: result.research_options
+                    ? {
+                        maxSectionSubqueries:
+                          result.research_options.max_section_subqueries,
+                        maxFollowUpQueries:
+                          result.research_options.max_follow_up_queries,
+                        maxSearchResults: result.research_options.max_search_results,
+                      }
+                    : undefined,
+                })
               : createAssistantMessage(result.message, "deep")
 
           const nextTranscript = [
@@ -774,6 +816,7 @@ Answer conversationally in the user's language. Explain that deep research needs
                   <TranscriptCard
                     {...message}
                     onStartResearch={handleStartResearch}
+                    onResearchPlanChange={handleResearchPlanChange}
                     isStartingResearch={isSubmitting}
                   />
                 )}

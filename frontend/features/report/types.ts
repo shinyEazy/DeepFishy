@@ -7,6 +7,12 @@ export type ReportStatus =
   | "completed"
   | "failed"
 
+export type ResearchOptions = {
+  maxSectionSubqueries: number
+  maxFollowUpQueries: number
+  maxSearchResults: number
+}
+
 export type ReportRequest = {
   topic: string
   phase?: ReportPhase | null
@@ -16,6 +22,10 @@ export type ReportRequest = {
   conversation_id?: string | null
   classify_only?: boolean
   model_name?: string
+  template_content?: string
+  max_section_subqueries?: number
+  max_follow_up_queries?: number
+  max_search_results?: number
 }
 
 export type ReportResponse = {
@@ -26,6 +36,13 @@ export type ReportResponse = {
   message: string
   action?: "plan" | "answer"
   conversation_id?: string
+  template_kind?: "company" | "industry"
+  template_content?: string
+  research_options?: {
+    max_section_subqueries: number
+    max_follow_up_queries: number
+    max_search_results: number
+  }
 }
 
 export type ReportStatusResponse = {

@@ -46,6 +46,10 @@ export async function generateReport(
       stream: false,
       classify_only: request.classify_only ?? false,
       model_name: request.model_name,
+      template_content: request.template_content,
+      max_section_subqueries: request.max_section_subqueries,
+      max_follow_up_queries: request.max_follow_up_queries,
+      max_search_results: request.max_search_results,
     }),
   })
 
@@ -91,6 +95,10 @@ export async function streamReportGeneration(
       use_knowledge_graph: request.use_knowledge_graph ?? true,
       stream: true,
       model_name: request.model_name,
+      template_content: request.template_content,
+      max_section_subqueries: request.max_section_subqueries,
+      max_follow_up_queries: request.max_follow_up_queries,
+      max_search_results: request.max_search_results,
     }),
   })
 
