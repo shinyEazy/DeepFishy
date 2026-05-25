@@ -12,73 +12,21 @@ from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from graphiti_core import Graphiti
 from graphiti_core.nodes import EpisodeType
-from graphiti_core.llm_client.gemini_client import GeminiClient, LLMConfig
-from graphiti_core.embedder.gemini import GeminiEmbedder, GeminiEmbedderConfig
-from graphiti_core.cross_encoder.gemini_reranker_client import GeminiRerankerClient
+from graphiti_core.llm_client import LLMConfig, OpenAIClient
+from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
+from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerClient
 from graphiti_core.search.search_config_recipes import NODE_HYBRID_SEARCH_RRF
 from graphiti_core.utils.bulk_utils import RawEpisode
 
 from deepfishy.shared.logging import logger
 from deepfishy.infra.config.settings import settings
-from deepfishy.infra.config.model_registry import get_llm_config
+from deepfishy.infra.config.model_registry import get_llm_config, get_embedding_config
 from deepfishy.features.knowledge_graph.rag import SearchResult
 from graph_rag.entity_types import ENTITY_TYPES, EDGE_TYPES, EDGE_TYPE_MAP
 
 load_dotenv()
 
 
-class SafeGeminiClient(GeminiClient):
-    """Gemini client wrapper that normalizes malformed structured outputs.
-
-    Graphiti expects object-shaped responses for attribute extraction, but Gemini
-    occasionally returns a top-level JSON array like `[ {...} ]` even when the
-    schema is an object. That crashes downstream code before Pydantic validation
-    can help. We coerce obvious single-object arrays back into a dict here.
-    """
-
-    @staticmethod
-    def _coerce_structured_response(
-        response: Any, response_model: type | None
-    ) -> Dict[str, Any] | Any:
-        if response_model is None or not isinstance(response, list):
-            return response
-
-        schema_type = response_model.model_json_schema().get("type")
-        if schema_type == "array":
-            return response
-
-        if not response:
-            logger.warning(
-                "SafeGeminiClient received an empty list for object schema; coercing to empty object."
-            )
-            return {}
-
-        first = response[0]
-        if isinstance(first, dict):
-            logger.warning(
-                "SafeGeminiClient received list output for object schema; using the first item."
-            )
-            return first
-
-        logger.warning(
-            "SafeGeminiClient received non-dict list output for object schema; coercing to empty object."
-        )
-        return {}
-
-    async def _generate_response(
-        self,
-        messages,
-        response_model=None,
-        max_tokens=None,
-        model_size=None,
-    ):
-        response = await super()._generate_response(
-            messages=messages,
-            response_model=response_model,
-            max_tokens=max_tokens,
-            model_size=model_size,
-        )
-        return self._coerce_structured_response(response, response_model)
 
 
 class GraphitiService:
@@ -99,9 +47,9 @@ class GraphitiService:
     """
 
     # Default configuration
-    DEFAULT_LLM_MODEL = "xiaomi-mimo-v2.5"
-    DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
-    DEFAULT_RERANKER_MODEL = "xiaomi-mimo-v2.5"
+    DEFAULT_LLM_MODEL = "gpt-5.2"
+    DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
+    DEFAULT_RERANKER_MODEL = "gpt-5.2"
 
     def __init__(
         self,
@@ -140,29 +88,39 @@ class GraphitiService:
             return
 
         try:
-            # Get API key from config
-            gemini_config = get_llm_config(self.llm_model)
-            if not gemini_config or "api_key" not in gemini_config:
-                raise ValueError("Gemini API key not found in config.yaml")
+            llm_config = get_llm_config(self.llm_model)
+            if not llm_config:
+                raise ValueError(f"LLM model '{self.llm_model}' not found in config.yaml")
 
-            api_key = gemini_config["api_key"]
+            embedding_config = get_embedding_config(self.embedding_model)
+            if not embedding_config:
+                raise ValueError(f"Embedding model '{self.embedding_model}' not found in config.yaml")
 
             self.graphiti = Graphiti(
                 self.neo4j_uri,
                 self.neo4j_user,
                 self.neo4j_password,
-                llm_client=SafeGeminiClient(
-                    config=LLMConfig(api_key=api_key, model=self.llm_model)
-                ),
-                embedder=GeminiEmbedder(
-                    config=GeminiEmbedderConfig(
-                        api_key=api_key,
-                        embedding_model=self.embedding_model,
-                        embedding_dim=1536,
+                llm_client=OpenAIClient(
+                    config=LLMConfig(
+                        api_key=llm_config.get("api_key"),
+                        model=llm_config.get("model", self.llm_model),
+                        base_url=llm_config.get("base_url"),
                     )
                 ),
-                cross_encoder=GeminiRerankerClient(
-                    config=LLMConfig(api_key=api_key, model=self.reranker_model)
+                embedder=OpenAIEmbedder(
+                    config=OpenAIEmbedderConfig(
+                        api_key=embedding_config.get("api_key"),
+                        base_url=embedding_config.get("base_url"),
+                        embedding_model=embedding_config.get("model", self.embedding_model),
+                        embedding_dim=embedding_config.get("output_dimensionality", 1536),
+                    )
+                ),
+                cross_encoder=OpenAIRerankerClient(
+                    config=LLMConfig(
+                        api_key=llm_config.get("api_key"),
+                        model=llm_config.get("model", self.reranker_model),
+                        base_url=llm_config.get("base_url"),
+                    )
                 ),
                 max_coroutines=50,
             )
