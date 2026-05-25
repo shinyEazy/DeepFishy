@@ -7,9 +7,9 @@ from datetime import datetime, timezone
 from langchain_core.tools import tool
 from langchain_core.documents import Document
 
-from core.logging import logger
+from deepfishy.shared.logging import logger
 
-from services.rag import SearchResult
+from deepfishy.features.knowledge_graph.rag import SearchResult
 
 
 def _get_graphiti():

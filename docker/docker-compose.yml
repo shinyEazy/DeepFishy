@@ -36,111 +36,93 @@ services:
     networks:
       - deepfishy
 
-  celery_worker:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    container_name: celery_worker
-    command: celery -A celery_app worker --loglevel=info --concurrency=2 -Q crawler,ingestion,celery
-    environment:
-      - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app
-    env_file:
-      - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-      milvus:
-        condition: service_healthy
-    volumes:
-      - ../api:/app/api
-      - ../core:/app/core
-      - ../db:/app/db
-      - ../engine:/app/engine
-      - ../ingestion:/app/ingestion
-      - ../services:/app/services
-      - ../utils:/app/utils
-      - ../worker:/app/worker
-      - ../configs:/app/configs
-      - ../main.py:/app/main.py
-      - ../celery_app.py:/app/celery_app.py
-      - ../outputs:/app/outputs
-    networks:
-      - deepfishy
+  # celery_worker:
+  #   build:
+  #     context: ..
+  #     dockerfile: docker/Dockerfile
+  #   container_name: celery_worker
+  #   command: celery -A deepfishy.app.workers.celery_app:celery_app worker --loglevel=info --concurrency=2 -Q crawler,ingestion,celery
+  #   environment:
+  #     - PYTHONUNBUFFERED=1
+  #     - PYTHONPATH=/app
+  #   env_file:
+  #     - .env
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     minio:
+  #       condition: service_healthy
+  #     milvus:
+  #       condition: service_healthy
+  #   volumes:
+  #     - ../db:/app/db
+  #     - ../engine:/app/engine
+  #     - ../ingestion:/app/ingestion
+  #     - ../configs:/app/configs
+  #     - ../outputs:/app/outputs
+  #   networks:
+  #     - deepfishy
 
-  celery_beat:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    container_name: celery_beat
-    command: celery -A celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
-    environment:
-      - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app
-    env_file:
-      - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-      milvus:
-        condition: service_healthy
-    volumes:
-      - ../api:/app/api
-      - ../core:/app/core
-      - ../db:/app/db
-      - ../engine:/app/engine
-      - ../ingestion:/app/ingestion
-      - ../services:/app/services
-      - ../utils:/app/utils
-      - ../worker:/app/worker
-      - ../configs:/app/configs
-      - ../main.py:/app/main.py
-      - ../celery_app.py:/app/celery_app.py
-    networks:
-      - deepfishy
+  # celery_beat:
+  #   build:
+  #     context: ..
+  #     dockerfile: docker/Dockerfile
+  #   container_name: celery_beat
+  #   command: celery -A deepfishy.app.workers.celery_app:celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
+  #   environment:
+  #     - PYTHONUNBUFFERED=1
+  #     - PYTHONPATH=/app
+  #   env_file:
+  #     - .env
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     minio:
+  #       condition: service_healthy
+  #     milvus:
+  #       condition: service_healthy
+  #   volumes:
+  #     - ../db:/app/db
+  #     - ../engine:/app/engine
+  #     - ../ingestion:/app/ingestion
+  #     - ../configs:/app/configs
+  #   networks:
+  #     - deepfishy
 
   server:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: server
-    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: python -m uvicorn deepfishy.app.api.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
       - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcp-service-account.json
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
       - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-us-central1}
-      - RESPONSE_MODEL=${RESPONSE_MODEL:-gemini-3.1-flash-lite-preview}
+      - RESPONSE_MODEL=${RESPONSE_MODEL:-xiaomi-mimo-v2.5}
     env_file:
       - .env
     ports:
       - "1214:8000"
     volumes:
-      - ../api:/app/api
-      - ../core:/app/core
+      - ../deepfishy:/app/deepfishy
+      - ../scripts:/app/scripts
       - ../db:/app/db
       - ../engine:/app/engine
       - ../ingestion:/app/ingestion
-      - ../services:/app/services
-      - ../utils:/app/utils
-      - ../worker:/app/worker
       - ../configs:/app/configs
-      - ../main.py:/app/main.py
-      - ../celery_app.py:/app/celery_app.py
       - ../graph_rag:/app/graph_rag
       - ../embedding:/app/embedding
       - ../outputs:/app/outputs
       - ../benchmark:/app/benchmark
       - ../templates:/app/templates
+      - ../logs:/app/logs
       - ${GOOGLE_APPLICATION_CREDENTIALS_FILE}:/run/secrets/gcp-service-account.json:ro
     networks:
       - deepfishy
@@ -280,17 +262,10 @@ services:
   #     milvus:
   #       condition: service_healthy
   #   volumes:
-  #     - ../api:/app/api
-  #     - ../core:/app/core
   #     - ../db:/app/db
   #     - ../engine:/app/engine
   #     - ../ingestion:/app/ingestion
-  #     - ../services:/app/services
-  #     - ../utils:/app/utils
-  #     - ../worker:/app/worker
   #     - ../configs:/app/configs
-  #     - ../main.py:/app/main.py
-  #     - ../celery_app.py:/app/celery_app.py
   #     - ../outputs:/app/outputs
   #   networks:
   #     - deepfishy

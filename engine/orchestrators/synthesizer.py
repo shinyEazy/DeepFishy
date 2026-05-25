@@ -7,8 +7,8 @@ from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from deepagents.middleware.subagents import CompiledSubAgent
 
-from core.logging import logger
-from utils.load_agents import load_agents
+from deepfishy.shared.logging import logger
+from deepfishy.shared.agents import load_agents
 from engine.prompts.synthesizer_orchestrator_prompt import (
     SYNTHESIZER_ORCHESTRATOR_SYSTEM_PROMPT,
 )

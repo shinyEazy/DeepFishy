@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
-from core.logging import logger
+from deepfishy.shared.logging import logger
 from .base import BaseSpider
 
 

@@ -49,4 +49,4 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Default command 
 # (No need for 'python -m' if uvicorn is in the .venv/bin/ which is now in PATH)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "deepfishy.app.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

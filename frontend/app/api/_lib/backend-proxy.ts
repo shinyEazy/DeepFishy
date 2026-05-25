@@ -30,15 +30,25 @@ export async function proxyBackendRequest({
         body,
         cache: "no-store",
       })
-      const contentType = response.headers.get("Content-Type") ?? "application/json"
+      const contentType =
+        response.headers.get("Content-Type") ?? "application/json"
 
-      if (contentType.includes("text/event-stream")) {
+      if (
+        contentType.includes("text/event-stream") ||
+        contentType.includes("application/pdf") ||
+        contentType.startsWith("image/") ||
+        contentType.includes("application/octet-stream")
+      ) {
         return new NextResponse(response.body, {
           status: response.status,
           headers: {
             "Content-Type": contentType,
-            "Cache-Control": "no-cache",
-            Connection: "keep-alive",
+            ...(contentType.includes("text/event-stream")
+              ? {
+                  "Cache-Control": "no-cache",
+                  Connection: "keep-alive",
+                }
+              : {}),
           },
         })
       }

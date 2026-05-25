@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional, Literal, List
 
 from langchain_core.tools import tool
 
-from core.logging import logger
+from deepfishy.shared.logging import logger
 
 
 def _get_graphiti():
@@ -31,9 +31,9 @@ def _load_article_metadata(urls: List[str]) -> Dict[str, Dict[str, Any]]:
 
     try:
         from db.models.article import Article
-        from db.session import SessionLocal
+        from deepfishy.infra.db.session import create_session
 
-        db = SessionLocal()
+        db = create_session()
     except Exception as e:
         logger.warning(f"Article metadata unavailable: {e}")
         return {}

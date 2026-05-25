@@ -3,12 +3,12 @@
 from typing import Optional, List, Dict, Any
 from langchain_core.tools import tool
 
-from core.logging import logger
+from deepfishy.shared.logging import logger
 
 
 def _get_rag_service():
     """Lazy import to avoid circular imports and side effects on module load."""
-    from services.rag import get_rag_service
+    from deepfishy.features.knowledge_graph.rag import get_rag_service
 
     return get_rag_service()
 

@@ -1,6 +1,5 @@
-"""SQLAlchemy base and declarative setup."""
+"""Compatibility shim for the SQLAlchemy base."""
 
-from sqlalchemy.orm import declarative_base
+from deepfishy.infra.db.base import Base
 
-# Create declarative base for all models
-Base = declarative_base()
+__all__ = ["Base"]

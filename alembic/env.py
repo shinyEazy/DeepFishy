@@ -11,7 +11,7 @@ from alembic import context
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 # Import app configuration and models
-from core.config import settings
+from deepfishy.infra.config.settings import settings
 from db.base import Base
 
 # this is the Alembic Config object, which provides

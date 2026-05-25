@@ -1,0 +1,148 @@
+"use client"
+
+import { useCallback, useState } from "react"
+
+import { streamReportGeneration } from "@/features/report/api/reports"
+import type {
+  ResearchActivity,
+  ReportGenerationState,
+  ReportPhase,
+  ReportRequest,
+} from "@/features/report/types"
+
+function appendActivity(
+  activities: ResearchActivity[],
+  activity: ResearchActivity
+) {
+  if (activities.some((item) => item.id === activity.id)) {
+    return activities
+  }
+  return [...activities, activity]
+}
+
+const initialState: ReportGenerationState = {
+  status: "idle",
+  sessionId: null,
+  topic: "",
+  phases: [],
+  phases_completed: [],
+  currentPhase: null,
+  currentStage: null,
+  outputFiles: [],
+  activities: [],
+  error: null,
+  message: null,
+}
+
+export function useReportGeneration() {
+  const [state, setState] = useState<ReportGenerationState>(initialState)
+
+  const generate = useCallback(async (request: ReportRequest) => {
+    const phases: ReportPhase[] = request.phase
+      ? [request.phase]
+      : ["build", "write"]
+
+    setState({
+      status: "started",
+      sessionId: request.session_id ?? null,
+      topic: request.topic,
+      phases,
+      phases_completed: [],
+      currentPhase: phases[0],
+      currentStage: null,
+      outputFiles: [],
+      activities: [],
+      error: null,
+      message: "Đang bắt đầu tạo báo cáo...",
+    })
+
+    try {
+      await streamReportGeneration(request, {
+        onStarted: (sessionId, startedPhases) => {
+          setState((prev) => ({
+            ...prev,
+            sessionId,
+            status: "in_progress",
+            phases: startedPhases,
+            currentPhase: startedPhases[0],
+            message: `Đang chạy giai đoạn ${startedPhases[0]}...`,
+          }))
+        },
+        onProgress: (event, serverActivity) => {
+          setState((prev) => {
+            const timestamp = Date.now()
+            const activity = serverActivity ?? {
+              id: `activity-${timestamp}`,
+              type: (event.type as ResearchActivity["type"]) ?? "info",
+              message: event.message,
+              timestamp,
+              stage: event.stage,
+              phase: event.phase,
+              query: event.query,
+              results: event.results,
+              ticker: event.ticker,
+              count: event.count,
+              section: event.section,
+              filename: event.filename,
+            }
+
+            return {
+              ...prev,
+              currentStage: event.stage,
+              activities: appendActivity(prev.activities, activity),
+              message: event.message,
+            }
+          })
+        },
+        onCompleted: (sessionId, outputFiles, message) => {
+          setState((prev) => ({
+            ...prev,
+            sessionId,
+            status: "completed",
+            currentPhase: null,
+            currentStage: null,
+            phases_completed: prev.phases,
+            outputFiles,
+            message,
+          }))
+        },
+        onError: (sessionId, error, message) => {
+          setState((prev) => ({
+            ...prev,
+            sessionId,
+            status: "failed",
+            currentPhase: null,
+            currentStage: null,
+            error,
+            message,
+          }))
+        },
+      })
+    } catch (error) {
+      setState((prev) => ({
+        ...prev,
+        status: "failed",
+        currentPhase: null,
+        currentStage: null,
+        error: error instanceof Error ? error.message : "Unknown error",
+        message: "Tạo báo cáo thất bại",
+      }))
+    }
+  }, [])
+
+  const reset = useCallback(() => {
+    setState(initialState)
+  }, [])
+
+  const viewReport = useCallback((sessionId: string) => {
+    window.open(`/reports/${sessionId}`, "_blank")
+  }, [])
+
+  return {
+    state,
+    generate,
+    reset,
+    viewReport,
+    isGenerating: state.status === "started" || state.status === "in_progress",
+  }
+}
