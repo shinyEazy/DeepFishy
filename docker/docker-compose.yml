@@ -36,62 +36,62 @@ services:
     networks:
       - deepfishy
 
-  # celery_worker:
-  #   build:
-  #     context: ..
-  #     dockerfile: docker/Dockerfile
-  #   container_name: celery_worker
-  #   command: celery -A deepfishy.app.workers.celery_app:celery_app worker --loglevel=info --concurrency=2 -Q crawler,ingestion,celery
-  #   environment:
-  #     - PYTHONUNBUFFERED=1
-  #     - PYTHONPATH=/app
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     minio:
-  #       condition: service_healthy
-  #     milvus:
-  #       condition: service_healthy
-  #   volumes:
-  #     - ../db:/app/db
-  #     - ../engine:/app/engine
-  #     - ../ingestion:/app/ingestion
-  #     - ../configs:/app/configs
-  #     - ../outputs:/app/outputs
-  #   networks:
-  #     - deepfishy
+  celery_worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: celery_worker
+    command: celery -A deepfishy.app.workers.celery_app:celery_app worker --loglevel=info --concurrency=2 -Q crawler,ingestion,celery
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+    volumes:
+      - ../db:/app/db
+      - ../engine:/app/engine
+      - ../ingestion:/app/ingestion
+      - ../configs:/app/configs
+      - ../outputs:/app/outputs
+    networks:
+      - deepfishy
 
-  # celery_beat:
-  #   build:
-  #     context: ..
-  #     dockerfile: docker/Dockerfile
-  #   container_name: celery_beat
-  #   command: celery -A deepfishy.app.workers.celery_app:celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
-  #   environment:
-  #     - PYTHONUNBUFFERED=1
-  #     - PYTHONPATH=/app
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     minio:
-  #       condition: service_healthy
-  #     milvus:
-  #       condition: service_healthy
-  #   volumes:
-  #     - ../db:/app/db
-  #     - ../engine:/app/engine
-  #     - ../ingestion:/app/ingestion
-  #     - ../configs:/app/configs
-  #   networks:
-  #     - deepfishy
+  celery_beat:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: celery_beat
+    command: celery -A deepfishy.app.workers.celery_app:celery_app beat --loglevel=info --scheduler celery.beat:PersistentScheduler
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+    volumes:
+      - ../db:/app/db
+      - ../engine:/app/engine
+      - ../ingestion:/app/ingestion
+      - ../configs:/app/configs
+    networks:
+      - deepfishy
 
   server:
     build:
@@ -237,38 +237,6 @@ services:
       start_period: 30s
     networks:
       - deepfishy
-
-  # langgraph_studio:
-  #   build:
-  #     context: ..
-  #     dockerfile: docker/Dockerfile
-  #   container_name: langgraph_studio
-  #   working_dir: /app/engine
-  #   command: langgraph dev --host 0.0.0.0 --port 2024 --allow-blocking --no-browser
-  #   environment:
-  #     - PYTHONUNBUFFERED=1
-  #     - PYTHONPATH=/app
-  #   env_file:
-  #     - .env
-  #   ports:
-  #     - "2024:2024"
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     minio:
-  #       condition: service_healthy
-  #     milvus:
-  #       condition: service_healthy
-  #   volumes:
-  #     - ../db:/app/db
-  #     - ../engine:/app/engine
-  #     - ../ingestion:/app/ingestion
-  #     - ../configs:/app/configs
-  #     - ../outputs:/app/outputs
-  #   networks:
-  #     - deepfishy
 
 volumes:
   postgres_data:

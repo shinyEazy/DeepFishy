@@ -27,8 +27,6 @@ from graph_rag.entity_types import ENTITY_TYPES, EDGE_TYPES, EDGE_TYPE_MAP
 load_dotenv()
 
 
-
-
 class GraphitiService:
     """
     Session-based Graphiti wrapper for temporal knowledge graphs.
@@ -90,11 +88,15 @@ class GraphitiService:
         try:
             llm_config = get_llm_config(self.llm_model)
             if not llm_config:
-                raise ValueError(f"LLM model '{self.llm_model}' not found in config.yaml")
+                raise ValueError(
+                    f"LLM model '{self.llm_model}' not found in config.yaml"
+                )
 
             embedding_config = get_embedding_config(self.embedding_model)
             if not embedding_config:
-                raise ValueError(f"Embedding model '{self.embedding_model}' not found in config.yaml")
+                raise ValueError(
+                    f"Embedding model '{self.embedding_model}' not found in config.yaml"
+                )
 
             self.graphiti = Graphiti(
                 self.neo4j_uri,
@@ -111,8 +113,12 @@ class GraphitiService:
                     config=OpenAIEmbedderConfig(
                         api_key=embedding_config.get("api_key"),
                         base_url=embedding_config.get("base_url"),
-                        embedding_model=embedding_config.get("model", self.embedding_model),
-                        embedding_dim=embedding_config.get("output_dimensionality", 1536),
+                        embedding_model=embedding_config.get(
+                            "model", self.embedding_model
+                        ),
+                        embedding_dim=embedding_config.get(
+                            "output_dimensionality", 1536
+                        ),
                     )
                 ),
                 cross_encoder=OpenAIRerankerClient(

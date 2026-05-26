@@ -414,6 +414,21 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+if __name__ == "__main__":
+    parser = build_parser()
+    args = parser.parse_args()
+
+    phases = None
+    if args.phase:
+        phases = [args.phase]
+
+    run_engine(
+        user_input=args.topic or DEFAULT_TOPIC,
+        session_id=args.session,
+        phases=phases,
+    )
+
+
 __all__ = [
     "DEFAULT_TOPIC",
     "build_parser",
